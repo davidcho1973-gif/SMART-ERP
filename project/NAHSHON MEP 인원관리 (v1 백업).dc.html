@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Sans KR', sans-serif; background: #EDECE7; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #C9C6BD; border-radius: 6px; border: 2px solid #EDECE7; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input, button, select { font-family: inherit; }
+  @keyframes ncfade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes ncscan { 0% { top: 4%; } 100% { top: 92%; } }
+  @keyframes ncpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @keyframes ncspin { to { transform: rotate(360deg); } }
+  @keyframes nctoast { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes ncring { from { stroke-dashoffset: var(--dash); } }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: linear-gradient(180deg,#EDECE7,#E6E4DD); color: #16181D;">
+
+  <!-- ===== DEMO CONTROL BAR ===== -->
+  <div style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: rgba(22,24,29,0.96); color: #fff; backdrop-filter: blur(8px); flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: 0.02em;">
+      <span style="display: inline-flex; width: 26px; height: 26px; border-radius: 7px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 15px; font-weight: 700;">N</span>
+      <span style="font-family: 'Space Grotesk'; font-size: 15px;">NAHSHON MEP</span>
+      <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">{{ L.tagline }}</span>
+    </div>
+    <div style="flex: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span style="font-size: 11px; opacity: 0.55; margin-right: 2px;">{{ L.roleSwitch }}</span>
+      <button onClick="{{ setRoleAdmin }}" style="{{ tabAdmin }}">{{ L.roleAdmin }}</button>
+      <button onClick="{{ setRoleManager }}" style="{{ tabManager }}">{{ L.roleManager }}</button>
+      <button onClick="{{ setRoleWorker }}" style="{{ tabWorker }}">{{ L.roleWorker }}</button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 4px; border-left: 1px solid rgba(255,255,255,0.15); padding-left: 12px;">
+      <button onClick="{{ setKo }}" style="{{ langKo }}">KO</button>
+      <button onClick="{{ setEn }}" style="{{ langEn }}">EN</button>
+    </div>
+  </div>
+
+  <!-- ===== LOGIN ===== -->
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+    <div style="min-height: calc(100vh - 44px); display: grid; grid-template-columns: 1.1fr 0.9fr;">
+      <div style="position: relative; background: #16181D; color: #fff; padding: 56px 60px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+        <div style="position: absolute; inset: 0; background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 22px 22px;"></div>
+        <div style="position: absolute; right: -80px; top: -60px; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(232,93,42,0.35), transparent 65%);"></div>
+        <div style="position: relative; display: flex; align-items: center; gap: 11px;">
+          <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 10px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 22px; font-weight: 700;">N</span>
+          <span style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700;">NAHSHON MEP</span>
+        </div>
+        <div style="position: relative;">
+          <div style="font-size: 13px; letter-spacing: 0.28em; color: #E85D2A; font-weight: 600; margin-bottom: 18px;">{{ L.loginKicker }}</div>
+          <h1 style="font-family: 'Space Grotesk'; font-size: 46px; line-height: 1.08; font-weight: 700; letter-spacing: -0.02em;">{{ L.loginTitle }}</h1>
+          <p style="margin-top: 20px; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.62); max-width: 400px;">{{ L.loginSub }}</p>
+          <div style="display: flex; gap: 30px; margin-top: 40px;">
+            <div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; color: #E85D2A;">{{ stat_total }}</div><div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px;">{{ L.total }}</div></div>
+            <div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700;">5</div><div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px;">{{ L.teamsWord }}</div></div>
+            <div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700;">7</div><div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px;">{{ L.nationsWord }}</div></div>
+          </div>
+        </div>
+        <div style="position: relative; font-size: 12px; color: rgba(255,255,255,0.4);">© 2026 NAHSHON MEP · Mechanical · Electrical · Plumbing</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; justify-content: center; padding: 56px 60px; background: #fff;">
+        <div style="max-width: 380px; width: 100%; margin: 0 auto;">
+          <h2 style="font-family: 'Space Grotesk'; font-size: 27px; font-weight: 700;">{{ L.signInTitle }}</h2>
+          <p style="color: #6B6E76; margin-top: 8px; font-size: 14px; line-height: 1.6;">{{ L.signInSub }}</p>
+          <button onClick="{{ googleSignIn }}" style="margin-top: 30px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 11px; padding: 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 15px; font-weight: 600; color: #16181D; cursor: pointer;" style-hover="border-color:#16181D;background:#FAFAF8;">
+            <svg width="19" height="19" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.9 2.6 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.2 13.6 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.8-9.9 6.8-17.4z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.7c-2 1.4-4.7 2.3-8.6 2.3-6.4 0-11.8-4.1-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+            {{ L.googleBtn }}
+          </button>
+          <div style="display: flex; align-items: center; gap: 12px; margin: 24px 0; color: #A7A49B; font-size: 12px;"><span style="flex: 1; height: 1px; background: #E4E2DB;"></span>{{ L.orDemo }}<span style="flex: 1; height: 1px; background: #E4E2DB;"></span></div>
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <button onClick="{{ demoAdmin }}" style="display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border: 1px solid #E4E2DB; border-radius: 11px; background: #FAFAF8; cursor: pointer; text-align: left;" style-hover="border-color:#E85D2A;">
+              <span><span style="font-weight: 600; font-size: 14px;">{{ L.roleAdmin }}</span><span style="display: block; font-size: 12px; color: #8A8880;">{{ L.adminDesc }}</span></span>
+              <span style="font-family: 'Space Grotesk'; color: #E85D2A;">→</span>
+            </button>
+            <button onClick="{{ demoManager }}" style="display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border: 1px solid #E4E2DB; border-radius: 11px; background: #FAFAF8; cursor: pointer; text-align: left;" style-hover="border-color:#E85D2A;">
+              <span><span style="font-weight: 600; font-size: 14px;">{{ L.roleManager }}</span><span style="display: block; font-size: 12px; color: #8A8880;">{{ L.managerDesc }}</span></span>
+              <span style="font-family: 'Space Grotesk'; color: #E85D2A;">→</span>
+            </button>
+            <button onClick="{{ demoWorker }}" style="display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border: 1px solid #E4E2DB; border-radius: 11px; background: #FAFAF8; cursor: pointer; text-align: left;" style-hover="border-color:#E85D2A;">
+              <span><span style="font-weight: 600; font-size: 14px;">{{ L.roleWorker }}</span><span style="display: block; font-size: 12px; color: #8A8880;">{{ L.workerDesc }}</span></span>
+              <span style="font-family: 'Space Grotesk'; color: #E85D2A;">→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== DESKTOP APP (admin / manager) ===== -->
+  <sc-if value="{{ isDesktopApp }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; min-height: calc(100vh - 44px);">
+      <!-- sidebar -->
+      <aside style="width: 236px; flex-shrink: 0; background: #16181D; color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px;">
+          <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 9px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700;">N</span>
+          <div><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px; line-height: 1;">NAHSHON</div><div style="font-size: 11px; color: rgba(255,255,255,0.45);">MEP Workforce</div></div>
+        </div>
+        <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="6">
+          <button onClick="{{ item.go }}" style="{{ item.style }}">
+            <span style="display: inline-flex; width: 20px; justify-content: center; flex-shrink: 0;" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+            <span style="white-space: nowrap;">{{ item.label }}</span>
+          </button>
+        </sc-for>
+        <div style="flex: 1;"></div>
+        <div style="padding: 12px 10px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: {{ meColor }}; color: #fff; align-items: center; justify-content: center; font-weight: 600; font-size: 13px;">{{ meInitials }}</span>
+          <div style="flex: 1; min-width: 0;"><div style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ meName }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.45);">{{ meRole }}</div></div>
+          <button onClick="{{ logout }}" title="logout" style="background: transparent; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 4px;" style-hover="color:#fff;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- main -->
+      <main style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 16px; padding: 16px 30px; border-bottom: 1px solid #E1DFD8; background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); position: sticky; top: 44px; z-index: 20;">
+          <div><h1 style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700;">{{ pageTitle }}</h1><div style="font-size: 12.5px; color: #8A8880;">{{ pageSub }}</div></div>
+          <div style="flex: 1;"></div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 7px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13px;">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: #1F9D6B;"></span>{{ today }}
+          </div>
+        </div>
+        <div style="flex: 1; padding: 26px 30px; overflow: auto;">
+          <!-- ============ DASHBOARD ============ -->
+          <sc-if value="{{ isDashboardScreen }}" hint-placeholder-val="">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <span style="font-size: 12.5px; color: #8A8880; font-weight: 600;">{{ L.d_layout }}</span>
+                <div style="display: inline-flex; gap: 2px; padding: 3px; background: #EAE8E1; border-radius: 10px;">
+                  <button onClick="{{ setDashA }}" style="{{ layStyleA }}">A</button>
+                  <button onClick="{{ setDashB }}" style="{{ layStyleB }}">B</button>
+                  <button onClick="{{ setDashC }}" style="{{ layStyleC }}">C</button>
+                </div>
+              </div>
+
+              <!-- LAYOUT A : classic KPI row + team table + activity -->
+              <sc-if value="{{ isDashA }}" hint-placeholder-val="">
+                <div>
+                  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                    <div style="background: #16181D; color: #fff; border-radius: 16px; padding: 20px;">
+                      <div style="font-size: 12.5px; color: rgba(255,255,255,0.6);">{{ L.d_onsite }}</div>
+                      <div style="font-family: 'Space Grotesk'; font-size: 40px; font-weight: 700; margin-top: 6px; line-height: 1;">{{ onsite }}<span style="font-size: 18px; color: rgba(255,255,255,0.4);"> / {{ totalActive }}</span></div>
+                      <div style="display: flex; align-items: center; gap: 6px; margin-top: 12px;"><span style="flex: 1; height: 6px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ rate }}%; background: #E85D2A; border-radius: 4px;"></span></span><span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600;">{{ rate }}%</span></div>
+                    </div>
+                    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 20px;">
+                      <div style="font-size: 12.5px; color: #8A8880;">{{ L.d_present }} · {{ L.d_late }}</div>
+                      <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 8px;"><span style="font-family: 'Space Grotesk'; font-size: 34px; font-weight: 700; color: #1F9D6B;">{{ cnt.present }}</span><span style="font-family: 'Space Grotesk'; font-size: 34px; font-weight: 700; color: #E8A33D;">{{ cnt.late }}</span></div>
+                      <div style="font-size: 11.5px; color: #A7A49B; margin-top: 6px;">{{ L.d_present }} / {{ L.d_late }}</div>
+                    </div>
+                    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 20px;">
+                      <div style="font-size: 12.5px; color: #8A8880;">{{ L.d_payroll }}</div>
+                      <div style="font-family: 'Space Grotesk'; font-size: 26px; font-weight: 700; margin-top: 8px;">{{ monthPay }}</div>
+                      <div style="font-size: 11.5px; color: #A7A49B; margin-top: 6px;">{{ L.today }}</div>
+                    </div>
+                    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 20px;">
+                      <div style="font-size: 12.5px; color: #8A8880;">{{ L.d_avgh }}</div>
+                      <div style="font-family: 'Space Grotesk'; font-size: 34px; font-weight: 700; margin-top: 8px;">{{ avgH }}<span style="font-size: 16px; color: #A7A49B;">h</span></div>
+                      <div style="font-size: 11.5px; color: #A7A49B; margin-top: 6px;">{{ L.d_avgh }} / mo</div>
+                    </div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-top: 16px;">
+                    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
+                      <div style="font-weight: 600; font-size: 15px; margin-bottom: 16px;">{{ L.d_byteam }}</div>
+                      <sc-for list="{{ teamStats }}" as="tm" hint-placeholder-count="5">
+                        <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid #F0EEE8;">
+                          <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ tm.color }};"></span>
+                          <span style="width: 120px; font-size: 13.5px; font-weight: 500;">{{ tm.ko }}</span>
+                          <span style="flex: 1; height: 8px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ tm.pct }}%; background: {{ tm.color }}; border-radius: 5px;"></span></span>
+                          <span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600; width: 52px; text-align: right;">{{ tm.present }}/{{ tm.total }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
+                      <div style="font-weight: 600; font-size: 15px; margin-bottom: 14px;">{{ L.d_recent }}</div>
+                      <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+                        <div style="display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid #F0EEE8;">
+                          <span style="width: 8px; height: 8px; border-radius: 50%; background: {{ r.c }}; flex-shrink: 0;"></span>
+                          <span style="flex: 1; font-size: 13px; color: #3A3D44;">{{ r.txt }}</span>
+                          <span style="font-family: 'Space Grotesk'; font-size: 11px; color: #A7A49B; background: #F4F3EF; padding: 2px 7px; border-radius: 6px;">{{ r.tag }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- LAYOUT B : big attendance ring focus -->
+              <sc-if value="{{ isDashB }}" hint-placeholder-val="">
+                <div style="display: grid; grid-template-columns: 340px 1fr; gap: 16px;">
+                  <div style="background: #16181D; color: #fff; border-radius: 18px; padding: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                    <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 18px;">{{ L.d_attendance }}</div>
+                    <div style="position: relative; width: 200px; height: 200px;">
+                      <svg width="200" height="200" viewBox="0 0 120 120" style="transform: rotate(-90deg);">
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="12"/>
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="#E85D2A" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="{{ ringDash }}"/>
+                      </svg>
+                      <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;"><span style="font-family: 'Space Grotesk'; font-size: 46px; font-weight: 700;">{{ rate }}<span style="font-size: 22px;">%</span></span><span style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ L.d_rate }}</span></div>
+                    </div>
+                    <div style="display: flex; gap: 22px; margin-top: 24px;">
+                      <div><div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; color: #4ADE80;">{{ cnt.present }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.5);">{{ L.d_present }}</div></div>
+                      <div><div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; color: #F4C168;">{{ cnt.late }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.5);">{{ L.d_late }}</div></div>
+                      <div><div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; color: #F87171;">{{ cnt.absent }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.5);">{{ L.d_absent }}</div></div>
+                      <div><div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.7);">{{ cnt.off }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.5);">{{ L.d_off }}</div></div>
+                    </div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                      <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px;"><div style="font-size: 12px; color: #8A8880;">{{ L.d_total }}</div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; margin-top: 4px;">{{ totalActive }}</div></div>
+                      <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px;"><div style="font-size: 12px; color: #8A8880;">{{ L.d_avgh }}</div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; margin-top: 4px;">{{ avgH }}h</div></div>
+                      <div style="background: #E85D2A; color: #fff; border-radius: 16px; padding: 18px;"><div style="font-size: 12px; opacity: 0.85;">{{ L.d_payroll }}</div><div style="font-family: 'Space Grotesk'; font-size: 21px; font-weight: 700; margin-top: 6px;">{{ monthPay }}</div></div>
+                    </div>
+                    <div style="flex: 1; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
+                      <div style="font-weight: 600; font-size: 15px; margin-bottom: 14px;">{{ L.d_byteam }}</div>
+                      <sc-for list="{{ teamStats }}" as="tm" hint-placeholder-count="5">
+                        <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border-bottom: 1px solid #F0EEE8;">
+                          <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ tm.color }};"></span>
+                          <span style="width: 120px; font-size: 13.5px; font-weight: 500;">{{ tm.ko }}</span>
+                          <span style="flex: 1; height: 8px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ tm.pct }}%; background: {{ tm.color }};"></span></span>
+                          <span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600; width: 52px; text-align: right;">{{ tm.present }}/{{ tm.total }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- LAYOUT C : dense bento grid -->
+              <sc-if value="{{ isDashC }}" hint-placeholder-val="">
+                <div style="display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 120px; gap: 14px;">
+                  <div style="grid-column: span 2; grid-row: span 2; background: #16181D; color: #fff; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 12.5px; color: rgba(255,255,255,0.6);">{{ L.d_onsite }}</div>
+                    <div><div style="font-family: 'Space Grotesk'; font-size: 52px; font-weight: 700; line-height: 1;">{{ onsite }}</div><div style="font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px;">/ {{ totalActive }} · {{ rate }}%</div></div>
+                    <div style="height: 6px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ rate }}%; background: #E85D2A;"></span></div>
+                  </div>
+                  <div style="grid-column: span 1; background: #E7F4EE; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; justify-content: center;"><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; color: #1F9D6B;">{{ cnt.present }}</div><div style="font-size: 11.5px; color: #4B7A66;">{{ L.d_present }}</div></div>
+                  <div style="grid-column: span 1; background: #FBF1DF; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; justify-content: center;"><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; color: #E8A33D;">{{ cnt.late }}</div><div style="font-size: 11.5px; color: #8A6A2E;">{{ L.d_late }}</div></div>
+                  <div style="grid-column: span 1; background: #FBE9E7; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; justify-content: center;"><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; color: #D9483B;">{{ cnt.absent }}</div><div style="font-size: 11.5px; color: #9B3A31;">{{ L.d_absent }}</div></div>
+                  <div style="grid-column: span 1; background: #EFEFEC; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; justify-content: center;"><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; color: #6B6E76;">{{ cnt.off }}</div><div style="font-size: 11.5px; color: #6B6E76;">{{ L.d_off }}</div></div>
+                  <div style="grid-column: span 2; background: #E85D2A; color: #fff; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; opacity: 0.85;">{{ L.d_payroll }}</div><div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; margin-top: 4px;">{{ monthPay }}</div></div>
+                  <div style="grid-column: span 2; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #8A8880;">{{ L.d_avgh }}</div><div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700;">{{ avgH }}h</div></div>
+                  <div style="grid-column: span 4; grid-row: span 2; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 20px; overflow: auto;">
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px;">{{ L.d_byteam }}</div>
+                    <sc-for list="{{ teamStats }}" as="tm" hint-placeholder-count="5">
+                      <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #F0EEE8;">
+                        <span style="width: 9px; height: 9px; border-radius: 3px; background: {{ tm.color }};"></span>
+                        <span style="width: 110px; font-size: 13px; font-weight: 500;">{{ tm.ko }}</span>
+                        <span style="flex: 1; height: 7px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ tm.pct }}%; background: {{ tm.color }};"></span></span>
+                        <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600; width: 46px; text-align: right;">{{ tm.present }}/{{ tm.total }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="grid-column: span 2; grid-row: span 2; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px; overflow: auto;">
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">{{ L.d_recent }}</div>
+                    <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+                      <div style="display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid #F0EEE8;">
+                        <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ r.c }}; flex-shrink: 0;"></span>
+                        <span style="flex: 1; font-size: 12px; color: #3A3D44; line-height: 1.35;">{{ r.txt }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <!-- ============ EMPLOYEES ============ -->
+          <sc-if value="{{ isEmployeesScreen }}" hint-placeholder-val="">
+            <div>
+              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px; background: #fff; border: 1px solid #E4E2DB; border-radius: 11px; padding: 10px 14px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A7A49B" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                  <input value="{{ searchVal }}" onInput="{{ onSearch }}" placeholder="{{ L.e_search }}" style="border: none; outline: none; flex: 1; font-size: 14px; background: transparent; color: #16181D;"/>
+                </div>
+                <button onClick="{{ addWorker }}" style="padding: 10px 18px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ L.e_add }}</button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap;">
+                <button onClick="{{ teamFilterAll }}" style="{{ allChipStyle }}">{{ L.e_all }}</button>
+                <sc-for list="{{ teamChips }}" as="c" hint-placeholder-count="5">
+                  <button onClick="{{ c.go }}" style="{{ c.style }}">{{ c.label }}</button>
+                </sc-for>
+              </div>
+              <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
+                <div style="display: grid; grid-template-columns: 2.2fr 1.3fr 1fr 1fr 1fr 0.9fr 1fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880;">
+                  <span>{{ L.e_name }}</span><span>{{ L.e_nation }}</span><span>{{ L.e_team }}</span><span>{{ L.e_trade }}</span><span>{{ L.e_visa }}</span><span>{{ L.e_status }}</span><span style="text-align: right;">{{ L.e_action }}</span>
+                </div>
+                <sc-for list="{{ empRows }}" as="e" hint-placeholder-count="8">
+                  <div onClick="{{ e.rowClick }}" style="display: grid; grid-template-columns: 2.2fr 1.3fr 1fr 1fr 1fr 0.9fr 1fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; cursor: pointer; font-size: 13.5px;" style-hover="background:#FAFAF8;">
+                    <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
+                      <span style="display: inline-flex; width: 36px; height: 36px; border-radius: 50%; background: {{ e.teamColor }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; font-family: 'Space Grotesk';">{{ e.initials }}</span>
+                      <span style="min-width: 0; overflow: hidden;"><span style="display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; min-width: 0;"><span style="overflow: hidden; text-overflow: ellipsis;">{{ e.name }}</span><sc-if value="{{ e.leadBadge }}" hint-placeholder-val="">​<span style="font-size: 10px; background: #FDF0EA; color: #E85D2A; padding: 1px 6px; border-radius: 5px; font-weight: 600; flex-shrink: 0;">{{ L.e_lead }}</span></sc-if></span><span style="display: block; font-size: 11.5px; color: #A7A49B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ e.sub }}</span></span>
+                    </span>
+                    <span style="color: #5A5D64;">{{ e.nation }} <span style="font-family: 'Space Grotesk'; font-size: 11px; color: #B7B4AB;">{{ e.code }}</span></span>
+                    <span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px;"><span style="width: 8px; height: 8px; border-radius: 3px; background: {{ e.teamColor }};"></span>{{ e.teamName }}</span></span>
+                    <span style="color: #5A5D64;">{{ e.tradeL }}</span>
+                    <span><span style="font-family: 'Space Grotesk'; font-size: 12px; background: #EFEFEC; padding: 3px 8px; border-radius: 6px; font-weight: 600;">{{ e.visa }}</span></span>
+                    <span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{ e.statusColor }}; background: {{ e.statusBg }}; padding: 4px 9px; border-radius: 7px;">{{ e.statusLabel }}</span></span>
+                    <span style="display: flex; gap: 6px; justify-content: flex-end;">
+                      <button onClick="{{ e.editClick }}" title="edit" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" style-hover="border-color:#3B72E0;color:#3B72E0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                      <button onClick="{{ e.delClick }}" title="delete" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" style-hover="border-color:#D9483B;color:#D9483B;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- employee detail drawer -->
+          <sc-if value="{{ sel }}" hint-placeholder-val="">
+            <div onClick="{{ closeDetail }}" style="position: fixed; inset: 0; z-index: 60; background: rgba(22,24,29,0.4); display: flex; justify-content: flex-end;">
+              <div style="width: 440px; max-width: 92vw; height: 100%; background: #fff; overflow: auto;" onClick="{{ stop }}">
+                <div style="padding: 28px 30px; background: {{ sel.teamColor }}; color: #fff; position: relative;">
+                  <button onClick="{{ closeDetail }}" style="position: absolute; top: 18px; right: 18px; width: 32px; height: 32px; border: none; border-radius: 9px; background: rgba(255,255,255,0.2); color: #fff; cursor: pointer; font-size: 18px;">×</button>
+                  <div style="display: flex; align-items: center; gap: 16px;">
+                    <span style="display: inline-flex; width: 62px; height: 62px; border-radius: 50%; background: rgba(255,255,255,0.25); align-items: center; justify-content: center; font-size: 22px; font-weight: 700; font-family: 'Space Grotesk';">{{ sel.initials }}</span>
+                    <div><div style="font-size: 22px; font-weight: 700;">{{ sel.name }}</div><div style="font-size: 13px; opacity: 0.85;">{{ sel.sub }} · {{ sel.nation }}</div></div>
+                  </div>
+                  <div style="display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 8px;">{{ sel.teamName }} · {{ sel.tradeL }}</div>
+                </div>
+                <div style="padding: 24px 30px;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px;">
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.e_status }}</div><div style="margin-top: 4px;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: {{ sel.statusColor }}; background: {{ sel.statusBg }}; padding: 4px 10px; border-radius: 8px;">{{ sel.statusLabel }} · {{ sel.inT }}</span></div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.e_wage }}</div><div style="font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; margin-top: 4px;">{{ sel.wageFmt }}</div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.e_visa }}</div><div style="font-size: 14px; margin-top: 4px;">{{ sel.visa }} · <span style="color: #D9483B;">{{ L.e_expiry }} {{ sel.visaExp }}</span></div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.r_passport }}</div><div style="font-family: 'Space Grotesk'; font-size: 13px; margin-top: 4px;">{{ sel.idNo }}</div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.e_contact }}</div><div style="font-size: 13.5px; margin-top: 4px;">{{ sel.phone }}</div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">Email</div><div style="font-size: 13px; margin-top: 4px; color: #3B72E0;">{{ sel.email }}</div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.e_hire }}</div><div style="font-size: 13.5px; margin-top: 4px;">{{ sel.hire }}</div></div>
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ L.p_days }} / {{ L.p_hours }}</div><div style="font-family: 'Space Grotesk'; font-size: 13.5px; margin-top: 4px;">{{ sel.md }}d · {{ sel.mh }}h</div></div>
+                  </div>
+                  <div style="display: flex; gap: 10px; margin-top: 26px;">
+                    <button onClick="{{ closeDetail }}" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ L.e_edit }}</button>
+                    <button onClick="{{ sel.delClick }}" style="padding: 12px 18px; border: 1px solid #FBE9E7; border-radius: 11px; background: #FBE9E7; color: #D9483B; font-size: 14px; font-weight: 600; cursor: pointer;">{{ L.e_del }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- delete confirm modal -->
+          <sc-if value="{{ delTarget }}" hint-placeholder-val="">
+            <div style="position: fixed; inset: 0; z-index: 70; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+              <div style="width: 360px; background: #fff; border-radius: 18px; padding: 28px; text-align: center;">
+                <div style="width: 52px; height: 52px; border-radius: 50%; background: #FBE9E7; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></div>
+                <div style="font-size: 16px; font-weight: 700;">{{ L.e_confirm }}</div>
+                <div style="font-size: 13.5px; color: #8A8880; margin-top: 6px;">{{ delTarget }}</div>
+                <div style="display: flex; gap: 10px; margin-top: 22px;">
+                  <button onClick="{{ cancelDelete }}" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ L.e_cancel }}</button>
+                  <button onClick="{{ confirmDelete }}" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #D9483B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ L.e_del }}</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <!-- ============ REGISTER / OCR ============ -->
+          <sc-if value="{{ isRegisterScreen }}" hint-placeholder-val="">
+            <div style="display: grid; grid-template-columns: 400px 1fr; gap: 22px; align-items: start;">
+              <!-- scan panel -->
+              <div style="background: #16181D; border-radius: 18px; padding: 24px; color: #fff;">
+                <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ L.r_scan }}</div>
+                <div style="font-size: 12.5px; color: rgba(255,255,255,0.55); margin-bottom: 18px;">{{ L.r_hint }}</div>
+                <div style="position: relative; aspect-ratio: 1.58; border-radius: 14px; overflow: hidden; background: linear-gradient(135deg,#2A2D34,#1C1E24); border: 1.5px dashed rgba(255,255,255,0.2);">
+                  <!-- fake ID card -->
+                  <div style="position: absolute; inset: 14px; border-radius: 10px; background: linear-gradient(135deg,#3A4550,#28313A); padding: 14px; display: flex; gap: 12px; opacity: 0.9;">
+                    <div style="width: 58px; height: 72px; border-radius: 6px; background: rgba(255,255,255,0.12); flex-shrink: 0; display: flex; align-items: center; justify-content: center;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"><circle cx="12" cy="9" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 7px; padding-top: 4px;">
+                      <div style="font-size: 8px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em;">RESIDENCE CARD · 외국인등록증</div>
+                      <div style="height: 8px; width: 70%; background: rgba(255,255,255,0.22); border-radius: 3px;"></div>
+                      <div style="height: 6px; width: 90%; background: rgba(255,255,255,0.12); border-radius: 3px;"></div>
+                      <div style="height: 6px; width: 55%; background: rgba(255,255,255,0.12); border-radius: 3px;"></div>
+                      <div style="height: 6px; width: 80%; background: rgba(255,255,255,0.12); border-radius: 3px;"></div>
+                    </div>
+                  </div>
+                  <sc-if value="{{ scanRun }}" hint-placeholder-val="">
+                    <div style="position: absolute; left: 5%; right: 5%; height: 3px; background: linear-gradient(90deg,transparent,#E85D2A,transparent); box-shadow: 0 0 14px 4px rgba(232,93,42,0.6); animation: ncscan 1.3s ease-in-out infinite alternate;"></div>
+                    <div style="position: absolute; inset: 0; background: rgba(232,93,42,0.06);"></div>
+                  </sc-if>
+                  <sc-if value="{{ scanDone }}" hint-placeholder-val="">
+                    <div style="position: absolute; inset: 0; background: rgba(31,157,107,0.15); display: flex; align-items: center; justify-content: center;"><span style="width: 54px; height: 54px; border-radius: 50%; background: #1F9D6B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 28px;">✓</span></div>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ scanIdle }}" hint-placeholder-val="">
+                  <button onClick="{{ startScan }}" style="width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>{{ L.r_start }}</button>
+                </sc-if>
+                <sc-if value="{{ scanRun }}" hint-placeholder-val="">
+                  <div style="margin-top: 18px; padding: 14px; border-radius: 12px; background: rgba(232,93,42,0.12); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600;"><span style="width: 16px; height: 16px; border: 2px solid rgba(232,93,42,0.3); border-top-color: #E85D2A; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span>{{ L.r_scanning }}</div>
+                </sc-if>
+                <sc-if value="{{ scanDone }}" hint-placeholder-val="">
+                  <div style="margin-top: 18px; display: flex; gap: 10px; align-items: center;"><span style="flex: 1; padding: 12px; border-radius: 11px; background: rgba(31,157,107,0.15); color: #4ADE80; font-size: 13.5px; font-weight: 600; text-align: center;">✓ {{ L.r_done }}</span><button onClick="{{ rescan }}" style="padding: 12px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 11px; background: transparent; color: #fff; font-size: 13px; cursor: pointer;">{{ L.r_rescan }}</button></div>
+                </sc-if>
+              </div>
+              <!-- form -->
+              <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 26px;">
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #E85D2A; margin-bottom: 14px;">{{ L.r_auto }}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_name }}</span><input value="{{ ocrName }}" readOnly="{{ true }}" style="{{ ocrFieldStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_nation }}</span><input value="{{ ocrNation }}" readOnly="{{ true }}" style="{{ ocrFieldStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_passport }}</span><input value="{{ ocrId }}" readOnly="{{ true }}" style="{{ ocrFieldStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_visa }} · {{ L.r_field_exp }}</span><input value="{{ ocrVisa }}" readOnly="{{ true }}" style="{{ ocrFieldStyle }}"/></label>
+                </div>
+                <div style="height: 1px; background: #F0EEE8; margin: 22px 0;"></div>
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #8A8880; margin-bottom: 14px;">{{ L.r_manual }}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_team }}</span><div style="margin-top: 5px; display: flex; gap: 6px; flex-wrap: wrap;"><sc-for list="{{ teamChips }}" as="c" hint-placeholder-count="5"><span style="font-size: 11.5px; padding: 5px 10px; border-radius: 8px; border: 1px solid #E4E2DB; background: #FAFAF8;"><span style="display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: {{ c.color }}; margin-right: 5px;"></span>{{ c.label }}</span></sc-for></div></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_trade }}</span><input placeholder="전기공 / Electrician" style="{{ inputStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_wage }}</span><input placeholder="190,000" style="{{ inputStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_hire }}</span><input placeholder="2026-07-01" style="{{ inputStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_phone }}</span><input placeholder="010-0000-0000" style="{{ inputStyle }}"/></label>
+                  <label style="display: block;"><span style="font-size: 12px; color: #8A8880;">{{ L.r_field_email }}</span><input placeholder="name@nahshon.io" style="{{ inputStyle }}"/></label>
+                </div>
+                <button onClick="{{ saveWorker }}" style="width: 100%; margin-top: 24px; padding: 15px; border: none; border-radius: 12px; background: {{ saveBtnBg }}; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;">{{ L.r_save }}</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ============ ATTENDANCE / QR ============ -->
+          <sc-if value="{{ isAttendanceScreen }}" hint-placeholder-val="">
+            <div>
+              <div style="display: flex; gap: 14px; margin-bottom: 20px;">
+                <button onClick="{{ setQrReader }}" style="{{ qrModeStyleR }}"><div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #FDF0EA; display: inline-flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg></span><div><div style="font-size: 14px; font-weight: 600;">{{ L.q_reader }}</div></div></div><div style="font-size: 12px; color: #8A8880; margin-top: 8px; line-height: 1.4;">{{ L.q_readerd }}</div></button>
+                <button onClick="{{ setQrSite }}" style="{{ qrModeStyleS }}"><div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #E9F1FB; display: inline-flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg></span><div><div style="font-size: 14px; font-weight: 600;">{{ L.q_site }}</div></div></div><div style="font-size: 12px; color: #8A8880; margin-top: 8px; line-height: 1.4;">{{ L.q_sited }}</div></button>
+                <button onClick="{{ setQrManual }}" style="{{ qrModeStyleM }}"><div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #E7F4EE; display: inline-flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F9D6B" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span><div><div style="font-size: 14px; font-weight: 600;">{{ L.q_manual }}</div></div></div><div style="font-size: 12px; color: #8A8880; margin-top: 8px; line-height: 1.4;">{{ L.q_manuald }}</div></button>
+              </div>
+
+              <sc-if value="{{ qrManual }}" hint-placeholder-val="">
+                <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
+                  <sc-for list="{{ qrManualRows }}" as="e" hint-placeholder-count="8">
+                    <div style="display: flex; align-items: center; gap: 14px; padding: 13px 20px; border-bottom: 1px solid #F2F0EA;">
+                      <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: {{ e.teamColor }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; font-family: 'Space Grotesk';">{{ e.initials }}</span>
+                      <span style="flex: 1;"><span style="font-weight: 600; font-size: 14px;">{{ e.name }}</span><span style="display: block; font-size: 12px; color: #A7A49B;">{{ e.teamName }} · {{ e.tradeL }}</span></span>
+                      <span style="font-size: 12px; font-weight: 600; color: {{ e.statusColor }}; background: {{ e.statusBg }}; padding: 4px 9px; border-radius: 7px;">{{ e.statusLabel }} {{ e.inT }}</span>
+                      <button onClick="{{ e.toggleIn }}" style="padding: 7px 14px; border: none; border-radius: 8px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ L.q_in }}</button>
+                      <button onClick="{{ e.toggleOut }}" style="padding: 7px 14px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #5A5D64; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ L.q_out }}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ qrScanMode }}" hint-placeholder-val="">
+                <div style="display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start;">
+                  <div style="background: #16181D; border-radius: 18px; padding: 28px; color: #fff; text-align: center;">
+                    <sc-if value="{{ qrReader }}" hint-placeholder-val=""><div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">{{ L.q_sitecode }}</div><div style="font-size: 12px; color: #E85D2A; margin-bottom: 18px;">{{ L.q_point }}</div></sc-if>
+                    <sc-if value="{{ qrSite }}" hint-placeholder-val=""><div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">{{ L.q_sitecode }}</div><div style="font-size: 12px; color: #3B72E0; margin-bottom: 18px;">{{ L.q_point }}</div></sc-if>
+                    <div style="width: 210px; height: 210px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 16px; display: flex; align-items: center; justify-content: center;" dangerouslySetInnerHTML="{{ qrSvg }}"></div>
+                    <div style="margin-top: 18px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; background: rgba(255,255,255,0.08); padding: 8px 16px; border-radius: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #4ADE80; animation: ncpulse 1.4s ease-in-out infinite;"></span>{{ L.q_feed }}</div>
+                  </div>
+                  <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 22px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><span style="font-weight: 600; font-size: 15px;">{{ L.q_today }}</span><span style="font-size: 13px; color: #1F9D6B; font-weight: 600;">{{ L.q_present }} {{ qrCheckins }}</span></div>
+                    <sc-for list="{{ qrFeed }}" as="f" hint-placeholder-count="5">
+                      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #F2F0EA;">
+                        <span style="width: 30px; height: 30px; border-radius: 50%; background: #E7F4EE; color: {{ f.color }}; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700;">{{ f.icon }}</span>
+                        <span style="flex: 1;"><span style="font-weight: 600; font-size: 13.5px;">{{ f.name }}</span><span style="display: block; font-size: 12px; color: #A7A49B;"><span style="display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: {{ f.teamC }}; margin-right: 5px;"></span>{{ f.teamName }}</span></span>
+                        <span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600; color: {{ f.color }};">{{ f.t }} {{ L.q_in }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- ============ TEAMS ============ -->
+          <sc-if value="{{ isTeamsScreen }}" hint-placeholder-val="">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px;">
+              <sc-for list="{{ teamCards }}" as="t" hint-placeholder-count="5">
+                <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; overflow: hidden;">
+                  <div style="padding: 18px 20px; background: {{ t.color }}; color: #fff;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 17px; font-weight: 700;">{{ t.ko }}</span><span style="font-family: 'Space Grotesk'; font-size: 13px; background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 8px;">{{ t.present }}/{{ t.total }} {{ L.tm_present }}</span></div>
+                    <div style="font-size: 12.5px; opacity: 0.85; margin-top: 3px;">{{ t.en }} · {{ L.tm_foreman }} {{ t.foreman }}</div>
+                  </div>
+                  <div style="padding: 12px 14px;">
+                    <sc-for list="{{ t.members }}" as="m" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: center; gap: 11px; padding: 8px 6px; border-radius: 9px;" style-hover="background:#FAFAF8;">
+                        <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: {{ t.color }}; color: #fff; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 600; font-family: 'Space Grotesk';">{{ m.initials }}</span>
+                        <span style="flex: 1; min-width: 0;"><span style="display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500;">{{ m.name }}<sc-if value="{{ m.lead }}" hint-placeholder-val="">​<span style="font-size: 9.5px; background: #FDF0EA; color: #E85D2A; padding: 1px 5px; border-radius: 4px; font-weight: 600;">{{ L.e_lead }}</span></sc-if></span><span style="display: block; font-size: 11.5px; color: #A7A49B;">{{ m.nation }} · {{ m.tradeL }}</span></span>
+                        <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ m.statusColor }};"></span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ============ PAYROLL ============ -->
+          <sc-if value="{{ isPayrollScreen }}" hint-placeholder-val="">
+            <div>
+              <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap;">
+                <div style="background: #16181D; color: #fff; border-radius: 14px; padding: 16px 22px; display: flex; align-items: center; gap: 22px;">
+                  <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ L.p_period }}</div><div style="font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; margin-top: 2px;">2026 · 06</div></div>
+                  <div style="width: 1px; height: 32px; background: rgba(255,255,255,0.15);"></div>
+                  <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ L.p_total }}</div><div style="font-family: 'Space Grotesk'; font-size: 22px; font-weight: 700; margin-top: 2px; color: #E85D2A;">{{ totalPayout }}</div></div>
+                </div>
+                <div style="flex: 1;"></div>
+                <button onClick="{{ exportPayroll }}" style="padding: 11px 18px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>{{ L.p_export }}</button>
+              </div>
+              <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: auto;">
+                <div style="display: grid; grid-template-columns: 1.8fr 1fr 0.7fr 0.7fr 1.1fr 1fr 1fr 1.2fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880; min-width: 820px;">
+                  <span>{{ L.e_name }}</span><span>{{ L.e_team }}</span><span style="text-align: right;">{{ L.p_days }}</span><span style="text-align: right;">{{ L.p_hours }}</span><span style="text-align: right;">{{ L.p_base }}</span><span style="text-align: right;">{{ L.p_ot }}</span><span style="text-align: right;">{{ L.p_deduct }}</span><span style="text-align: right;">{{ L.p_net }}</span>
+                </div>
+                <sc-for list="{{ payRows }}" as="p" hint-placeholder-count="8">
+                  <div style="display: grid; grid-template-columns: 1.8fr 1fr 0.7fr 0.7fr 1.1fr 1fr 1fr 1.2fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; font-size: 13px; min-width: 820px;">
+                    <span style="display: flex; align-items: center; gap: 10px;"><span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ p.teamColor }}; color: #fff; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: 'Space Grotesk';">{{ p.initials }}</span><span style="font-weight: 600;">{{ p.name }}</span></span>
+                    <span style="color: #5A5D64; font-size: 12.5px;">{{ p.teamName }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk';">{{ p.days }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk';">{{ p.hours }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk';">{{ p.base }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk'; color: #1F9D6B;">{{ p.ot }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk'; color: #D9483B;">{{ p.deduct }}</span>
+                    <span style="text-align: right; font-family: 'Space Grotesk'; font-weight: 700;">{{ p.net }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <!--SCREENS-->
+        </div>
+      </main>
+    </div>
+  </sc-if>
+
+  <!-- ===== WORKER MOBILE ===== -->
+  <sc-if value="{{ isWorker }}" hint-placeholder-val="{{ true }}">
+    <div style="min-height: calc(100vh - 44px); display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px;">
+      <div style="width: 390px; max-width: 100%; background: #000; border-radius: 44px; padding: 11px; box-shadow: 0 30px 70px rgba(0,0,0,0.35);">
+        <div style="position: relative; background: #F4F3EF; border-radius: 34px; overflow: hidden; height: 800px; display: flex; flex-direction: column;">
+          <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 130px; height: 26px; background: #000; border-radius: 0 0 16px 16px; z-index: 30;"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 24px 6px; font-size: 12px; font-weight: 600; color: #16181D;">
+            <span style="font-family: 'Space Grotesk';">9:41</span>
+            <span style="display: flex; gap: 5px; align-items: center;"><svg width="15" height="11" viewBox="0 0 18 12" fill="#16181D"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".3"/></svg><svg width="18" height="11" viewBox="0 0 24 16" fill="none" stroke="#16181D" stroke-width="1.6"><rect x="1" y="3" width="19" height="10" rx="3"/><rect x="3" y="5" width="13" height="6" rx="1" fill="#16181D" stroke="none"/><path d="M22 6v4"/></svg></span>
+          </div>
+          <div style="flex: 1; overflow: auto; padding-bottom: 78px;">
+            <!-- HOME / CLOCK -->
+            <sc-if value="{{ mobHome }}" hint-placeholder-val="">
+              <div style="padding: 8px 20px 20px;">
+                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0 18px;">
+                  <span style="display: inline-flex; width: 46px; height: 46px; border-radius: 50%; background: {{ worker.teamColor }}; color: #fff; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; font-family: 'Space Grotesk';">{{ worker.initials }}</span>
+                  <div style="flex: 1;"><div style="font-size: 12.5px; color: #8A8880;">{{ L.w_hi }}</div><div style="font-size: 17px; font-weight: 700;">{{ worker.name }}</div></div>
+                  <div style="display: flex; gap: 3px; padding: 3px; background: #EAE8E1; border-radius: 8px;"><button onClick="{{ setKo }}" style="{{ mLangKo }}">KO</button><button onClick="{{ setEn }}" style="{{ mLangEn }}">EN</button></div>
+                </div>
+                <div style="background: #16181D; border-radius: 22px; padding: 24px; color: #fff; text-align: center;">
+                  <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; background: {{ statusPillBg }}; color: {{ statusPillColor }}; padding: 6px 14px; border-radius: 20px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ statusPillColor }};"></span>{{ statusLabel }}</div>
+                  <div style="font-family: 'Space Grotesk'; font-size: 46px; font-weight: 700; margin-top: 16px; letter-spacing: 0.02em;">{{ clockNow }}</div>
+                  <div style="font-size: 12.5px; color: rgba(255,255,255,0.5);">{{ worker.teamName }} · {{ worker.trade }}</div>
+                  <sc-if value="{{ clockedIn }}" hint-placeholder-val=""><div style="margin-top: 10px; font-size: 12.5px; color: #4ADE80;">{{ L.w_since }} {{ clockInTime }}</div></sc-if>
+                  <div style="margin-top: 20px;"><button onClick="{{ doClock }}" style="{{ clockBtnStyle }}">{{ clockLabel }}</button></div>
+                </div>
+                <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px; text-align: center;">
+                  <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 12px;">{{ L.w_myqr }}</div>
+                  <div style="width: 150px; height: 150px; margin: 0 auto; background: #fff; border: 1px solid #F0EEE8; border-radius: 12px; padding: 10px;" dangerouslySetInnerHTML="{{ qrSvg }}"></div>
+                  <div style="font-size: 11.5px; color: #A7A49B; margin-top: 10px;">{{ L.w_qrhint }}</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- WORK RECORDS -->
+            <sc-if value="{{ mobWork }}" hint-placeholder-val="">
+              <div style="padding: 12px 20px 20px;">
+                <div style="font-size: 18px; font-weight: 700; margin: 6px 0 16px;">{{ L.w_tab_work }}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px;"><div style="font-size: 12px; color: #8A8880;">{{ L.w_days }}</div><div style="font-family: 'Space Grotesk'; font-size: 28px; font-weight: 700; margin-top: 2px;">{{ worker.md }}</div></div>
+                  <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px;"><div style="font-size: 12px; color: #8A8880;">{{ L.w_hours }}</div><div style="font-family: 'Space Grotesk'; font-size: 28px; font-weight: 700; margin-top: 2px;">{{ worker.mh }}h</div></div>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 20px 0 10px;">{{ L.w_recent }}</div>
+                <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
+                  <sc-for list="{{ punchLog }}" as="p" hint-placeholder-count="4">
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #F2F0EA;">
+                      <span style="font-size: 13.5px; font-weight: 600; width: 62px;">{{ p.d }}</span>
+                      <span style="flex: 1; display: flex; gap: 10px; font-family: 'Space Grotesk'; font-size: 13px;"><span style="color: #1F9D6B;">↓ {{ p.in }}</span><span style="color: #8A8880;">↑ {{ p.out }}</span></span>
+                      <span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600; background: #F4F3EF; padding: 3px 9px; border-radius: 7px;">{{ p.h }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- PAY -->
+            <sc-if value="{{ mobPay }}" hint-placeholder-val="">
+              <div style="padding: 12px 20px 20px;">
+                <div style="font-size: 18px; font-weight: 700; margin: 6px 0 16px;">{{ L.w_payslip }}</div>
+                <div style="background: linear-gradient(135deg,#E85D2A,#C74A20); border-radius: 20px; padding: 22px; color: #fff;">
+                  <div style="font-size: 12.5px; opacity: 0.85;">{{ L.w_est }} · 2026.06</div>
+                  <div style="font-family: 'Space Grotesk'; font-size: 34px; font-weight: 700; margin-top: 6px;">{{ worker.net }}</div>
+                </div>
+                <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px;">
+                  <div style="display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13.5px; color: #5A5D64;">{{ L.p_daily }} × {{ worker.md }}{{ dayUnit }}</span><span style="font-family: 'Space Grotesk'; font-size: 13.5px; font-weight: 600;">{{ worker.base }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13.5px; color: #5A5D64;">{{ L.p_ot }}</span><span style="font-family: 'Space Grotesk'; font-size: 13.5px; font-weight: 600; color: #1F9D6B;">{{ worker.ot }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13.5px; color: #5A5D64;">{{ L.p_deduct }}</span><span style="font-family: 'Space Grotesk'; font-size: 13.5px; font-weight: 600; color: #D9483B;">{{ worker.deduct }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 12px 0 2px;"><span style="font-size: 14px; font-weight: 700;">{{ L.p_net }}</span><span style="font-family: 'Space Grotesk'; font-size: 17px; font-weight: 700; color: #E85D2A;">{{ worker.net }}</span></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ME / INFO -->
+            <sc-if value="{{ mobMe }}" hint-placeholder-val="">
+              <div style="padding: 12px 20px 20px;">
+                <div style="text-align: center; padding: 14px 0 20px;">
+                  <span style="display: inline-flex; width: 72px; height: 72px; border-radius: 50%; background: {{ worker.teamColor }}; color: #fff; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; font-family: 'Space Grotesk';">{{ worker.initials }}</span>
+                  <div style="font-size: 19px; font-weight: 700; margin-top: 12px;">{{ worker.name }}</div>
+                  <div style="font-size: 13px; color: #8A8880;">{{ worker.teamName }} · {{ worker.trade }}</div>
+                </div>
+                <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 6px 18px;">
+                  <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">{{ L.r_field_nation }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ worker.nation }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">{{ L.e_visa }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ worker.visa }} · {{ worker.visaExp }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">{{ L.r_field_phone }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ worker.phone }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">Email</span><span style="font-size: 13px; font-weight: 500; color: #3B72E0;">{{ worker.email }}</span></div>
+                  <div style="display: flex; justify-content: space-between; padding: 13px 0;"><span style="font-size: 13px; color: #8A8880;">{{ L.e_hire }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ worker.hire }}</span></div>
+                </div>
+                <button onClick="{{ logout }}" style="width: 100%; margin-top: 16px; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; color: #D9483B; cursor: pointer;">{{ L.roleWorker }} · Logout</button>
+              </div>
+            </sc-if>
+            <!--WORKERSCREENS-->
+          </div>
+          <div style="position: absolute; bottom: 0; left: 0; right: 0; display: flex; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-top: 1px solid #E4E2DB; padding: 8px 6px 22px;">
+            <sc-for list="{{ mobileTabs }}" as="tab" hint-placeholder-count="4">
+              <button onClick="{{ tab.go }}" style="{{ tab.style }}">
+                <span dangerouslySetInnerHTML="{{ tab.icon }}"></span>
+                <span style="font-size: 10.5px; margin-top: 2px;">{{ tab.label }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== TOAST ===== -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="">
+    <div style="position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; background: #16181D; color: #fff; padding: 13px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; box-shadow: 0 12px 30px rgba(0,0,0,0.3); animation: nctoast 0.25s ease; display: flex; align-items: center; gap: 10px;">
+      <span style="color: #4ADE80;">✓</span>{{ toast }}
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'login', role: 'admin', lang: 'ko', dashLayout: 'A',
+    selectedEmp: null, showForm: false, formData: null,
+    scan: 'idle', search: '', teamFilter: 'all', deleteId: null,
+    mobileTab: 'home', clock: 'out', clockInTime: '07:58', qrMode: 'reader',
+    toast: null,
+    employees: [
+      { id:1, ko:'응우옌 반 안', en:'Nguyen Van An', natKo:'베트남', natEn:'Vietnam', code:'VN', idNo:'950214-6******', team:'t1', trade:'전기공', tradeEn:'Electrician', visa:'E-9', visaExp:'2027-03-14', wage:190000, hire:'2024-02-01', phone:'010-2841-5510', email:'anvn@nahshon.io', status:'present', inT:'07:52', outT:'—', md:19, mh:171, lead:true },
+      { id:2, ko:'베크조드 카리모프', en:'Bekzod Karimov', natKo:'우즈베키스탄', natEn:'Uzbekistan', code:'UZ', idNo:'910820-5******', team:'t2', trade:'배관공', tradeEn:'Plumber', visa:'E-9', visaExp:'2026-11-02', wage:200000, hire:'2023-09-12', phone:'010-3372-8841', email:'bekzod@nahshon.io', status:'present', inT:'07:49', outT:'—', md:20, mh:184, lead:true },
+      { id:3, ko:'람 바하두르', en:'Ram Bahadur', natKo:'네팔', natEn:'Nepal', code:'NP', idNo:'930511-5******', team:'t3', trade:'덕트공', tradeEn:'Duct Fitter', visa:'E-9', visaExp:'2026-07-28', wage:185000, hire:'2024-05-20', phone:'010-9910-2245', email:'ram.b@nahshon.io', status:'late', inT:'08:37', outT:'—', md:18, mh:158, lead:false },
+      { id:4, ko:'호세 산토스', en:'Jose Santos', natKo:'필리핀', natEn:'Philippines', code:'PH', idNo:'880102-5******', team:'t1', trade:'전기공', tradeEn:'Electrician', visa:'E-7', visaExp:'2027-01-19', wage:210000, hire:'2022-11-03', phone:'010-4451-7789', email:'jsantos@nahshon.io', status:'present', inT:'07:55', outT:'—', md:20, mh:180, lead:false },
+      { id:5, ko:'속하 찬', en:'Sokha Chan', natKo:'캄보디아', natEn:'Cambodia', code:'KH', idNo:'960725-6******', team:'t5', trade:'철거공', tradeEn:'Demolition', visa:'E-9', visaExp:'2026-05-30', wage:175000, hire:'2024-08-14', phone:'010-2218-3390', email:'sokha@nahshon.io', status:'absent', inT:'—', outT:'—', md:16, mh:142, lead:false },
+      { id:6, ko:'솜차이 分', en:'Somchai Boon', natKo:'태국', natEn:'Thailand', code:'TH', idNo:'900318-5******', team:'t4', trade:'소방설비', tradeEn:'Fire Systems', visa:'E-9', visaExp:'2027-09-11', wage:195000, hire:'2023-06-01', phone:'010-7742-1120', email:'somchai@nahshon.io', status:'present', inT:'07:44', outT:'—', md:20, mh:186, lead:true },
+      { id:7, ko:'아웅 민', en:'Aung Min', natKo:'미얀마', natEn:'Myanmar', code:'MM', idNo:'970903-5******', team:'t3', trade:'덕트공', tradeEn:'Duct Fitter', visa:'E-9', visaExp:'2026-04-22', wage:180000, hire:'2024-10-02', phone:'010-5590-6612', email:'aungmin@nahshon.io', status:'present', inT:'07:58', outT:'—', md:19, mh:170, lead:false },
+      { id:8, ko:'리 웨이', en:'Li Wei', natKo:'중국', natEn:'China', code:'CN', idNo:'890627-5******', team:'t2', trade:'배관공', tradeEn:'Plumber', visa:'H-2', visaExp:'2027-02-08', wage:195000, hire:'2023-03-19', phone:'010-3318-4471', email:'liwei@nahshon.io', status:'present', inT:'07:51', outT:'—', md:20, mh:182, lead:false },
+      { id:9, ko:'딘 반 훙', en:'Dinh Van Hung', natKo:'베트남', natEn:'Vietnam', code:'VN', idNo:'940412-6******', team:'t1', trade:'전기공', tradeEn:'Electrician', visa:'E-9', visaExp:'2026-08-16', wage:185000, hire:'2024-01-22', phone:'010-6620-9987', email:'hung.dv@nahshon.io', status:'late', inT:'08:21', outT:'—', md:18, mh:160, lead:false },
+      { id:10, ko:'비카시 라이', en:'Bikash Rai', natKo:'네팔', natEn:'Nepal', code:'NP', idNo:'920209-5******', team:'t5', trade:'철거공', tradeEn:'Demolition', visa:'E-9', visaExp:'2026-12-01', wage:175000, hire:'2024-07-08', phone:'010-8817-2234', email:'bikash@nahshon.io', status:'present', inT:'07:47', outT:'—', md:19, mh:172, lead:false },
+      { id:11, ko:'마르크 레예스', en:'Mark Reyes', natKo:'필리핀', natEn:'Philippines', code:'PH', idNo:'910130-5******', team:'t4', trade:'소방설비', tradeEn:'Fire Systems', visa:'E-7', visaExp:'2027-06-25', wage:205000, hire:'2022-08-30', phone:'010-4409-5578', email:'mreyes@nahshon.io', status:'present', inT:'07:53', outT:'—', md:20, mh:181, lead:false },
+      { id:12, ko:'자밀 후세인', en:'Jamil Hussain', natKo:'방글라데시', natEn:'Bangladesh', code:'BD', idNo:'950818-5******', team:'t2', trade:'배관공', tradeEn:'Plumber', visa:'E-9', visaExp:'2026-06-14', wage:180000, hire:'2024-04-11', phone:'010-2276-8843', email:'jamil@nahshon.io', status:'off', inT:'—', outT:'—', md:17, mh:150, lead:false },
+    ],
+  };
+
+  teams = {
+    t1: { ko:'전기반', en:'Electrical', color:'#3B72E0' },
+    t2: { ko:'배관반', en:'Plumbing', color:'#1F9D6B' },
+    t3: { ko:'덕트반', en:'HVAC / Duct', color:'#E85D2A' },
+    t4: { ko:'소방반', en:'Fire Systems', color:'#D9483B' },
+    t5: { ko:'잡철·철거반', en:'Steel / Demo', color:'#8A5CF6' },
+  };
+
+  dict = {
+    ko: {
+      tagline:'현장 인원·출퇴근 관리', roleSwitch:'역할', roleAdmin:'어드민', roleManager:'현장 관리자', roleWorker:'작업자',
+      loginKicker:'WORKFORCE OS', loginTitle:'현장 인원을\n한 곳에서 관리합니다', loginSub:'외국인 근로자 등록부터 QR 출퇴근, 반별 편성, 급여 정산까지. 데스크탑과 모바일 어디서나.',
+      total:'등록 인원', teamsWord:'작업 반', nationsWord:'국적',
+      signInTitle:'로그인', signInSub:'회사 구글 계정으로 인증하면 권한에 맞는 화면으로 이동합니다.', googleBtn:'Google 계정으로 계속', orDemo:'또는 데모로 둘러보기',
+      adminDesc:'전체 인원·급여·설정 관리', managerDesc:'담당 현장·반 인원 관리', workerDesc:'내 출퇴근·근무·급여 열람',
+      nav_dashboard:'대시보드', nav_employees:'직원 관리', nav_register:'직원 등록', nav_attendance:'출퇴근(QR)', nav_teams:'반 관리', nav_payroll:'급여 관리',
+      me_admin:'김현수', me_manager:'박정우',
+      today:'2026년 7월 1일 (수)',
+      t_dashboard:'대시보드', s_dashboard:'오늘의 현장 현황 요약',
+      t_employees:'직원 관리', s_employees:'등록된 근로자 조회·수정·삭제',
+      t_register:'직원 등록', s_register:'외국인등록증 스캔으로 자동 입력',
+      t_attendance:'출퇴근 관리', s_attendance:'QR 스캔 기반 출근·퇴근 처리',
+      t_teams:'반 관리', s_teams:'작업 반별 인원 편성 현황',
+      t_payroll:'급여 관리', s_payroll:'근무 실적 기반 급여 정산',
+      // dashboard
+      d_attendance:'오늘 출근 현황', d_present:'출근', d_late:'지각', d_absent:'결근', d_off:'휴무', d_rate:'출근율',
+      d_total:'총 등록 인원', d_onsite:'현재 현장', d_payroll:'이번 달 급여(예상)', d_avgh:'평균 근무시간', d_byteam:'반별 출근 현황', d_recent:'최근 활동', d_viewall:'전체 보기', d_layout:'레이아웃', d_checkedin:'출근 완료', d_headcount:'인원',
+      // employees
+      e_add:'+ 직원 등록', e_search:'이름·국적·직종 검색', e_all:'전체 반', e_name:'이름', e_nation:'국적', e_team:'반', e_trade:'직종', e_visa:'비자', e_wage:'일당', e_status:'상태', e_action:'관리', e_view:'상세', e_edit:'수정', e_del:'삭제', e_confirm:'정말 삭제하시겠습니까?', e_cancel:'취소', e_hire:'입사일', e_contact:'연락처', e_expiry:'만료', e_lead:'반장',
+      st_present:'출근', st_late:'지각', st_absent:'결근', st_off:'휴무',
+      // register
+      r_scan:'외국인등록증 스캔', r_hint:'카드를 리더기에 올리거나 이미지를 업로드하세요', r_start:'스캔 시작', r_scanning:'OCR 분석 중…', r_done:'인식 완료 · 자동 입력됨', r_auto:'자동 인식 정보', r_manual:'추가 정보 입력', r_save:'직원 등록 완료', r_rescan:'다시 스캔', r_passport:'여권/외국인등록번호', r_field_name:'성명', r_field_nation:'국적', r_field_visa:'체류자격', r_field_exp:'만료일', r_field_team:'배정 반', r_field_trade:'직종', r_field_wage:'일당(원)', r_field_phone:'연락처', r_field_email:'이메일', r_field_hire:'입사일',
+      // qr
+      q_reader:'본인 QR → 리더기', q_site:'현장 QR → 본인 폰', q_manual:'관리자 직접 체크', q_readerd:'작업자가 개인 QR을 현장 입구 리더기에 태그', q_sited:'현장 게시 QR을 작업자가 휴대폰으로 스캔', q_manuald:'관리자가 명단에서 직접 출/퇴근 처리', q_feed:'실시간 처리 로그', q_today:'오늘 처리 내역', q_in:'출근', q_out:'퇴근', q_present:'현재 출근', q_sitecode:'현장 출입 QR', q_point:'A동 지하1층 게이트',
+      // teams
+      tm_foreman:'반장', tm_members:'인원', tm_present:'출근', tm_manage:'인원 편성',
+      // payroll
+      p_period:'정산 기간', p_days:'근무일', p_hours:'근무시간', p_base:'기본급', p_ot:'연장수당', p_deduct:'공제', p_net:'실지급액', p_slip:'명세서', p_total:'총 지급 예상', p_export:'급여대장 내보내기', p_daily:'일당',
+      // worker mobile
+      w_hi:'안녕하세요,', w_status_in:'근무 중', w_status_out:'출근 전', w_clockin:'출근하기', w_clockout:'퇴근하기', w_since:'출근 시각', w_tab_home:'출퇴근', w_tab_work:'근무기록', w_tab_pay:'급여', w_tab_me:'내정보', w_myqr:'내 출입 QR', w_qrhint:'현장 리더기에 스캔하세요', w_month:'이번 달', w_days:'근무일', w_hours:'근무시간', w_est:'예상 급여', w_recent:'최근 출퇴근', w_payslip:'급여 명세', w_myinfo:'내 정보', w_done_in:'출근 처리되었습니다', w_done_out:'퇴근 처리되었습니다',
+    },
+    en: {
+      tagline:'On-site workforce & attendance', roleSwitch:'Role', roleAdmin:'Admin', roleManager:'Site Manager', roleWorker:'Worker',
+      loginKicker:'WORKFORCE OS', loginTitle:'Manage your crew\nin one place', loginSub:'From foreign-worker onboarding to QR attendance, crew assignment and payroll — on desktop and mobile.',
+      total:'Workers', teamsWord:'Crews', nationsWord:'Nations',
+      signInTitle:'Sign in', signInSub:'Authenticate with your company Google account to land on your role view.', googleBtn:'Continue with Google', orDemo:'or explore a demo',
+      adminDesc:'Full workforce, payroll & settings', managerDesc:'Your site & crew members', workerDesc:'My attendance, work & pay',
+      nav_dashboard:'Dashboard', nav_employees:'Employees', nav_register:'Register', nav_attendance:'Attendance (QR)', nav_teams:'Crews', nav_payroll:'Payroll',
+      me_admin:'Hyunsoo Kim', me_manager:'Jungwoo Park',
+      today:'Wed, Jul 1, 2026',
+      t_dashboard:'Dashboard', s_dashboard:"Today's on-site overview",
+      t_employees:'Employees', s_employees:'Browse, edit and remove workers',
+      t_register:'Register Worker', s_register:'Auto-fill from ID card scan',
+      t_attendance:'Attendance', s_attendance:'QR-based check-in / check-out',
+      t_teams:'Crews', s_teams:'Crew assignment overview',
+      t_payroll:'Payroll', s_payroll:'Settle pay from work records',
+      d_attendance:"Today's Attendance", d_present:'Present', d_late:'Late', d_absent:'Absent', d_off:'Off', d_rate:'Rate',
+      d_total:'Total Workers', d_onsite:'On Site Now', d_payroll:'Est. Payroll (Mo.)', d_avgh:'Avg. Hours', d_byteam:'Attendance by Crew', d_recent:'Recent Activity', d_viewall:'View all', d_layout:'Layout', d_checkedin:'checked in', d_headcount:'members',
+      e_add:'+ Add Worker', e_search:'Search name, nation, trade', e_all:'All crews', e_name:'Name', e_nation:'Nation', e_team:'Crew', e_trade:'Trade', e_visa:'Visa', e_wage:'Day rate', e_status:'Status', e_action:'Actions', e_view:'View', e_edit:'Edit', e_del:'Delete', e_confirm:'Delete this worker?', e_cancel:'Cancel', e_hire:'Joined', e_contact:'Contact', e_expiry:'Exp.', e_lead:'Lead',
+      st_present:'Present', st_late:'Late', st_absent:'Absent', st_off:'Off',
+      r_scan:'Scan ID Card', r_hint:'Place the card on the reader or upload an image', r_start:'Start scan', r_scanning:'Running OCR…', r_done:'Recognized · auto-filled', r_auto:'Auto-detected', r_manual:'Additional info', r_save:'Register worker', r_rescan:'Rescan', r_passport:'Passport / ID No.', r_field_name:'Full name', r_field_nation:'Nationality', r_field_visa:'Visa status', r_field_exp:'Expiry', r_field_team:'Crew', r_field_trade:'Trade', r_field_wage:'Day rate (KRW)', r_field_phone:'Phone', r_field_email:'Email', r_field_hire:'Join date',
+      q_reader:'Own QR → Reader', q_site:'Site QR → Own phone', q_manual:'Manager checks', q_readerd:'Worker taps personal QR at the gate reader', q_sited:'Worker scans the posted site QR with their phone', q_manuald:'Manager checks people in/out from the roster', q_feed:'Live processing log', q_today:"Today's log", q_in:'IN', q_out:'OUT', q_present:'On site', q_sitecode:'Site access QR', q_point:'Bldg A · B1 Gate',
+      tm_foreman:'Foreman', tm_members:'Members', tm_present:'Present', tm_manage:'Assignment',
+      p_period:'Pay period', p_days:'Days', p_hours:'Hours', p_base:'Base', p_ot:'Overtime', p_deduct:'Deductions', p_net:'Net pay', p_slip:'Slip', p_total:'Est. total payout', p_export:'Export payroll', p_daily:'Day rate',
+      w_hi:'Hello,', w_status_in:'On duty', w_status_out:'Off duty', w_clockin:'Clock in', w_clockout:'Clock out', w_since:'Since', w_tab_home:'Clock', w_tab_work:'Records', w_tab_pay:'Pay', w_tab_me:'Me', w_myqr:'My access QR', w_qrhint:'Scan at the site reader', w_month:'This month', w_days:'Days', w_hours:'Hours', w_est:'Est. pay', w_recent:'Recent punches', w_payslip:'Payslip', w_myinfo:'My info', w_done_in:'Clocked in', w_done_out:'Clocked out',
+    },
+  };
+
+  qrPattern() {
+    const n = 25, cell = 100 / n;
+    let seed = 7;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    let rects = '';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const finder = (x<7&&y<7)||(x>=n-7&&y<7)||(x<7&&y>=n-7);
+      if (finder) continue;
+      if (rnd() > 0.52) rects += '<rect x="'+(x*cell).toFixed(2)+'" y="'+(y*cell).toFixed(2)+'" width="'+cell.toFixed(2)+'" height="'+cell.toFixed(2)+'"/>';
+    }
+    const finder = (fx,fy)=> '<rect x="'+fx.toFixed(2)+'" y="'+fy.toFixed(2)+'" width="'+(cell*7).toFixed(2)+'" height="'+(cell*7).toFixed(2)+'" rx="4" fill="none" stroke="#16181D" stroke-width="'+cell.toFixed(2)+'"/><rect x="'+(fx+cell*2).toFixed(2)+'" y="'+(fy+cell*2).toFixed(2)+'" width="'+(cell*3).toFixed(2)+'" height="'+(cell*3).toFixed(2)+'" rx="2"/>';
+    const far = cell*(n-7);
+    const svg = '<svg width="100%" height="100%" viewBox="0 0 100 100" fill="#16181D">'+rects+finder(0,0)+finder(far,0)+finder(0,far)+'</svg>';
+    return { __html: svg };
+  }
+  fmt(n) { return n.toLocaleString('en-US'); }
+  fmtWon(n) { return '₩' + n.toLocaleString('en-US'); }
+
+  showToast(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: null }), 2200);
+  }
+
+  navIcon(k) {
+    const I = {
+      dashboard:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+      employees:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M17 8a3 3 0 0 1 0 6M18 20a5 5 0 0 0-3-4.6"/></svg>',
+      register:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 10 0"/><path d="M18 8v6M15 11h6"/></svg>',
+      attendance:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg>',
+      teams:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M4 12l8 4 8-4M4 17l8 4 8-4"/></svg>',
+      payroll:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/></svg>',
+    };
+    return { __html: I[k] || '' };
+  }
+  mIcon(k) {
+    const I = {
+      home:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>',
+      work:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8 13h3M8 17h6"/></svg>',
+      pay:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg>',
+      me:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>',
+    };
+    return { __html: I[k] || '' };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const L = this.dict[s.lang];
+    const T = this.teams;
+    const me = this.state.employees[0];
+
+    // ---- role tabs ----
+    const tab = (active) => active
+      ? 'padding:5px 12px;border-radius:8px;border:none;background:#E85D2A;color:#fff;font-size:12px;font-weight:600;cursor:pointer;'
+      : 'padding:5px 12px;border-radius:8px;border:none;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);font-size:12px;font-weight:600;cursor:pointer;';
+    const langBtn = (active) => active
+      ? 'padding:5px 9px;border-radius:7px;border:none;background:#fff;color:#16181D;font-size:11px;font-weight:700;cursor:pointer;'
+      : 'padding:5px 9px;border-radius:7px;border:none;background:transparent;color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;cursor:pointer;';
+
+    // ---- nav (role-scoped: managers can't see payroll) ----
+    const navKeys = s.role==='manager'
+      ? ['dashboard','employees','register','attendance','teams']
+      : ['dashboard','employees','register','attendance','teams','payroll'];
+    const navItems = navKeys.map(k => ({
+      label: L['nav_'+k], icon: this.navIcon(k),
+      go: () => this.setState({ screen: k, showForm:false, selectedEmp:null }),
+      style: (s.screen===k
+        ? 'display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:none;border-radius:10px;background:#E85D2A;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;'
+        : 'display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:none;border-radius:10px;background:transparent;color:rgba(255,255,255,0.62);font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;'),
+    }));
+
+    // ---- mobile tabs ----
+    const mKeys = ['home','work','pay','me'];
+    const mobileTabs = mKeys.map(k => ({
+      label: L['w_tab_'+k], icon: this.mIcon(k),
+      go: () => this.setState({ mobileTab: k }),
+      style: 'flex:1;display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0;border:none;background:transparent;cursor:pointer;color:'+(s.mobileTab===k?'#E85D2A':'#9AA0A6')+';',
+    }));
+
+    // ---- stats ----
+    const emps = s.employees;
+    const cnt = { present:0, late:0, absent:0, off:0 };
+    emps.forEach(e => cnt[e.status]++);
+    const totalActive = emps.length;
+    const onsite = cnt.present + cnt.late;
+    const rate = Math.round((onsite / totalActive) * 100);
+    const monthPay = emps.reduce((a,e)=>a + e.wage*e.md, 0);
+    const avgH = Math.round(emps.reduce((a,e)=>a+e.mh,0)/emps.length);
+
+    // team stats
+    const teamStats = Object.keys(T).map(tid => {
+      const list = emps.filter(e=>e.team===tid);
+      const pres = list.filter(e=>e.status==='present'||e.status==='late').length;
+      const lead = list.find(e=>e.lead);
+      return { tid, ko:T[tid].ko, en:T[tid].en, color:T[tid].color, total:list.length, present:pres,
+        foreman: lead ? (s.lang==='ko'?lead.ko:lead.en) : '—',
+        pct: list.length? Math.round(pres/list.length*100):0 };
+    });
+
+    // ---- status helpers ----
+    const stColor = { present:'#1F9D6B', late:'#E8A33D', absent:'#D9483B', off:'#9AA0A6' };
+    const stBg = { present:'#E7F4EE', late:'#FBF1DF', absent:'#FBE9E7', off:'#EFEFEC' };
+
+    // ---- employee rows (filtered) ----
+    const q = s.search.trim().toLowerCase();
+    const filtered = emps.filter(e => {
+      const okTeam = s.teamFilter==='all' || e.team===s.teamFilter;
+      const hay = (e.ko+' '+e.en+' '+e.natKo+' '+e.natEn+' '+e.trade+' '+e.tradeEn).toLowerCase();
+      return okTeam && (!q || hay.includes(q));
+    });
+    const empRows = filtered.map(e => ({
+      ...e,
+      name: s.lang==='ko'? e.ko : e.en,
+      sub: s.lang==='ko'? e.en : e.ko,
+      nation: s.lang==='ko'? e.natKo : e.natEn,
+      tradeL: s.lang==='ko'? e.trade : e.tradeEn,
+      teamKo: T[e.team].ko, teamEn: T[e.team].en, teamName: s.lang==='ko'?T[e.team].ko:T[e.team].en, teamColor: T[e.team].color,
+      initials: e.en.split(' ').map(x=>x[0]).slice(0,2).join(''),
+      wageFmt: this.fmtWon(e.wage),
+      statusLabel: L['st_'+e.status], statusColor: stColor[e.status], statusBg: stBg[e.status],
+      leadBadge: e.lead,
+      rowClick: () => this.setState({ selectedEmp: e.id }),
+      editClick: (ev) => { ev.stopPropagation(); this.setState({ selectedEmp: e.id }); },
+      delClick: (ev) => { ev.stopPropagation(); this.setState({ deleteId: e.id }); },
+    }));
+
+    // selected employee detail
+    const selRaw = emps.find(e=>e.id===s.selectedEmp);
+    const sel = selRaw ? {
+      ...selRaw,
+      name: s.lang==='ko'?selRaw.ko:selRaw.en, sub: s.lang==='ko'?selRaw.en:selRaw.ko,
+      nation: s.lang==='ko'?selRaw.natKo:selRaw.natEn, tradeL: s.lang==='ko'?selRaw.trade:selRaw.tradeEn,
+      teamName: s.lang==='ko'?T[selRaw.team].ko:T[selRaw.team].en, teamColor: T[selRaw.team].color,
+      initials: selRaw.en.split(' ').map(x=>x[0]).slice(0,2).join(''),
+      wageFmt: this.fmtWon(selRaw.wage), statusLabel: L['st_'+selRaw.status], statusColor: stColor[selRaw.status], statusBg: stBg[selRaw.status],
+      base: this.fmtWon(selRaw.wage*selRaw.md),
+    } : null;
+
+    const delTarget = emps.find(e=>e.id===s.deleteId);
+
+    // ---- payroll rows ----
+    const payRows = emps.map(e => {
+      const base = e.wage*e.md;
+      const otH = Math.max(0, e.mh - e.md*8);
+      const ot = Math.round((e.wage/8)*1.5*otH);
+      const gross = base+ot;
+      const deduct = Math.round(gross*0.089);
+      const net = gross-deduct;
+      return { id:e.id, name:s.lang==='ko'?e.ko:e.en, teamName:s.lang==='ko'?T[e.team].ko:T[e.team].en, teamColor:T[e.team].color,
+        initials:e.en.split(' ').map(x=>x[0]).slice(0,2).join(''),
+        days:e.md, hours:e.mh, daily:this.fmtWon(e.wage), base:this.fmtWon(base), ot:this.fmtWon(ot), deduct:'-'+this.fmtWon(deduct), net:this.fmtWon(net) };
+    });
+    const totalPayout = emps.reduce((a,e)=>{ const base=e.wage*e.md; const otH=Math.max(0,e.mh-e.md*8); const ot=Math.round((e.wage/8)*1.5*otH); const g=base+ot; return a+(g-Math.round(g*0.089)); },0);
+
+    // ---- worker (self = me) mobile derived ----
+    const wBase = me.wage*me.md;
+    const wOtH = Math.max(0, me.mh - me.md*8);
+    const wOt = Math.round((me.wage/8)*1.5*wOtH);
+    const wGross = wBase+wOt; const wDed = Math.round(wGross*0.089); const wNet = wGross-wDed;
+    const worker = {
+      name: s.lang==='ko'?me.ko:me.en, teamName: s.lang==='ko'?T[me.team].ko:T[me.team].en, teamColor:T[me.team].color,
+      trade: s.lang==='ko'?me.trade:me.tradeEn, initials: me.en.split(' ').map(x=>x[0]).slice(0,2).join(''),
+      md:me.md, mh:me.mh, est:this.fmtWon(wNet), daily:this.fmtWon(me.wage),
+      base:this.fmtWon(wBase), ot:this.fmtWon(wOt), deduct:'-'+this.fmtWon(wDed), net:this.fmtWon(wNet),
+      visa:me.visa, visaExp:me.visaExp, email:me.email, phone:me.phone, hire:me.hire, nation:s.lang==='ko'?me.natKo:me.natEn,
+    };
+    const punchLog = [
+      { d: s.lang==='ko'?'6월 30일':'Jun 30', in:'07:51', out:'18:20', h:'9.5h' },
+      { d: s.lang==='ko'?'6월 29일':'Jun 29', in:'07:48', out:'17:40', h:'8.9h' },
+      { d: s.lang==='ko'?'6월 28일':'Jun 28', in:'07:55', out:'18:05', h:'9.2h' },
+      { d: s.lang==='ko'?'6월 27일':'Jun 27', in:'08:02', out:'17:30', h:'8.5h' },
+    ];
+
+    // qr live feed
+    const qrFeed = [
+      { name:'Bekzod Karimov', team:T.t2.ko, teamC:T.t2.color, t:'07:49', type:'in' },
+      { name:'Somchai Boon', team:T.t4.ko, teamC:T.t4.color, t:'07:44', type:'in' },
+      { name:'Bikash Rai', team:T.t5.ko, teamC:T.t5.color, t:'07:47', type:'in' },
+      { name:'Nguyen Van An', team:T.t1.ko, teamC:T.t1.color, t:'07:52', type:'in' },
+      { name:'Li Wei', team:T.t2.ko, teamC:T.t2.color, t:'07:51', type:'in' },
+    ].map(x=>({...x, teamName:x.team, icon:x.type==='in'?'↓':'↑', color:x.type==='in'?'#1F9D6B':'#8A8880'}));
+
+    // recent activity (dashboard)
+    const recent = [
+      { txt: s.lang==='ko'?'Nguyen Van An 출근 처리':'Nguyen Van An clocked in', tag:'07:52', c:'#1F9D6B' },
+      { txt: s.lang==='ko'?'Ram Bahadur 지각 (08:37)':'Ram Bahadur late (08:37)', tag:s.lang==='ko'?'지각':'late', c:'#E8A33D' },
+      { txt: s.lang==='ko'?'신규 직원 Jamil Hussain 등록':'New worker Jamil Hussain added', tag:s.lang==='ko'?'등록':'new', c:'#3B72E0' },
+      { txt: s.lang==='ko'?'Sokha Chan 비자 만료 D-334':'Sokha Chan visa exp D-334', tag:s.lang==='ko'?'알림':'alert', c:'#D9483B' },
+    ];
+
+    return {
+      L, isLogin: s.screen==='login', isWorker: s.role==='worker',
+      isDesktopApp: s.role!=='worker' && s.screen!=='login',
+      // demo bar
+      setRoleAdmin:()=>this.setState({role:'admin',screen:'dashboard'}),
+      setRoleManager:()=>this.setState({role:'manager',screen:'dashboard'}),
+      setRoleWorker:()=>this.setState({role:'worker',screen:'worker',mobileTab:'home'}),
+      setKo:()=>this.setState({lang:'ko'}), setEn:()=>this.setState({lang:'en'}),
+      tabAdmin:tab(s.role==='admin'), tabManager:tab(s.role==='manager'), tabWorker:tab(s.role==='worker'),
+      langKo:langBtn(s.lang==='ko'), langEn:langBtn(s.lang==='en'),
+      // login
+      stat_total: totalActive,
+      googleSignIn:()=>{ this.setState({role:'admin',screen:'dashboard'}); this.showToast(s.lang==='ko'?'구글 인증 완료':'Signed in with Google'); },
+      demoAdmin:()=>this.setState({role:'admin',screen:'dashboard'}),
+      demoManager:()=>this.setState({role:'manager',screen:'dashboard'}),
+      demoWorker:()=>this.setState({role:'worker',screen:'worker',mobileTab:'home'}),
+      // shell
+      navItems, mobileTabs,
+      meName: s.role==='admin'?L.me_admin:L.me_manager,
+      meRole: s.role==='admin'?L.roleAdmin:L.roleManager,
+      meInitials: s.role==='admin'?'KH':'PJ', meColor: s.role==='admin'?'#E85D2A':'#3B72E0',
+      logout:()=>this.setState({screen:'login'}),
+      pageTitle: L['t_'+s.screen], pageSub: L['s_'+s.screen], today:L.today,
+      toast: s.toast,
+      // shared data exposed for later screens
+      screen: s.screen,
+      isDashboardScreen: s.screen==='dashboard', isEmployeesScreen: s.screen==='employees',
+      isRegisterScreen: s.screen==='register', isAttendanceScreen: s.screen==='attendance',
+      isTeamsScreen: s.screen==='teams', isPayrollScreen: s.screen==='payroll',
+      dashLayout: s.dashLayout,
+      isDashA: s.dashLayout==='A', isDashB: s.dashLayout==='B', isDashC: s.dashLayout==='C',
+      setDashA:()=>this.setState({dashLayout:'A'}), setDashB:()=>this.setState({dashLayout:'B'}), setDashC:()=>this.setState({dashLayout:'C'}),
+      layStyleA: this.segStyle(s.dashLayout==='A'), layStyleB: this.segStyle(s.dashLayout==='B'), layStyleC: this.segStyle(s.dashLayout==='C'),
+      cnt, totalActive, onsite, rate, monthPay: this.fmtWon(monthPay), avgH, teamStats, recent,
+      ringDash: Math.round(2*Math.PI*52*(1-rate/100)),
+      // employees
+      empRows, empCount: filtered.length, sel,
+      searchVal: s.search, stop:(e)=>e.stopPropagation(),
+      onSearch:(e)=>this.setState({search:e.target.value}),
+      teamFilterAll:()=>this.setState({teamFilter:'all'}),
+      teamChips: Object.keys(T).map(tid=>({ tid, label:s.lang==='ko'?T[tid].ko:T[tid].en, color:T[tid].color,
+        active: s.teamFilter===tid, go:()=>this.setState({teamFilter:tid}),
+        style: s.teamFilter===tid
+          ? 'padding:6px 13px;border-radius:20px;border:1.5px solid '+T[tid].color+';background:'+T[tid].color+';color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;'
+          : 'padding:6px 13px;border-radius:20px;border:1.5px solid #E4E2DB;background:#fff;color:#5A5D64;font-size:12.5px;font-weight:500;cursor:pointer;' })),
+      allChipStyle: s.teamFilter==='all'
+        ? 'padding:6px 13px;border-radius:20px;border:1.5px solid #16181D;background:#16181D;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;'
+        : 'padding:6px 13px;border-radius:20px;border:1.5px solid #E4E2DB;background:#fff;color:#5A5D64;font-size:12.5px;font-weight:500;cursor:pointer;',
+      addWorker:()=>this.setState({screen:'register',scan:'idle'}),
+      closeDetail:()=>this.setState({selectedEmp:null}),
+      // delete modal
+      delTarget: delTarget ? (s.lang==='ko'?delTarget.ko:delTarget.en) : null,
+      confirmDelete:()=>{ const id=s.deleteId; this.setState(st=>({employees:st.employees.filter(e=>e.id!==id),deleteId:null,selectedEmp:null})); this.showToast(s.lang==='ko'?'삭제되었습니다':'Deleted'); },
+      cancelDelete:()=>this.setState({deleteId:null}),
+      // register / OCR
+      scanIdle: s.scan==='idle', scanRun: s.scan==='scanning', scanDone: s.scan==='done',
+      ocrName: s.scan==='done' ? (s.lang==='ko'?'누를란 압디예프 / Nurlan Abdiyev':'Nurlan Abdiyev') : '',
+      ocrNation: s.scan==='done' ? (s.lang==='ko'?'카자흐스탄':'Kazakhstan') : '',
+      ocrId: s.scan==='done' ? '930715-5******' : '',
+      ocrVisa: s.scan==='done' ? 'E-9 · 2027-05-20' : '',
+      ocrFieldStyle: 'width:100%;margin-top:5px;padding:10px 12px;border:1.5px solid '+(s.scan==='done'?'#1F9D6B':'#E4E2DB')+';border-radius:10px;font-size:14px;font-weight:600;background:'+(s.scan==='done'?'#F1FAF5':'#FAFAF8')+';color:#16181D;outline:none;font-family:IBM Plex Sans KR;',
+      inputStyle: 'width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:10px;font-size:14px;background:#fff;color:#16181D;outline:none;font-family:IBM Plex Sans KR;',
+      saveBtnBg: s.scan==='done' ? '#E85D2A' : '#C7C4BB',
+      // qr
+      qrScanMode: s.qrMode!=='manual', qrSvg: this.qrPattern(),
+      startScan:()=>{ this.setState({scan:'scanning'}); clearTimeout(this._sc); this._sc=setTimeout(()=>this.setState({scan:'done'}),2600); },
+      rescan:()=>this.setState({scan:'idle'}),
+      saveWorker:()=>{ this.setState({screen:'employees',scan:'idle'}); this.showToast(s.lang==='ko'?'직원이 등록되었습니다':'Worker registered'); },
+      // qr
+      qrReader: s.qrMode==='reader', qrSite: s.qrMode==='site', qrManual: s.qrMode==='manual',
+      setQrReader:()=>this.setState({qrMode:'reader'}), setQrSite:()=>this.setState({qrMode:'site'}), setQrManual:()=>this.setState({qrMode:'manual'}),
+      qrModeStyleR:this.tileStyle(s.qrMode==='reader'), qrModeStyleS:this.tileStyle(s.qrMode==='site'), qrModeStyleM:this.tileStyle(s.qrMode==='manual'),
+      qrFeed, qrCheckins: onsite,
+      qrManualRows: empRows.slice(0,8).map(e=>({...e,
+        toggleIn:()=>this.showToast((s.lang==='ko'?e.ko:e.en)+(s.lang==='ko'?' 출근 처리':' checked in')),
+        toggleOut:()=>this.showToast((s.lang==='ko'?e.ko:e.en)+(s.lang==='ko'?' 퇴근 처리':' checked out')) })),
+      // teams
+      teamCards: Object.keys(T).map(tid=>{
+        const list=emps.filter(e=>e.team===tid);
+        const pres=list.filter(e=>e.status==='present'||e.status==='late').length;
+        const lead=list.find(e=>e.lead);
+        return { tid, ko:T[tid].ko, en:T[tid].en, color:T[tid].color, total:list.length, present:pres,
+          foreman: lead?(s.lang==='ko'?lead.ko:lead.en):'—',
+          members: list.map(e=>({ initials:e.en.split(' ').map(x=>x[0]).slice(0,2).join(''), name:s.lang==='ko'?e.ko:e.en, nation:s.lang==='ko'?e.natKo:e.natEn, tradeL:s.lang==='ko'?e.trade:e.tradeEn, lead:e.lead, statusColor:stColor[e.status] })) };
+      }),
+      // payroll
+      payRows, totalPayout: this.fmtWon(totalPayout),
+      exportPayroll:()=>this.showToast(s.lang==='ko'?'급여대장 내보내기 완료':'Payroll exported'),
+      // worker mobile
+      mobHome: s.mobileTab==='home', mobWork: s.mobileTab==='work', mobPay: s.mobileTab==='pay', mobMe: s.mobileTab==='me',
+      worker, punchLog,
+      clockedIn: s.clock==='in', clockInTime: s.clockInTime,
+      doClock:()=>{ if(s.clock==='out'){ const now=new Date(); const hh=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'); this.setState({clock:'in',clockInTime:hh}); this.showToast(L.w_done_in); } else { this.setState({clock:'out'}); this.showToast(L.w_done_out); } },
+      clockBtnStyle: s.clock==='out'
+        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);'
+        : 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);',
+      clockLabel: s.clock==='out'? L.w_clockin : L.w_clockout,
+      statusLabel: s.clock==='in'? L.w_status_in : L.w_status_out,
+      statusPillBg: s.clock==='in'? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)',
+      statusPillColor: s.clock==='in'? '#4ADE80' : 'rgba(255,255,255,0.7)',
+      clockNow: '09:41',
+      dayUnit: s.lang==='ko'?'일':'d',
+      mLangKo: s.lang==='ko' ? 'padding:4px 8px;border:none;border-radius:6px;background:#fff;color:#16181D;font-size:11px;font-weight:700;cursor:pointer;' : 'padding:4px 8px;border:none;border-radius:6px;background:transparent;color:#8A8880;font-size:11px;font-weight:700;cursor:pointer;',
+      mLangEn: s.lang==='en' ? 'padding:4px 8px;border:none;border-radius:6px;background:#fff;color:#16181D;font-size:11px;font-weight:700;cursor:pointer;' : 'padding:4px 8px;border:none;border-radius:6px;background:transparent;color:#8A8880;font-size:11px;font-weight:700;cursor:pointer;',
+    };
+  }
+
+  segStyle(active) {
+    return active
+      ? 'padding:6px 14px;border:none;border-radius:8px;background:#16181D;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:Space Grotesk;'
+      : 'padding:6px 14px;border:none;border-radius:8px;background:transparent;color:#8A8880;font-size:12.5px;font-weight:600;cursor:pointer;font-family:Space Grotesk;';
+  }
+  tileStyle(active) {
+    return active
+      ? 'flex:1;text-align:left;padding:16px;border:1.5px solid #E85D2A;border-radius:14px;background:#FDF0EA;cursor:pointer;'
+      : 'flex:1;text-align:left;padding:16px;border:1.5px solid #E4E2DB;border-radius:14px;background:#fff;cursor:pointer;';
+  }
+}
+</script>
+</body>
+</html>
