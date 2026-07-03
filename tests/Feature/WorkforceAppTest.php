@@ -621,6 +621,32 @@ class WorkforceAppTest extends TestCase
             ->assertSeeHtml('data:image/jpeg;base64,ZZZZ');
     }
 
+    public function test_rotate_badge_photo_turns_it_90_degrees(): void
+    {
+        // a 400x100 landscape image stored as the badge photo
+        $im = imagecreatetruecolor(400, 100);
+        ob_start();
+        imagejpeg($im);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($im);
+
+        $emp = Employee::create([
+            'emp_id' => 'N-ROT01', 'first' => 'Rot', 'last' => 'Test',
+            'type' => 'manager', 'access' => 'manager', 'emp' => 'active', 'rate' => 0,
+            'badge_photo' => 'data:image/jpeg;base64,' . base64_encode($bytes),
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('selectEmp', $emp->id)
+            ->call('rotateBadgePhoto');
+
+        preg_match('#base64,(.+)$#', $emp->fresh()->badge_photo, $m);
+        $rot = imagecreatefromstring(base64_decode($m[1]));
+        $this->assertSame(100, imagesx($rot));  // width and height swapped → now portrait
+        $this->assertSame(400, imagesy($rot));
+    }
+
     public function test_badge_analysis_without_photo_falls_back_to_simulation(): void
     {
         Livewire::test(WorkforceApp::class)

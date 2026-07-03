@@ -68,7 +68,12 @@
             <div style="padding: 24px 30px;">
                 @if(!empty($sel['badgePhoto']))
                     <div style="margin-bottom: 20px;">
-                        <div style="font-size: 11.5px; color: #A7A49B; margin-bottom: 8px;">{{ $L['b_faceCrop'] }}</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-size: 11.5px; color: #A7A49B;">{{ $L['b_faceCrop'] }}</span>
+                            <button wire:click="rotateBadgePhoto" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; font-size: 11.5px; font-weight: 600; color: #5A5D64; cursor: pointer;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>{{ $L['e_rotate'] }}
+                            </button>
+                        </div>
                         <div style="width: 100%; aspect-ratio: 1.58; border-radius: 12px; border: 1px solid #E4E2DB; background-color: #16181D; background-image: url('{{ $sel['badgePhoto'] }}'); background-size: contain; background-position: center; background-repeat: no-repeat;"></div>
                     </div>
                 @endif

@@ -516,6 +516,32 @@ class WorkforceApp extends Component
         ];
     }
 
+    /** Rotate the selected employee's badge photo 90° clockwise (fixes sideways photos). */
+    public function rotateBadgePhoto(): void
+    {
+        if (! $this->canManage() || ! $this->selectedEmp) {
+            return;
+        }
+        $e = Employee::find($this->selectedEmp);
+        if (! $e || ! $e->badge_photo || ! function_exists('imagerotate')) {
+            return;
+        }
+        if (! preg_match('#^data:image/\w+;base64,(.+)$#', $e->badge_photo, $m)) {
+            return;
+        }
+        $img = @imagecreatefromstring(base64_decode($m[1]));
+        if (! $img) {
+            return;
+        }
+        $rot = imagerotate($img, -90, 0);   // 90° clockwise
+        imagedestroy($img);
+        ob_start();
+        imagejpeg($rot, null, 82);
+        $data = (string) ob_get_clean();
+        imagedestroy($rot);
+        $e->update(['badge_photo' => 'data:image/jpeg;base64,' . base64_encode($data)]);
+    }
+
     public function closeDetail(): void
     {
         $this->selectedEmp = null;
@@ -825,16 +851,32 @@ class WorkforceApp extends Component
         $this->regRoleTitle = $result['role'] !== '' ? $result['role'] : $this->regRoleTitle;
         $this->regIssued = $result['issued'] !== '' ? $result['issued'] : $this->regIssued;
 
-        // keep a small copy of the photo + detected face box for the auto-cropped headshot
-        $this->facePhotoData = $this->downscaleToDataUri(file_get_contents($this->badgePhoto->getRealPath()));
+        // keep a small copy of the photo (EXIF-rotated upright) for the badge photo
+        $path = $this->badgePhoto->getRealPath();
+        $this->facePhotoData = $this->downscaleToDataUri(file_get_contents($path), 420, $this->exifOrientation($path));
         $this->faceBox = $result['face'] ?? [];
 
         $this->scanF = 'done';
         $this->showToast($this->dict()['b_aiDone']);
     }
 
+    /** Read the EXIF orientation flag of an image file (1 = upright). */
+    protected function exifOrientation(string $path): int
+    {
+        if (! function_exists('exif_read_data')) {
+            return 1;
+        }
+        try {
+            $exif = @exif_read_data($path);
+
+            return (int) ($exif['Orientation'] ?? 1);
+        } catch (\Throwable) {
+            return 1;
+        }
+    }
+
     /** Downscale image bytes to a compact JPEG data-URI (keeps Livewire state light). */
-    protected function downscaleToDataUri(string $bytes, int $maxW = 420): string
+    protected function downscaleToDataUri(string $bytes, int $maxW = 420, int $orientation = 1): string
     {
         if (! function_exists('imagecreatefromstring')) {
             return '';
@@ -842,6 +884,16 @@ class WorkforceApp extends Component
         $img = @imagecreatefromstring($bytes);
         if (! $img) {
             return '';
+        }
+        // apply EXIF orientation so phone photos aren't shown sideways/upside-down
+        $angle = match ($orientation) {
+            3 => 180,
+            6 => -90,
+            8 => 90,
+            default => 0,
+        };
+        if ($angle !== 0) {
+            $img = imagerotate($img, $angle, 0);
         }
         $w = imagesx($img);
         $h = imagesy($img);
