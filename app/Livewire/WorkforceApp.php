@@ -67,8 +67,10 @@ class WorkforceApp extends Component
     public $badgePhoto = null;
     /** decoded value of the back-of-badge QR code */
     public string $backQrValue = '';
-    /** uploaded badge-back photo (used for the Gemini fallback) */
+    /** uploaded badge-back photo */
     public $backQrPhoto = null;
+    /** show the manual code-entry field */
+    public bool $backManual = false;
 
     // ---- projects modals ----
     public bool $companyModal = false;
@@ -635,6 +637,12 @@ class WorkforceApp extends Component
         $this->scanB = 'idle';
         $this->backQrValue = '';
         $this->backQrPhoto = null;
+        $this->backManual = false;
+    }
+
+    public function toggleBackManual(): void
+    {
+        $this->backManual = ! $this->backManual;
     }
 
     /** Server-side fallback: Gemini reads the code printed under the QR. */
@@ -727,7 +735,7 @@ class WorkforceApp extends Component
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
-            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto']);
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto', 'backManual']);
         $this->showToast($d['b_finish'] . ' ✓');
     }
 

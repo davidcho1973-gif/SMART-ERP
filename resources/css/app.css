@@ -34,3 +34,5 @@ input, button, select { font-family: inherit; }
     body:has(#pay-print) #pay-print, body:has(#pay-print) #pay-print * { visibility: visible !important; }
     body:has(#pay-print) #pay-print { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; }
 }
+
+[x-cloak] { display: none !important; }
