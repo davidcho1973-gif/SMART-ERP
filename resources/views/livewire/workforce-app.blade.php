@@ -5,11 +5,11 @@
 <div style="min-height: 100vh; background: linear-gradient(180deg,#EDECE7,#E6E4DD); color: #16181D;">
 
     {{-- ===== DEMO CONTROL BAR ===== --}}
-    <div style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: rgba(22,24,29,0.96); color: #fff; backdrop-filter: blur(8px); flex-wrap: wrap;">
+    <div class="wf-topbar" style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: rgba(22,24,29,0.96); color: #fff; backdrop-filter: blur(8px); flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: 0.02em;">
             <span style="display: inline-flex; width: 26px; height: 26px; border-radius: 7px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 15px; font-weight: 700;">N</span>
             <span style="font-family: 'Space Grotesk'; font-size: 15px;">NAHSHON MEP</span>
-            <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">{{ $L['tagline'] }}</span>
+            <span class="wf-tagline" style="font-size: 11px; opacity: 0.5; font-weight: 400;">{{ $L['tagline'] }}</span>
         </div>
         <div style="flex: 1;"></div>
 

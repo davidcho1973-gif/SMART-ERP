@@ -1,7 +1,7 @@
 @php $d = $dash; @endphp
 {{-- ============ DASHBOARD (layout A) ============ --}}
 <div>
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+    <div class="wf-stats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
         <div style="background: #16181D; color: #fff; border-radius: 16px; padding: 20px;">
             <div style="font-size: 12.5px; color: rgba(255,255,255,0.6);">{{ $L['d_onsite'] }}</div>
             <div style="font-family: 'Space Grotesk'; font-size: 40px; font-weight: 700; margin-top: 6px; line-height: 1;">{{ $d['onsite'] }}<span style="font-size: 18px; color: rgba(255,255,255,0.4);"> / {{ $d['totalActive'] }}</span></div>
@@ -23,7 +23,7 @@
             <div style="font-size: 11.5px; color: #A7A49B; margin-top: 6px;">{{ $L['d_perWeek'] }}</div>
         </div>
     </div>
-    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-top: 16px;">
+    <div class="wf-2col" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-top: 16px;">
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
             <div style="font-weight: 600; font-size: 15px; margin-bottom: 16px;">{{ $L['d_byteam'] }}</div>
             @foreach($d['teamStats'] as $tm)

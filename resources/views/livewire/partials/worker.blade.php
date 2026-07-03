@@ -14,10 +14,10 @@
     $earlyIsCustom = $earlyReasonVal === '__custom__';
 @endphp
 {{-- ===== WORKER MOBILE ===== --}}
-<div style="min-height: calc(100vh - 44px); display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px;">
-    <div style="width: 390px; max-width: 100%; background: #000; border-radius: 44px; padding: 11px; box-shadow: 0 30px 70px rgba(0,0,0,0.35);">
-        <div style="position: relative; background: #F4F3EF; border-radius: 34px; overflow: hidden; height: 800px; display: flex; flex-direction: column;">
-            <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 130px; height: 26px; background: #000; border-radius: 0 0 16px 16px; z-index: 30;"></div>
+<div class="wf-phone-wrap" style="min-height: calc(100vh - 44px); display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px;">
+    <div class="wf-phone" style="width: 390px; max-width: 100%; background: #000; border-radius: 44px; padding: 11px; box-shadow: 0 30px 70px rgba(0,0,0,0.35);">
+        <div class="wf-phone-inner" style="position: relative; background: #F4F3EF; border-radius: 34px; overflow: hidden; height: 800px; display: flex; flex-direction: column;">
+            <div class="wf-phone-notch" style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 130px; height: 26px; background: #000; border-radius: 0 0 16px 16px; z-index: 30;"></div>
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 24px 6px; font-size: 12px; font-weight: 600; color: #16181D;">
                 <span style="font-family: 'Space Grotesk';">9:41</span>
                 <span style="display: flex; gap: 5px; align-items: center;"><svg width="15" height="11" viewBox="0 0 18 12" fill="#16181D"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".3"/></svg><svg width="18" height="11" viewBox="0 0 24 16" fill="none" stroke="#16181D" stroke-width="1.6"><rect x="1" y="3" width="19" height="10" rx="3"/><rect x="3" y="5" width="13" height="6" rx="1" fill="#16181D" stroke="none"/><path d="M22 6v4"/></svg></span>

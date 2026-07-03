@@ -3,8 +3,8 @@
     $Icon = \App\Support\Icons::class;
 @endphp
 {{-- ===== DESKTOP APP ===== --}}
-<div style="display: flex; min-height: calc(100vh - 44px);">
-    <aside style="width: 244px; flex-shrink: 0; background: #16181D; color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;">
+<div class="wf-shell" style="display: flex; min-height: calc(100vh - 44px);">
+    <aside class="wf-sidebar" style="width: 244px; flex-shrink: 0; background: #16181D; color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;">
         <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px;">
             <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 9px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700;">N</span>
             <div><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px; line-height: 1;">NAHSHON</div><div style="font-size: 11px; color: rgba(255,255,255,0.45);">MEP Workforce</div></div>
@@ -23,9 +23,9 @@
         </div>
     </aside>
 
-    <main style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
-        <div style="display: flex; align-items: center; gap: 16px; padding: 14px 30px; border-bottom: 1px solid #E1DFD8; background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); position: sticky; top: 44px; z-index: 20;">
-            <div><h1 style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700;">{{ $pageTitle }}</h1><div style="font-size: 12.5px; color: #8A8880;">{{ $pageSub }}</div></div>
+    <main class="wf-main" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+        <div class="wf-header" style="display: flex; align-items: center; gap: 16px; padding: 14px 30px; border-bottom: 1px solid #E1DFD8; background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); position: sticky; top: 44px; z-index: 20;">
+            <div><h1 class="wf-title" style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700;">{{ $pageTitle }}</h1><div style="font-size: 12.5px; color: #8A8880;">{{ $pageSub }}</div></div>
             <div style="flex: 1;"></div>
             <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8880" stroke-width="2"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
@@ -46,7 +46,7 @@
             <div style="display: flex; align-items: center; gap: 8px; padding: 7px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #1F9D6B;"></span>{{ $today }}</div>
         </div>
 
-        <div style="flex: 1; padding: 26px 30px; overflow: auto;">
+        <div class="wf-content" style="flex: 1; padding: 26px 30px; overflow: auto;">
             @if($screen === 'dashboard')
                 @include('livewire.partials.dashboard')
             @elseif($screen === 'projects')
@@ -62,4 +62,14 @@
             @endif
         </div>
     </main>
+
+    {{-- mobile bottom tab menu (admin / site-manager) — shown only under 820px --}}
+    <nav class="wf-bottomnav">
+        @foreach($nav as $item)
+            <button wire:click="go('{{ $item['key'] }}')" class="{{ $item['active'] ? 'active' : '' }}">
+                <span class="wf-navicon">{!! $Icon::nav($item['key']) !!}</span>
+                <span class="wf-navlabel">{{ $item['label'] }}</span>
+            </button>
+        @endforeach
+    </nav>
 </div>

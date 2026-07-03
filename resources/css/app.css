@@ -36,3 +36,92 @@ input, button, select { font-family: inherit; }
 }
 
 [x-cloak] { display: none !important; }
+
+/* ==================================================================
+   Responsive shell — desktop (sidebar) vs mobile (bottom tab menu)
+   ================================================================== */
+
+/* mobile bottom tab bar for admin / site-manager — hidden on desktop */
+.wf-bottomnav { display: none; }
+.wf-bottomnav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 5px 2px;
+    line-height: 1;
+}
+.wf-bottomnav button.active { color: #fff; }
+.wf-bottomnav button .wf-navicon { color: inherit; display: inline-flex; }
+.wf-bottomnav button.active .wf-navicon { color: #E85D2A; }
+.wf-bottomnav button span.wf-navlabel {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+    /* --- app shell: drop the sidebar, stack the content --- */
+    .wf-shell { min-height: auto !important; }
+    .wf-sidebar { display: none !important; }
+    .wf-main { min-height: calc(100vh - 44px) !important; }
+
+    .wf-header {
+        position: static !important;
+        padding: 12px 16px !important;
+        gap: 10px !important;
+        flex-wrap: wrap !important;
+    }
+    .wf-header .wf-title { font-size: 18px !important; }
+    .wf-content { padding: 16px 14px 96px !important; }
+
+    .wf-bottomnav {
+        display: flex !important;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 45;
+        align-items: center;
+        justify-content: space-around;
+        gap: 2px;
+        background: #16181D;
+        padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -6px 22px rgba(0, 0, 0, 0.2);
+    }
+
+    /* --- top control bar: tighten, hide the tagline --- */
+    .wf-topbar { padding: 8px 14px !important; gap: 10px !important; }
+    .wf-tagline { display: none !important; }
+
+    /* --- dashboard grids collapse --- */
+    .wf-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+    .wf-2col { grid-template-columns: 1fr !important; }
+
+    /* --- keep wide content from breaking the page --- */
+    .wf-content > * { max-width: 100%; }
+
+    /* --- worker phone mockup fills the screen (no bezel/notch) --- */
+    .wf-phone-wrap { padding: 0 !important; align-items: stretch !important; }
+    .wf-phone {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    .wf-phone-inner {
+        border-radius: 0 !important;
+        height: calc(100vh - 44px) !important;
+    }
+    .wf-phone-notch { display: none !important; }
+}
