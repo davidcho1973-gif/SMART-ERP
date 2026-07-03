@@ -26,4 +26,5 @@ return [
     'a_email' => 'Correo', 'a_password' => 'Contraseña', 'a_login' => 'Iniciar sesión', 'a_bad' => 'Correo o contraseña incorrectos', 'a_denied' => 'No hay cuenta para este correo de Google — consulta al administrador', 'a_logout' => 'Salir', 'p_paid' => 'Pagado', 'b_uidManual' => 'Escribe o acerca el UID NFC', 'b_nfcWeb' => 'Leer NFC (equipo)', 'b_needName' => 'Escribe nombre y apellido', 'b_needUid' => 'Etiqueta o escribe el UID NFC primero', 'b_dupId' => 'Esta credencial ya está registrada',
     'b_photoPick' => 'Tomar / subir foto de credencial', 'b_photoChange' => 'Cambiar foto', 'b_aiDone' => 'Credencial analizada ✓', 'b_aiFail' => 'No se pudo analizar la foto — intenta una más clara', 'b_aiOff' => 'Análisis IA no configurado (GEMINI_API_KEY)',
     'b_qrPick' => 'Tomar / subir foto del QR', 'b_qrFail' => 'No se encontró QR — usa una foto más clara y cercana', 'b_qrManual' => 'O escribe el código bajo el QR', 'b_qrUse' => 'Usar este código', 'b_qrValue' => 'Valor QR decodificado', 'b_qrCaptured' => 'Código QR capturado ✓', 'e_qr' => 'QR de credencial',
+    'b_qrAnalyze' => 'Analizar QR', 'b_qrAi' => 'Leyendo con IA…',
 ];

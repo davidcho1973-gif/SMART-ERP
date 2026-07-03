@@ -356,4 +356,33 @@ class WorkforceAppTest extends TestCase
             ->call('captureBackQr', '   ')
             ->assertSet('scanB', 'idle');
     }
+
+    public function test_back_qr_ai_fallback_reads_printed_code(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => ['parts' => [['text' => json_encode(['code' => '00102810'])]]],
+                ]],
+            ]),
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->call('toBack')
+            ->set('backQrPhoto', UploadedFile::fake()->image('back.jpg', 800, 1100))
+            ->call('analyzeBackQr')
+            ->assertSet('scanB', 'done')
+            ->assertSet('backQrValue', '00102810');
+    }
+
+    public function test_back_qr_ai_fallback_without_photo_toasts(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->call('toBack')
+            ->call('analyzeBackQr')
+            ->assertSet('scanB', 'idle');
+    }
 }

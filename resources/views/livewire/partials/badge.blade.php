@@ -84,15 +84,32 @@
         @php $bdone = $scanB === 'done'; @endphp
         <div style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;"
              x-data="{
-                preview: null, err: false, busy: false,
-                async decode(e) {
+                preview: null, file: null, busy: false, stage: '',
+                pick(e) {
                     const f = e.target.files[0]; if (!f) return;
-                    this.preview = URL.createObjectURL(f); this.err = false; this.busy = true;
+                    this.file = f;
+                    this.preview = URL.createObjectURL(f);
+                },
+                upload() {
+                    return new Promise((ok, bad) => $wire.upload('backQrPhoto', this.file, ok, bad));
+                },
+                async analyze() {
+                    if (!this.file || this.busy) return;
+                    this.busy = true;
+                    this.stage = 'qr';
                     let code = null;
-                    try { code = await window.decodeQrFromImage(f); } catch (_) {}
-                    this.busy = false;
-                    if (code) { $wire.call('captureBackQr', code); }
-                    else { this.err = true; }
+                    try { code = await window.decodeQrFromImage(this.file); } catch (_) {}
+                    if (code) {
+                        await $wire.call('captureBackQr', code);
+                        this.busy = false; this.stage = '';
+                        return;
+                    }
+                    this.stage = 'ai';
+                    try {
+                        await this.upload();
+                        await $wire.call('analyzeBackQr');
+                    } catch (_) {}
+                    this.busy = false; this.stage = '';
                 }
              }">
             <div style="background: #16181D; border-radius: 18px; padding: 24px; color: #fff;">
@@ -112,12 +129,15 @@
                 </div>
 
                 @if(! $bdone)
-                    <label style="display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg>
-                        {{ $L['b_qrPick'] }}
-                        <input type="file" accept="image/*" capture="environment" @change="decode($event)" style="display: none;"/>
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 18px; padding: 13px; border: 1.5px dashed rgba(255,255,255,0.35); border-radius: 12px; background: rgba(255,255,255,0.06); color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer;">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span x-text="file ? @js($L['b_photoChange']) : @js($L['b_qrPick'])"></span>
+                        <input type="file" accept="image/*" capture="environment" @change="pick($event)" style="display: none;"/>
                     </label>
-                    <div x-show="err" x-cloak style="margin-top: 10px; font-size: 12px; color: #F4C168; text-align: center;">{{ $L['b_qrFail'] }}</div>
+                    <button type="button" @click="analyze()" :disabled="!file || busy" :style="(!file || busy) ? 'opacity:0.55;' : ''" style="width: 100%; margin-top: 10px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px;">
+                        <span x-show="!busy" style="display: flex; align-items: center; gap: 9px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg>{{ $L['b_qrAnalyze'] }}</span>
+                        <span x-show="busy" x-cloak style="display: flex; align-items: center; gap: 9px;"><span style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span><span x-text="stage === 'ai' ? @js($L['b_qrAi']) : @js($L['b_qrReading'])"></span></span>
+                    </button>
                     <label style="display: block; margin-top: 12px;"><span style="font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['b_qrManual'] }}</span>
                         <input wire:model.live.debounce.500ms="backQrValue" placeholder="00102810" style="width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; background: rgba(255,255,255,0.06); color: #fff; font-size: 13.5px; font-family: 'Space Grotesk'; outline: none;"/></label>
                     @if(trim($backQrValue) !== '')

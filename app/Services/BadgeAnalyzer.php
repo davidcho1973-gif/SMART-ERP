@@ -20,6 +20,60 @@ class BadgeAnalyzer
     }
 
     /**
+     * Badge BACK: return the unique code — the number printed directly under
+     * the QR code (e.g. "00102810"). Used when browser-side QR decoding fails
+     * (glare / laminate reflections).
+     */
+    public function analyzeBack(string $imageBytes, string $mime): ?string
+    {
+        $key = config('services.gemini.key');
+        $model = config('services.gemini.model', 'gemini-flash-latest');
+
+        $prompt = <<<'PROMPT'
+This photo shows the BACK of a construction site badge. It has a QR code with a
+human-readable code printed directly UNDER the QR (e.g. "00102810").
+
+Return that printed code exactly as shown (digits/letters, no spaces).
+Ignore the P/N line at the bottom and any brand names. If the code is
+unreadable, return an empty string. Respond with JSON only.
+PROMPT;
+
+        try {
+            $response = Http::timeout(45)->post(
+                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
+                [
+                    'contents' => [[
+                        'parts' => [
+                            ['text' => $prompt],
+                            ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
+                        ],
+                    ]],
+                    'generationConfig' => [
+                        'response_mime_type' => 'application/json',
+                        'response_schema' => [
+                            'type' => 'OBJECT',
+                            'properties' => ['code' => ['type' => 'STRING']],
+                            'required' => ['code'],
+                        ],
+                        'temperature' => 0,
+                    ],
+                ]
+            );
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+        $text = $response->json('candidates.0.content.parts.0.text');
+        $data = is_string($text) ? json_decode($text, true) : null;
+        $code = is_array($data) ? trim((string) ($data['code'] ?? '')) : '';
+
+        return $code !== '' ? $code : null;
+    }
+
+    /**
      * @return array{company:string,last:string,first:string,role:string,issued:string}|null
      *         null when the API is unreachable or returns an unusable response
      */

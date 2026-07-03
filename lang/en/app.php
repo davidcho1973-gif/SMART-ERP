@@ -26,4 +26,5 @@ return [
     'a_email' => 'Email', 'a_password' => 'Password', 'a_login' => 'Sign in', 'a_bad' => 'Invalid email or password', 'a_denied' => 'No account for this Google email — ask your admin', 'a_logout' => 'Log out', 'p_paid' => 'Paid', 'b_uidManual' => 'Type or tap the NFC UID', 'b_nfcWeb' => 'Tap NFC (device)', 'b_needName' => 'Enter first & last name', 'b_needUid' => 'Tag or enter the NFC UID first', 'b_dupId' => 'This badge ID is already registered',
     'b_photoPick' => 'Take / upload badge photo', 'b_photoChange' => 'Change photo', 'b_aiDone' => 'Badge analyzed ✓', 'b_aiFail' => 'Could not analyze the photo — try a clearer shot', 'b_aiOff' => 'AI analysis is not configured (GEMINI_API_KEY)',
     'b_qrPick' => 'Take / upload QR photo', 'b_qrFail' => 'No QR found — try a clearer, closer photo', 'b_qrManual' => 'Or type the code under the QR', 'b_qrUse' => 'Use this code', 'b_qrValue' => 'Decoded QR value', 'b_qrCaptured' => 'QR code captured ✓', 'e_qr' => 'Badge QR',
+    'b_qrAnalyze' => 'Analyze QR', 'b_qrAi' => 'Reading with AI…',
 ];

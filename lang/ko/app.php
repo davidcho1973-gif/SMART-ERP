@@ -26,4 +26,5 @@ return [
     'a_email' => '이메일', 'a_password' => '비밀번호', 'a_login' => '로그인', 'a_bad' => '이메일 또는 비밀번호가 올바르지 않습니다', 'a_denied' => '이 Google 이메일로 등록된 계정이 없습니다 — 관리자에게 문의하세요', 'a_logout' => '로그아웃', 'p_paid' => '지급됨', 'b_uidManual' => 'NFC UID 직접 입력 또는 태그', 'b_nfcWeb' => '기기 NFC 태그', 'b_needName' => '이름(성·이름)을 입력하세요', 'b_needUid' => '먼저 NFC UID를 태그하거나 입력하세요', 'b_dupId' => '이미 등록된 베지 ID입니다',
     'b_photoPick' => '베지 사진 촬영 / 업로드', 'b_photoChange' => '사진 변경', 'b_aiDone' => '베지 분석 완료 ✓', 'b_aiFail' => '사진을 분석하지 못했습니다 — 더 선명하게 찍어주세요', 'b_aiOff' => 'AI 분석이 설정되지 않았습니다 (GEMINI_API_KEY)',
     'b_qrPick' => 'QR 사진 촬영 / 업로드', 'b_qrFail' => 'QR을 찾지 못했습니다 — 더 선명하게·가깝게 찍어주세요', 'b_qrManual' => '또는 QR 아래 번호를 직접 입력', 'b_qrUse' => '이 코드 사용', 'b_qrValue' => '해독된 QR 값', 'b_qrCaptured' => 'QR 코드 인식 완료 ✓', 'e_qr' => '베지 QR',
+    'b_qrAnalyze' => 'QR 분석', 'b_qrAi' => 'AI로 판독 중…',
 ];

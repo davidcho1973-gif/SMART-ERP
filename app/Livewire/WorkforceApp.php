@@ -67,6 +67,8 @@ class WorkforceApp extends Component
     public $badgePhoto = null;
     /** decoded value of the back-of-badge QR code */
     public string $backQrValue = '';
+    /** uploaded badge-back photo (used for the Gemini fallback) */
+    public $backQrPhoto = null;
 
     // ---- projects modals ----
     public bool $companyModal = false;
@@ -632,6 +634,32 @@ class WorkforceApp extends Component
     {
         $this->scanB = 'idle';
         $this->backQrValue = '';
+        $this->backQrPhoto = null;
+    }
+
+    /** Server-side fallback: Gemini reads the code printed under the QR. */
+    public function analyzeBackQr(): void
+    {
+        if (! $this->backQrPhoto) {
+            $this->showToast($this->dict()['b_qrFail']);
+            return;
+        }
+        $this->validate(['backQrPhoto' => 'image|max:10240']);
+
+        $analyzer = app(\App\Services\BadgeAnalyzer::class);
+        if (! $analyzer->isConfigured()) {
+            $this->showToast($this->dict()['b_aiOff']);
+            return;
+        }
+        $code = $analyzer->analyzeBack(
+            file_get_contents($this->backQrPhoto->getRealPath()),
+            $this->backQrPhoto->getMimeType() ?: 'image/jpeg'
+        );
+        if ($code === null) {
+            $this->showToast($this->dict()['b_qrFail']);
+            return;
+        }
+        $this->captureBackQr($code);
     }
 
     public function startScanN(): void
@@ -699,7 +727,7 @@ class WorkforceApp extends Component
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
-            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue']);
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto']);
         $this->showToast($d['b_finish'] . ' ✓');
     }
 
