@@ -81,6 +81,10 @@ class WorkforceApp extends Component
     public string $newCoSite = '';
     public string $newTeamName = '';
     public string $newTeamLead = '';
+    public ?string $editCompanyId = null;   // company modal in edit mode
+    public ?string $editTeamId = null;       // team modal in edit mode
+    public ?string $deleteCompanyId = null;  // pending company deletion
+    public ?string $deleteTeamId = null;     // pending team deletion
 
     // ---- attendance ----
     public string $attView = 'records';   // records | qr
@@ -599,14 +603,29 @@ class WorkforceApp extends Component
 
     public function openCompanyModal(): void
     {
+        $this->editCompanyId = null;
         $this->companyModal = true;
         $this->newCoName = '';
         $this->newCoSite = '';
     }
 
+    public function openEditCompany(string $id): void
+    {
+        $co = Company::find($id);
+        if (! $co) {
+            return;
+        }
+        $site = Site::find($co->site_id);
+        $this->editCompanyId = $id;
+        $this->newCoName = $co->name;
+        $this->newCoSite = $site ? trim($site->name . ($site->city ? ' · ' . $site->city : '')) : '';
+        $this->companyModal = true;
+    }
+
     public function cancelCompany(): void
     {
         $this->companyModal = false;
+        $this->editCompanyId = null;
     }
 
     public function saveCompany(): void
@@ -626,22 +645,66 @@ class WorkforceApp extends Component
         if (! $site) {
             $site = Site::create(['id' => 's' . Str::random(6), 'name' => $siteName, 'city' => '', 'gc' => 'Hoffman', 'code' => '']);
         }
-        Company::create(['id' => 'c' . Str::random(6), 'name' => $name, 'site_id' => $site->id]);
+        if ($this->editCompanyId) {
+            Company::where('id', $this->editCompanyId)->update(['name' => $name, 'site_id' => $site->id]);
+            $this->showToast($this->dict()['pj_saved'] . ' ✓');
+        } else {
+            Company::create(['id' => 'c' . Str::random(6), 'name' => $name, 'site_id' => $site->id]);
+            $this->showToast(str_replace('+ ', '', $this->dict()['pj_create']) . ' ✓');
+        }
         $this->companyModal = false;
-        $this->showToast(str_replace('+ ', '', $this->dict()['pj_create']) . ' ✓');
+        $this->editCompanyId = null;
+    }
+
+    public function askDeleteCompany(string $id): void
+    {
+        $this->deleteCompanyId = $id;
+    }
+
+    public function cancelDeleteCompany(): void
+    {
+        $this->deleteCompanyId = null;
+    }
+
+    public function confirmDeleteCompany(): void
+    {
+        if (! $this->canManage() || ! $this->deleteCompanyId) {
+            return;
+        }
+        $id = $this->deleteCompanyId;
+        // unassign members and drop the company's crews
+        Employee::where('company_id', $id)->update(['company_id' => null, 'team_id' => null]);
+        Team::where('company_id', $id)->delete();
+        Company::where('id', $id)->delete();
+        $this->deleteCompanyId = null;
+        $this->showToast($this->dict()['pj_deleted'] . ' ✓');
     }
 
     public function openTeamModal(string $companyId): void
     {
+        $this->editTeamId = null;
         $this->teamModal = $companyId;
         $this->newTeamName = '';
         $first = Employee::where('type', 'manager')->where('emp', 'active')->orderBy('id')->first();
         $this->newTeamLead = $first ? (string) $first->id : '';
     }
 
+    public function openEditTeam(string $teamId): void
+    {
+        $t = Team::find($teamId);
+        if (! $t) {
+            return;
+        }
+        $this->editTeamId = $teamId;
+        $this->teamModal = $t->company_id;
+        $this->newTeamName = $t->name;
+        $this->newTeamLead = $t->lead !== null ? (string) $t->lead : '';
+    }
+
     public function cancelTeam(): void
     {
         $this->teamModal = null;
+        $this->editTeamId = null;
     }
 
     public function saveTeam(): void
@@ -652,17 +715,47 @@ class WorkforceApp extends Component
         if (trim($this->newTeamName) === '' || ! $this->teamModal) {
             return;
         }
-        $cols = ['#3B72E0', '#1F9D6B', '#E85D2A', '#D9483B', '#8A5CF6', '#0EA5A0'];
-        $count = Team::count();
-        Team::create([
-            'id' => 't' . Str::random(6),
-            'name' => trim($this->newTeamName),
-            'company_id' => $this->teamModal,
-            'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
-            'color' => $cols[$count % count($cols)],
-        ]);
+        if ($this->editTeamId) {
+            Team::where('id', $this->editTeamId)->update([
+                'name' => trim($this->newTeamName),
+                'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
+            ]);
+            $this->showToast($this->dict()['pj_saved'] . ' ✓');
+        } else {
+            $cols = ['#3B72E0', '#1F9D6B', '#E85D2A', '#D9483B', '#8A5CF6', '#0EA5A0'];
+            $count = Team::count();
+            Team::create([
+                'id' => 't' . Str::random(6),
+                'name' => trim($this->newTeamName),
+                'company_id' => $this->teamModal,
+                'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
+                'color' => $cols[$count % count($cols)],
+            ]);
+            $this->showToast(str_replace('+ ', '', $this->dict()['pj_newTeam']) . ' ✓');
+        }
         $this->teamModal = null;
-        $this->showToast(str_replace('+ ', '', $this->dict()['pj_newTeam']) . ' ✓');
+        $this->editTeamId = null;
+    }
+
+    public function askDeleteTeam(string $id): void
+    {
+        $this->deleteTeamId = $id;
+    }
+
+    public function cancelDeleteTeam(): void
+    {
+        $this->deleteTeamId = null;
+    }
+
+    public function confirmDeleteTeam(): void
+    {
+        if (! $this->canManage() || ! $this->deleteTeamId) {
+            return;
+        }
+        Employee::where('team_id', $this->deleteTeamId)->update(['team_id' => null]);
+        Team::where('id', $this->deleteTeamId)->delete();
+        $this->deleteTeamId = null;
+        $this->showToast($this->dict()['pj_deleted'] . ' ✓');
     }
 
     public function changeLead(string $teamId, string $leadId): void
@@ -1108,6 +1201,8 @@ class WorkforceApp extends Component
             'nfcUidManual' => $this->nfcUidManual,
             'backQrValue' => $this->backQrValue,
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
+            'editCompanyId' => $this->editCompanyId, 'editTeamId' => $this->editTeamId,
+            'deleteCompanyId' => $this->deleteCompanyId, 'deleteTeamId' => $this->deleteTeamId,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,
             'attView' => $this->attView, 'attDate' => $this->attDate ?: now()->format('Y-m-d'),

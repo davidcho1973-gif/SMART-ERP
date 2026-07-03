@@ -474,6 +474,10 @@ class ViewModel
                 'companyCards' => $companyCards,
                 'teamModalCo' => $s['teamModal'] ? $companyName($s['teamModal']) : '',
                 'teamLeadOptions' => $managerOptions,
+                'editingCompany' => (bool) ($s['editCompanyId'] ?? null),
+                'editingTeam' => (bool) ($s['editTeamId'] ?? null),
+                'delCompanyName' => ($s['deleteCompanyId'] ?? null) ? $companyName($s['deleteCompanyId']) : null,
+                'delTeamName' => ($s['deleteTeamId'] ?? null) ? (optional($teamById->get($s['deleteTeamId']))->name ?? '—') : null,
             ],
             // badge
             'badge' => [

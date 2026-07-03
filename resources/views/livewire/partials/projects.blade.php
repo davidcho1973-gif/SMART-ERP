@@ -12,7 +12,11 @@
                         <div style="font-size: 17px; font-weight: 700;">{{ $c['name'] }}</div>
                         <div style="font-size: 12px; color: #8A8880; margin-top: 2px;">{{ $c['site'] }} · {{ $L['pj_gc'] }} {{ $c['gc'] }}</div>
                     </div>
-                    <button wire:click="openTeamModal('{{ $c['id'] }}')" style="padding: 7px 12px; border: 1px solid #E4E2DB; border-radius: 9px; background: #FAFAF8; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_newTeam'] }}</button>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <button wire:click="openEditCompany('{{ $c['id'] }}')" title="{{ $L['pj_edit'] }}" style="width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5A5D64" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                        <button wire:click="askDeleteCompany('{{ $c['id'] }}')" title="{{ $L['pj_delete'] }}" style="width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #F3D9CB; border-radius: 8px; background: #fff; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                        <button wire:click="openTeamModal('{{ $c['id'] }}')" style="padding: 7px 12px; border: 1px solid #E4E2DB; border-radius: 9px; background: #FAFAF8; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_newTeam'] }}</button>
+                    </div>
                 </div>
                 <div style="padding: 8px 14px 14px;">
                     @foreach($c['teams'] as $t)
@@ -21,6 +25,8 @@
                                 <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $t['color'] }};"></span>
                                 <span style="flex: 1; font-size: 14px; font-weight: 600;">{{ $t['name'] }}</span>
                                 <span style="font-family: 'Space Grotesk'; font-size: 12px; color: #1F9D6B; font-weight: 600;">{{ $t['present'] }}/{{ $t['count'] }} {{ $L['pj_present'] }}</span>
+                                <button wire:click="openEditTeam('{{ $t['id'] }}')" title="{{ $L['pj_edit'] }}" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #E4E2DB; border-radius: 7px; background: #fff; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5A5D64" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                                <button wire:click="askDeleteTeam('{{ $t['id'] }}')" title="{{ $L['pj_delete'] }}" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #F3D9CB; border-radius: 7px; background: #fff; cursor: pointer;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
                                 <span style="font-size: 11.5px; color: #8A8880;">{{ $L['pj_lead'] }}</span>
@@ -43,12 +49,12 @@
 @if($companyModal)
     <div style="position: fixed; inset: 0; z-index: 70; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
         <div style="width: 400px; background: #fff; border-radius: 18px; padding: 26px;">
-            <div style="font-size: 17px; font-weight: 700; margin-bottom: 18px;">{{ $L['pj_newCompanyT'] }}</div>
+            <div style="font-size: 17px; font-weight: 700; margin-bottom: 18px;">{{ $projects['editingCompany'] ? $L['pj_editCompanyT'] : $L['pj_newCompanyT'] }}</div>
             <label style="display: block; margin-bottom: 14px;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_companyName'] }}</span><input wire:model="newCoName" placeholder="Copper State Electric" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
             <label style="display: block;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_site'] }}</span><input wire:model="newCoSite" placeholder="TSMC Fab 21 · Phoenix, AZ" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelCompany" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
-                <button wire:click="saveCompany" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_save'] }}</button>
+                <button wire:click="saveCompany" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $projects['editingCompany'] ? $L['pj_saveEdit'] : $L['pj_save'] }}</button>
             </div>
         </div>
     </div>
@@ -58,13 +64,43 @@
 @if($teamModal)
     <div style="position: fixed; inset: 0; z-index: 70; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
         <div style="width: 400px; background: #fff; border-radius: 18px; padding: 26px;">
-            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_newTeamT'] }}</div>
+            <div style="font-size: 17px; font-weight: 700;">{{ $projects['editingTeam'] ? $L['pj_editTeamT'] : $L['pj_newTeamT'] }}</div>
             <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 18px;">{{ $projects['teamModalCo'] }}</div>
             <label style="display: block; margin-bottom: 14px;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_teamName'] }}</span><input wire:model="newTeamName" placeholder="Electrical Crew B" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
             <label style="display: block;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_selectLead'] }}</span><select wire:model="newTeamLead" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($projects['teamLeadOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelTeam" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
-                <button wire:click="saveTeam" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_save'] }}</button>
+                <button wire:click="saveTeam" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $projects['editingTeam'] ? $L['pj_saveEdit'] : $L['pj_save'] }}</button>
+            </div>
+        </div>
+    </div>
+@endif
+
+{{-- delete company confirm --}}
+@if($projects['delCompanyName'])
+    <div style="position: fixed; inset: 0; z-index: 75; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div style="width: 400px; background: #fff; border-radius: 18px; padding: 26px;">
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_delCompanyT'] }}</div>
+            <div style="font-size: 13.5px; color: #16181D; margin-top: 6px; font-weight: 600;">{{ $projects['delCompanyName'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-top: 8px; line-height: 1.5;">{{ $L['pj_delCompanyMsg'] }}</div>
+            <div style="display: flex; gap: 10px; margin-top: 22px;">
+                <button wire:click="cancelDeleteCompany" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
+                <button wire:click="confirmDeleteCompany" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #D9483B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_confirmDelete'] }}</button>
+            </div>
+        </div>
+    </div>
+@endif
+
+{{-- delete crew confirm --}}
+@if($projects['delTeamName'])
+    <div style="position: fixed; inset: 0; z-index: 75; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div style="width: 400px; background: #fff; border-radius: 18px; padding: 26px;">
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_delTeamT'] }}</div>
+            <div style="font-size: 13.5px; color: #16181D; margin-top: 6px; font-weight: 600;">{{ $projects['delTeamName'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-top: 8px; line-height: 1.5;">{{ $L['pj_delTeamMsg'] }}</div>
+            <div style="display: flex; gap: 10px; margin-top: 22px;">
+                <button wire:click="cancelDeleteTeam" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
+                <button wire:click="confirmDeleteTeam" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #D9483B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_confirmDelete'] }}</button>
             </div>
         </div>
     </div>

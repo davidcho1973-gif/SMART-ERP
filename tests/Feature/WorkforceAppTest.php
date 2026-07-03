@@ -78,6 +78,73 @@ class WorkforceAppTest extends TestCase
         $this->assertSame(103, Team::find('t1')->lead);
     }
 
+    public function test_edits_a_company_name(): void
+    {
+        $co = Company::first();
+        Livewire::test(WorkforceApp::class)
+            ->call('openEditCompany', $co->id)
+            ->assertSet('newCoName', $co->name)
+            ->set('newCoName', 'Renamed Company')
+            ->call('saveCompany');
+
+        $this->assertSame('Renamed Company', $co->fresh()->name);
+    }
+
+    public function test_deletes_a_company_drops_crews_and_unassigns_members(): void
+    {
+        $co = Company::first();
+        $member = Employee::where('company_id', $co->id)->first();
+
+        Livewire::test(WorkforceApp::class)
+            ->call('askDeleteCompany', $co->id)
+            ->call('confirmDeleteCompany');
+
+        $this->assertNull(Company::find($co->id));
+        $this->assertSame(0, Team::where('company_id', $co->id)->count());
+        if ($member) {
+            $this->assertNull($member->fresh()->company_id);   // record kept, unassigned
+            $this->assertNotNull(Employee::find($member->id));
+        }
+    }
+
+    public function test_edits_a_crew_name(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('openEditTeam', 't1')
+            ->set('newTeamName', 'Renamed Crew')
+            ->call('saveTeam');
+
+        $this->assertSame('Renamed Crew', Team::find('t1')->name);
+    }
+
+    public function test_deletes_a_crew_and_unassigns_members(): void
+    {
+        $member = Employee::where('team_id', 't1')->first();
+
+        Livewire::test(WorkforceApp::class)
+            ->call('askDeleteTeam', 't1')
+            ->call('confirmDeleteTeam');
+
+        $this->assertNull(Team::find('t1'));
+        if ($member) {
+            $this->assertNull($member->fresh()->team_id);
+        }
+    }
+
+    public function test_clear_demo_command_wipes_data_but_keeps_admin(): void
+    {
+        $this->seed(UserSeeder::class);
+
+        $this->artisan('app:clear-demo')->assertExitCode(0);
+
+        $this->assertSame(0, Company::count());
+        $this->assertSame(0, Team::count());
+        $this->assertSame(0, Employee::count());
+        $this->assertSame(0, Punch::count());
+        $this->assertNotNull(User::where('email', 'davidcho1973@gmail.com')->first());  // admin kept
+        $this->assertNull(User::where('email', 'mkim@nahshon.io')->first());            // demo login removed
+    }
+
     public function test_terminate_then_reactivate_preserves_record(): void
     {
         Livewire::test(WorkforceApp::class)->call('askTerm', 106)->call('confirmTerm');
