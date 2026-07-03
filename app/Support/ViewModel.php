@@ -309,6 +309,15 @@ class ViewModel
             'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_' . $me->access],
         ];
 
+        // authenticated user with no linked employee (e.g. admin previewing the
+        // worker view) → show their real account name instead of the sample worker
+        if (! $isDemo && $authUser && ! $authUser->employee_id) {
+            $parts = preg_split('/\s+/', trim($authUser->name)) ?: [];
+            $worker['name'] = $authUser->name;
+            $worker['initials'] = mb_strtoupper(mb_substr($parts[0] ?? '', 0, 1) . (isset($parts[1]) ? mb_substr($parts[1], 0, 1) : ''));
+            $worker['role'] = $L['access_' . $authUser->access] ?? $me->role;
+        }
+
         $dbPunches = Punch::where('employee_id', $me->id)
             ->orderByDesc('work_date')->limit(10)->get();
         $rawPunches = [

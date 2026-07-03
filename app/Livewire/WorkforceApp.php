@@ -155,12 +155,11 @@ class WorkforceApp extends Component
     /** The employee behind the worker-mobile view. */
     protected function meEmployeeId(): int
     {
-        // real worker accounts see their own record; admins/managers previewing
-        // the worker view see a representative sample worker
-        if (! $this->isDemo() && Auth::check() && Auth::user()->access === 'worker' && Auth::user()->employee_id) {
+        // any authenticated user linked to an employee sees their own record
+        if (! $this->isDemo() && Auth::check() && Auth::user()->employee_id) {
             return (int) Auth::user()->employee_id;
         }
-        return 106; // sample worker (Carlos) — demo & previews
+        return 106; // sample worker (Carlos) — demo & admins with no linked employee
     }
 
     /** The employee to clock for from the desktop (admin/manager's own record). */

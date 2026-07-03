@@ -71,6 +71,24 @@
         window.addEventListener('print-now', () => window.print());
     </script>
 
+    {{-- live clock: keep the worker screen showing the real current time --}}
+    <script>
+        (function () {
+            function tick() {
+                var d = new Date();
+                var h = d.getHours(), m = d.getMinutes();
+                var mm = (m < 10 ? '0' : '') + m;
+                var h12 = ((h + 11) % 12) + 1;
+                var ampm = h < 12 ? 'AM' : 'PM';
+                document.querySelectorAll('.wk-time').forEach(function (e) { e.textContent = h12 + ':' + mm; });
+                document.querySelectorAll('.wk-bigtime').forEach(function (e) { e.textContent = h12 + ':' + mm + ' ' + ampm; });
+            }
+            tick();
+            setInterval(tick, 15000);
+            document.addEventListener('livewire:navigated', tick);
+        })();
+    </script>
+
     {{-- PWA install: service worker + one-tap "add to home screen" --}}
     <script>
         (function () {

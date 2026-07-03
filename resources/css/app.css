@@ -124,4 +124,6 @@ input, button, select { font-family: inherit; }
         height: calc(100vh - 44px) !important;
     }
     .wf-phone-notch { display: none !important; }
+    /* real phones already show their own status bar — drop the mock one */
+    .wf-phone-status { display: none !important; }
 }
