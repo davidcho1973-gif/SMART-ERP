@@ -26,6 +26,8 @@ class WorkforceApp extends Component
     // ---- primary navigation / UI state ----
     public string $screen = 'login';
     public string $role = 'admin';
+    /** the account's access ceiling — the highest view it may switch to */
+    public string $access = 'admin';
     public string $lang = 'en';
     public string $dashLayout = 'A';
     public string $site = 'all';
@@ -153,10 +155,12 @@ class WorkforceApp extends Component
     /** The employee behind the worker-mobile view. */
     protected function meEmployeeId(): int
     {
-        if (! $this->isDemo() && Auth::check() && Auth::user()->employee_id) {
+        // real worker accounts see their own record; admins/managers previewing
+        // the worker view see a representative sample worker
+        if (! $this->isDemo() && Auth::check() && Auth::user()->access === 'worker' && Auth::user()->employee_id) {
             return (int) Auth::user()->employee_id;
         }
-        return 106; // demo worker (Carlos)
+        return 106; // sample worker (Carlos) — demo & previews
     }
 
     /** The employee to clock for from the desktop (admin/manager's own record). */
@@ -242,6 +246,7 @@ class WorkforceApp extends Component
     protected function applyUser(): void
     {
         $u = Auth::user();
+        $this->access = $u->access;
         if ($u->access === 'worker') {
             $this->role = 'worker';
             $this->screen = 'worker';
@@ -288,11 +293,48 @@ class WorkforceApp extends Component
         return null;
     }
 
+    /** Rank of a role for the access hierarchy (higher = more access). */
+    protected function roleRank(string $r): int
+    {
+        return ['worker' => 1, 'manager' => 2, 'admin' => 3][$r] ?? 0;
+    }
+
+    /**
+     * Switch the active view within the account's access ceiling.
+     * Admin → admin/manager/worker · manager → manager/worker · worker → worker only.
+     */
+    public function viewAs(string $target): void
+    {
+        if (! in_array($target, ['admin', 'manager', 'worker'], true)) {
+            return;
+        }
+        // never let a view exceed the account's own access level
+        if ($this->roleRank($target) > $this->roleRank($this->access)) {
+            return;
+        }
+        if ($target === 'worker') {
+            $this->selectedEmp = null;
+            $this->role = 'worker';
+            $this->screen = 'worker';
+            $this->mobileTab = 'home';
+        } else {
+            $this->role = $target;
+            if (in_array($this->screen, ['worker', 'login'], true)) {
+                $this->screen = 'dashboard';
+            }
+            // managers never see payroll
+            if ($target === 'manager' && $this->screen === 'payroll') {
+                $this->screen = 'dashboard';
+            }
+        }
+    }
+
     public function setRole(string $r): void
     {
         if (! $this->isDemo()) {
             return; // in real mode the role comes from the authenticated account
         }
+        $this->access = $r; // demo persona sets the access ceiling
         if ($r === 'worker') {
             $this->reset(['selectedEmp']);
             $this->role = 'worker';
@@ -996,7 +1038,7 @@ class WorkforceApp extends Component
     public function state(): array
     {
         return [
-            'screen' => $this->screen, 'role' => $this->role, 'lang' => $this->lang,
+            'screen' => $this->screen, 'role' => $this->role, 'access' => $this->access, 'lang' => $this->lang,
             'dashLayout' => $this->dashLayout, 'site' => $this->site,
             'selectedEmp' => $this->selectedEmp, 'empFilter' => $this->empFilter,
             'teamFilter' => $this->teamFilter, 'search' => $this->search,

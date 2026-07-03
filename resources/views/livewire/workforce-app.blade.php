@@ -12,18 +12,24 @@
             <span style="font-size: 11px; opacity: 0.5; font-weight: 400;">{{ $L['tagline'] }}</span>
         </div>
         <div style="flex: 1;"></div>
-        @if($isDemo)
+
+        {{-- access-gated view switcher: only roles at or below the account's ceiling --}}
+        @if(! $isLogin && count($viewSwitch) > 1)
         <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="font-size: 11px; opacity: 0.55; margin-right: 2px;">{{ $L['roleSwitch'] }}</span>
-            <button wire:click="setRole('admin')" style="{{ $Ui::tab($role==='admin') }}">{{ $L['roleAdmin'] }}</button>
-            <button wire:click="setRole('manager')" style="{{ $Ui::tab($role==='manager') }}">{{ $L['roleManager'] }}</button>
-            <button wire:click="setRole('worker')" style="{{ $Ui::tab($role==='worker') }}">{{ $L['roleWorker'] }}</button>
+            <span style="font-size: 11px; opacity: 0.55; margin-right: 2px;">{{ $L['viewAs'] }}</span>
+            @foreach($viewSwitch as $v)
+                <button wire:click="viewAs('{{ $v['role'] }}')" style="{{ $Ui::tab($v['active']) }}">{{ $v['label'] }}</button>
+            @endforeach
         </div>
-        @elseif($authName)
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 12px; opacity: 0.8;">{{ $authName }} · {{ $role==='admin' ? $L['roleAdmin'] : ($role==='manager' ? $L['roleManager'] : $L['roleWorker']) }}</span>
+        @endif
+
+        @if(! $isLogin && $authName)
+        <div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid rgba(255,255,255,0.15); padding-left: 12px;">
+            <span style="font-size: 12px; opacity: 0.8;">{{ $authName }}</span>
             <button wire:click="logout" style="{{ $Ui::tab(false) }}">{{ $L['a_logout'] }}</button>
         </div>
+        @elseif($isDemo && ! $isLogin)
+        <button wire:click="logout" style="{{ $Ui::tab(false) }}">{{ $L['a_logout'] }}</button>
         @endif
         <div style="display: flex; align-items: center; gap: 3px; border-left: 1px solid rgba(255,255,255,0.15); padding-left: 12px;">
             <button wire:click="setLang('en')" style="{{ $Ui::langBtn($lang==='en') }}">EN</button>

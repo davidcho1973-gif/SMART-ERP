@@ -397,6 +397,17 @@ class ViewModel
         $meName = $authUser?->name
             ?? ($s['role'] === 'admin' ? ($lang === 'ko' ? '김현수' : 'Hyunsoo Kim') : ($lang === 'ko' ? '박정우' : 'Jungwoo Park'));
 
+        // Access hierarchy: which views this account may switch to (rank ≤ ceiling).
+        $rank = ['worker' => 1, 'manager' => 2, 'admin' => 3];
+        $access = $s['access'] ?? 'admin';
+        $roleLabels = ['admin' => $L['roleAdmin'], 'manager' => $L['roleManager'], 'worker' => $L['roleWorker']];
+        $viewSwitch = [];
+        foreach (['admin', 'manager', 'worker'] as $r) {
+            if (($rank[$r] ?? 0) <= ($rank[$access] ?? 3)) {
+                $viewSwitch[] = ['role' => $r, 'label' => $roleLabels[$r], 'active' => $s['role'] === $r];
+            }
+        }
+
         // Desktop self clock-in/out (admin & manager clocking their own record).
         $deskClock = ['show' => false];
         $selfEid = $s['selfEmployeeId'] ?? null;
@@ -475,6 +486,8 @@ class ViewModel
                 'reasonOptions' => $reasonOptions, 'qrSvg' => RealQr::svg(url('/scan/' . $me->team_id)),
             ],
             'deskClock' => $deskClock,
+            'viewSwitch' => $viewSwitch,
+            'access' => $access,
             'isDemo' => $isDemo,
             'authName' => $authUser?->name,
             'googleEnabled' => (bool) config('services.google.client_id'),

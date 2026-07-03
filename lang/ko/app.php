@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'tagline' => '다중 현장 인원 관리 · 애리조나', 'roleSwitch' => '역할', 'roleAdmin' => '어드민', 'roleManager' => '현장 관리자', 'roleWorker' => '작업자',
+    'tagline' => '다중 현장 인원 관리 · 애리조나', 'roleSwitch' => '역할', 'viewAs' => '화면 보기', 'roleAdmin' => '어드민', 'roleManager' => '현장 관리자', 'roleWorker' => '작업자',
     'loginKicker' => '다중 현장 인원 관리 OS', 'loginTitle' => "모든 현장과 팀을\n하나의 시스템으로", 'loginSub' => '베지 등록부터 QR 출퇴근, 회사·팀 편성, USD 급여까지 — 미국 전역 프로젝트 현장을 통합 관리합니다.',
     'statWorkers' => '작업자', 'statSites' => '현장', 'statCompanies' => '계약 회사',
     'signInTitle' => '로그인', 'signInSub' => '회사 구글 계정으로 인증하면 권한에 맞는 화면으로 이동합니다.', 'googleBtn' => 'Google 계정으로 계속', 'orDemo' => '또는 데모로 둘러보기',

@@ -218,6 +218,52 @@ class WorkforceAppTest extends TestCase
             ->assertSet('screen', 'login');
     }
 
+    public function test_admin_can_view_all_roles(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('loginEmail', 'davidcho1973@gmail.com')
+            ->set('loginPassword', 'Nahshon!2026')
+            ->call('login')
+            ->assertSet('access', 'admin')
+            ->call('viewAs', 'manager')->assertSet('role', 'manager')->assertSet('screen', 'dashboard')
+            ->call('viewAs', 'worker')->assertSet('role', 'worker')->assertSet('screen', 'worker')
+            ->call('viewAs', 'admin')->assertSet('role', 'admin')->assertSet('screen', 'dashboard');
+    }
+
+    public function test_manager_cannot_view_as_admin(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('loginEmail', 'mkim@nahshon.io')
+            ->set('loginPassword', 'Nahshon!2026')
+            ->call('login')
+            ->assertSet('access', 'manager')
+            ->assertSet('role', 'manager')
+            ->call('viewAs', 'worker')->assertSet('role', 'worker')
+            ->call('viewAs', 'manager')->assertSet('role', 'manager')
+            ->call('viewAs', 'admin')->assertSet('role', 'manager'); // blocked — stays manager
+    }
+
+    public function test_worker_can_only_view_worker(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('loginEmail', 'cmartinez@nahshon.io')
+            ->set('loginPassword', 'Nahshon!2026')
+            ->call('login')
+            ->assertSet('access', 'worker')
+            ->assertSet('role', 'worker')
+            ->call('viewAs', 'admin')->assertSet('role', 'worker')    // blocked
+            ->call('viewAs', 'manager')->assertSet('role', 'worker'); // blocked
+    }
+
     public function test_worker_clock_creates_punch_record(): void
     {
         $today = now()->format('Y-m-d');

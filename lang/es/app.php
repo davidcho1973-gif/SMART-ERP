@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'tagline' => 'Personal multi-obra · Arizona', 'roleSwitch' => 'Rol', 'roleAdmin' => 'Admin', 'roleManager' => 'Supervisor', 'roleWorker' => 'Trabajador',
+    'tagline' => 'Personal multi-obra · Arizona', 'roleSwitch' => 'Rol', 'viewAs' => 'Ver como', 'roleAdmin' => 'Admin', 'roleManager' => 'Supervisor', 'roleWorker' => 'Trabajador',
     'loginKicker' => 'SISTEMA DE PERSONAL', 'loginTitle' => "Un sistema para\ncada obra y cuadrilla", 'loginSub' => 'Desde el registro por credencial hasta asistencia QR, empresas y cuadrillas, y nómina en USD — en todas tus obras.',
     'statWorkers' => 'Trabajadores', 'statSites' => 'Obras', 'statCompanies' => 'Empresas',
     'signInTitle' => 'Iniciar sesión', 'signInSub' => 'Autentícate con tu cuenta Google de la empresa para entrar a tu vista.', 'googleBtn' => 'Continuar con Google', 'orDemo' => 'o explora una demo',
