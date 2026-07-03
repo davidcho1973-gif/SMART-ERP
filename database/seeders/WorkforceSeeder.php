@@ -12,10 +12,11 @@ class WorkforceSeeder extends Seeder
 {
     public function run(): void
     {
-        Employee::truncate();
-        Team::truncate();
-        Company::truncate();
-        Site::truncate();
+        // Idempotent: once real data exists, never overwrite it. Safe to run on every deploy.
+        // (A clean reseed is still available via `php artisan migrate:fresh --seed`.)
+        if (Site::query()->exists()) {
+            return;
+        }
 
         foreach ([
             ['id' => 's1', 'name' => 'TSMC Fab 21', 'city' => 'Phoenix, AZ', 'gc' => 'Hoffman', 'code' => 'AZ-P21'],
