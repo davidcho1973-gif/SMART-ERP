@@ -426,6 +426,10 @@ class WorkforceApp extends Component
         $this->selectedEmp = null;
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
+        // entering badge registration: make sure the crew selector points at a real crew
+        if ($screen === 'badge' && ! Team::find($this->regTeam)) {
+            $this->regTeam = Team::first()?->id ?? '';
+        }
     }
 
     public function setDash(string $l): void
@@ -490,9 +494,18 @@ class WorkforceApp extends Component
             return;
         }
         $this->selectedEmp = $id;
+        // repair a stale/invalid team (e.g. left over from cleared demo ids) so the
+        // drawer shows a real selection and a plain Save persists it
+        $teamId = $e->team_id;
+        if ($teamId !== null && ! Team::find($teamId)) {
+            $teamId = Team::first()?->id;
+        }
+        $teamModel = $teamId ? Team::find($teamId) : null;
+        $companyId = $teamModel?->company_id
+            ?? (($e->company_id && Company::find($e->company_id)) ? $e->company_id : null);
         $this->editForm = [
-            'first' => $e->first, 'last' => $e->last, 'company' => $e->company_id,
-            'team' => $e->team_id, 'role' => $e->role, 'rate' => $e->rate,
+            'first' => $e->first, 'last' => $e->last, 'company' => $companyId,
+            'team' => $teamId, 'role' => $e->role, 'rate' => $e->rate,
             'type' => $e->type === 'manager' ? 'manager' : ($e->lang === 'ko' ? 'worker_ko' : 'worker_local'),
             'issued' => $e->issued, 'phone' => $e->phone, 'email' => $e->email,
             'nat' => $e->nat, 'access' => $e->access,
@@ -524,13 +537,16 @@ class WorkforceApp extends Component
         $e = Employee::find($this->selectedEmp);
         if ($e) {
             $type = $this->editForm['type'] ?? 'worker_local';
-            $company = $this->editForm['company'] ?? $e->company_id;
+            // the crew determines the company (a crew belongs to exactly one company)
+            $teamId = $this->editForm['team'] ?? $e->team_id;
+            $teamModel = $teamId ? Team::find($teamId) : null;
+            $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
             $e->update([
                 'first' => $this->editForm['first'] ?? $e->first,
                 'last' => $this->editForm['last'] ?? $e->last,
                 'company_id' => $company,
                 'site_id' => optional(Company::find($company))->site_id ?? $e->site_id,
-                'team_id' => $this->editForm['team'] ?? $e->team_id,
+                'team_id' => $teamId,
                 'role' => $this->editForm['role'] ?? $e->role,
                 'rate' => (float) ($this->editForm['rate'] ?? $e->rate),
                 'type' => $type === 'manager' ? 'manager' : 'worker',
@@ -952,14 +968,16 @@ class WorkforceApp extends Component
             $this->showToast($d['b_dupId']);
             return;
         }
-        $team = Team::find($this->regTeam);
-        $companyId = $team->company_id ?? 'c1';
-        $siteId = optional(Company::find($companyId))->site_id ?? 's1';
+        // resolve the crew robustly (a stale regTeam falls back to a real crew),
+        // and derive company/site from it so the record is always consistent
+        $team = Team::find($this->regTeam) ?? Team::first();
+        $companyId = $team?->company_id;
+        $siteId = optional(Company::find($companyId))->site_id;
         Employee::create([
             'emp_id' => $empId,
             'first' => trim($this->regFirst), 'last' => trim($this->regLast),
             'nat' => '', 'code' => '',
-            'team_id' => $this->regTeam, 'company_id' => $companyId, 'site_id' => $siteId,
+            'team_id' => $team?->id, 'company_id' => $companyId, 'site_id' => $siteId,
             'role' => trim($this->regRoleTitle),
             'type' => $this->regType === 'manager' ? 'manager' : 'worker',
             'lang' => $this->regType === 'worker_local' ? 'es' : 'ko',

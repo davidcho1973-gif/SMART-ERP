@@ -72,6 +72,46 @@ class WorkforceAppTest extends TestCase
         $this->assertTrue(Team::where('name', 'Electrical Crew B')->where('company_id', 'c1')->exists());
     }
 
+    public function test_badge_register_derives_company_from_crew(): void
+    {
+        $team = Team::find('t3');   // seeded crew, belongs to a company
+
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Nueva')
+            ->set('regLast', 'Persona')
+            ->set('regTeam', $team->id)
+            ->set('nfcUidManual', 'AA:BB:CC:11:22:33')
+            ->call('finishBadge');
+
+        $e = Employee::where('first', 'Nueva')->where('last', 'Persona')->first();
+        $this->assertNotNull($e);
+        $this->assertSame($team->id, $e->team_id);
+        $this->assertSame($team->company_id, $e->company_id);          // company follows the crew
+        $this->assertNotNull(\App\Models\Company::find($e->company_id)); // and it's a real company
+    }
+
+    public function test_employee_with_stale_crew_is_repaired_on_edit(): void
+    {
+        $emp = Employee::create([
+            'emp_id' => 'N-STALE01', 'first' => 'Stale', 'last' => 'Record',
+            'type' => 'manager', 'access' => 'manager', 'rate' => 0,
+            'company_id' => 'cGONE', 'team_id' => 'tGONE', 'emp' => 'active',
+        ]);
+        $firstTeam = Team::first();
+
+        Livewire::test(WorkforceApp::class)
+            ->call('selectEmp', $emp->id)
+            ->assertSet('editForm.team', $firstTeam->id)            // invalid crew coerced to a real one
+            ->assertSet('editForm.company', $firstTeam->company_id) // company derived
+            ->call('saveEmp');
+
+        $emp->refresh();
+        $this->assertNotNull(Team::find($emp->team_id));
+        $this->assertNotNull(Company::find($emp->company_id));
+        $this->assertSame($firstTeam->company_id, $emp->company_id);
+    }
+
     public function test_changes_a_crew_lead(): void
     {
         Livewire::test(WorkforceApp::class)->call('changeLead', 't1', '103');
