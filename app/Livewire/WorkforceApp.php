@@ -218,7 +218,7 @@ class WorkforceApp extends Component
         }
     }
 
-    public function login(): void
+    public function login()
     {
         $email = trim($this->loginEmail);
         if ($email === '' || $this->loginPassword === '') {
@@ -234,6 +234,11 @@ class WorkforceApp extends Component
         }
         $this->loginPassword = '';
         $this->applyUser();
+
+        if (($intended = session()->pull('url.intended')) && $intended !== url('/')) {
+            return $this->redirect($intended);
+        }
+        return null;
     }
 
     public function setRole(string $r): void

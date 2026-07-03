@@ -28,4 +28,5 @@ return [
     'b_qrPick' => 'QR 사진 촬영 / 업로드', 'b_qrFail' => 'QR을 찾지 못했습니다 — 더 선명하게·가깝게 찍어주세요', 'b_qrManual' => '또는 QR 아래 번호를 직접 입력', 'b_qrUse' => '이 코드 사용', 'b_qrValue' => '해독된 QR 값', 'b_qrCaptured' => 'QR 코드 인식 완료 ✓', 'e_qr' => '베지 QR',
     'b_qrAnalyze' => 'QR 분석', 'b_qrAi' => 'AI로 판독 중…',
     'b_photoLoading' => '사진 불러오는 중…',
+    'sc_noWorker' => '이 계정은 작업자 프로필과 연결되어 있지 않습니다 — 작업자 계정으로 출퇴근하세요.', 'sc_home' => '앱으로 이동',
 ];

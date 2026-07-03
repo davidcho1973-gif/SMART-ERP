@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
+use App\Support\RealQr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
@@ -289,8 +290,8 @@ class ViewModel
             'lead' => $qrLead ? $empName($qrLead) : '—',
         ];
         $teamQrSvg = $qrTeamModel
-            ? Qr::pattern(Qr::seedFor($qrTeamModel->id, $qrTeamModel->company_id, $qrTeamModel->name))
-            : Qr::pattern(11);
+            ? RealQr::svg(url('/scan/' . $qrTeamModel->id))
+            : RealQr::svg(url('/'));
 
         // ---- worker mobile (me = authed employee, demo fallback 106) ----
         $meId = $s['meEmployeeId'] ?? 106;
@@ -454,7 +455,7 @@ class ViewModel
             // worker mobile
             'worker' => [
                 'me' => $worker, 'punchLog' => $punchLog, 'ruleNote' => $ruleNote,
-                'reasonOptions' => $reasonOptions, 'qrSvg' => Qr::pattern(11),
+                'reasonOptions' => $reasonOptions, 'qrSvg' => RealQr::svg(url('/scan/' . $me->team_id)),
             ],
             'isDemo' => $isDemo,
             'authName' => $authUser?->name,

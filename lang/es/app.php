@@ -28,4 +28,5 @@ return [
     'b_qrPick' => 'Tomar / subir foto del QR', 'b_qrFail' => 'No se encontró QR — usa una foto más clara y cercana', 'b_qrManual' => 'O escribe el código bajo el QR', 'b_qrUse' => 'Usar este código', 'b_qrValue' => 'Valor QR decodificado', 'b_qrCaptured' => 'Código QR capturado ✓', 'e_qr' => 'QR de credencial',
     'b_qrAnalyze' => 'Analizar QR', 'b_qrAi' => 'Leyendo con IA…',
     'b_photoLoading' => 'Cargando foto…',
+    'sc_noWorker' => 'Esta cuenta no está vinculada a un perfil de trabajador — marca desde una cuenta de trabajador.', 'sc_home' => 'Ir a la app',
 ];

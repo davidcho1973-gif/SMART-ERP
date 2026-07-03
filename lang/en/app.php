@@ -28,4 +28,5 @@ return [
     'b_qrPick' => 'Take / upload QR photo', 'b_qrFail' => 'No QR found — try a clearer, closer photo', 'b_qrManual' => 'Or type the code under the QR', 'b_qrUse' => 'Use this code', 'b_qrValue' => 'Decoded QR value', 'b_qrCaptured' => 'QR code captured ✓', 'e_qr' => 'Badge QR',
     'b_qrAnalyze' => 'Analyze QR', 'b_qrAi' => 'Reading with AI…',
     'b_photoLoading' => 'Loading photo…',
+    'sc_noWorker' => 'This account is not linked to a worker profile — clock in from a worker account.', 'sc_home' => 'Go to app',
 ];

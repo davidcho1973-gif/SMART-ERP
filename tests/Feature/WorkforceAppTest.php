@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Payment;
 use App\Models\Punch;
+use App\Livewire\ScanClock;
 use App\Models\Site;
 use App\Models\Team;
 use Database\Seeders\UserSeeder;
@@ -384,5 +385,42 @@ class WorkforceAppTest extends TestCase
             ->call('toBack')
             ->call('analyzeBackQr')
             ->assertSet('scanB', 'idle');
+    }
+
+    public function test_scan_route_redirects_guests_to_login(): void
+    {
+        $this->get('/scan/t1')->assertRedirect('/');
+    }
+
+    public function test_scanning_crew_qr_lets_worker_clock_in(): void
+    {
+        $this->seed(UserSeeder::class);
+        $worker = \App\Models\User::where('email', 'cmartinez@nahshon.io')->first();
+
+        Livewire::actingAs($worker)
+            ->test(ScanClock::class, ['team' => 't1'])
+            ->assertSet('clock', 'out')
+            ->call('doClock')
+            ->assertSet('clock', 'in');
+
+        $p = Punch::where('employee_id', 106)->where('work_date', now()->format('Y-m-d'))->first();
+        $this->assertNotNull($p);
+        $this->assertSame('qr', $p->source);
+        $this->assertNotNull($p->in_min);
+    }
+
+    public function test_login_returns_to_intended_scan_url(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+        // guest hits a scan link -> stores intended, lands on login
+        $this->get('/scan/t2')->assertRedirect('/');
+
+        Livewire::withQueryParams([])
+            ->test(WorkforceApp::class)
+            ->set('loginEmail', 'cmartinez@nahshon.io')
+            ->set('loginPassword', 'Nahshon!2026')
+            ->call('login')
+            ->assertRedirect(url('/scan/t2'));
     }
 }
