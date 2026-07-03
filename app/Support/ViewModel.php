@@ -4,8 +4,12 @@ namespace App\Support;
 
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Payment;
+use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Builds the derived view data for WorkforceApp — the PHP port of the prototype's renderVals().
@@ -22,6 +26,16 @@ class ViewModel
         $stColor = ['present' => '#1F9D6B', 'late' => '#E8A33D', 'absent' => '#D9483B', 'off' => '#9AA0A6'];
         $stBg = ['present' => '#E7F4EE', 'late' => '#FBF1DF', 'absent' => '#FBE9E7', 'off' => '#EFEFEC'];
         $accColor = ['admin' => '#E85D2A', 'manager' => '#3B72E0', 'worker' => '#6B6E76'];
+
+        $isDemo = (bool) config('workforce.demo');
+        $authUser = Auth::user();
+        [$periodStart, $periodEnd, $periodLabel] = Payroll::currentPeriod();
+        $periodHours = fn (Employee $e) => Payroll::periodHoursFromPunches($e->id, $periodStart, $periodEnd);
+        $hoursFor = function (Employee $e) use ($periodHours) {
+            $h = $periodHours($e);
+            return $h !== null ? (int) round($h) : $e->wh;
+        };
+        $payments = Payment::where('period_start', $periodStart)->get()->keyBy('employee_id');
 
         // ---- load domain ----
         $sites = Site::orderBy('id')->get();
@@ -69,7 +83,7 @@ class ViewModel
         $totalActive = $scopedActive->count();
         $onsite = $cnt['present'] + $cnt['late'];
         $rate = $totalActive ? (int) round($onsite / $totalActive * 100) : 0;
-        $periodPayNum = $scopedActive->sum(fn ($e) => Payroll::gross($e->wh, $e->rate));
+        $periodPayNum = $scopedActive->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate));
         $avgH = $scopedActive->count()
             ? (int) round($scopedActive->sum(fn ($e) => $e->wh) / $scopedActive->count() / 2)
             : 0;
@@ -91,12 +105,29 @@ class ViewModel
             ];
         })->values()->all();
 
-        $recent = [
-            ['txt' => $tl('Carlos Martínez clocked in', 'Carlos Martínez marcó entrada', 'Carlos Martínez 출근 처리'), 'tag' => '6:52', 'c' => '#1F9D6B'],
-            ['txt' => $tl('Miguel Torres late', 'Miguel Torres llegó tarde', 'Miguel Torres 지각'), 'tag' => '7:18', 'c' => '#E8A33D'],
-            ['txt' => $tl('New badge: A. Vargas', 'Nueva credencial: A. Vargas', '신규 베지 등록: A. Vargas'), 'tag' => $lang === 'ko' ? '등록' : 'new', 'c' => '#3B72E0'],
-            ['txt' => $tl('Antonio Díaz terminated', 'Antonio Díaz dado de baja', 'Antonio Díaz 퇴사 처리'), 'tag' => $lang === 'ko' ? '퇴사' : 'exit', 'c' => '#D9483B'],
-        ];
+        $recentPunches = Punch::orderByDesc('updated_at')->limit(4)->get();
+        if ($recentPunches->isNotEmpty()) {
+            $recent = $recentPunches->map(function ($pn) use ($employees, $empName, $tl) {
+                $e = $employees->firstWhere('id', $pn->employee_id);
+                $name = $e ? $empName($e) : '#' . $pn->employee_id;
+                $isOut = $pn->out_min !== null;
+                $t = $isOut ? $pn->out_min : $pn->in_min;
+                return [
+                    'txt' => $name . ' · ' . ($isOut
+                        ? $tl('clocked out', 'marcó salida', '퇴근 처리')
+                        : $tl('clocked in', 'marcó entrada', '출근 처리')),
+                    'tag' => $t !== null ? \App\Support\Shift::fmtMin($t) : '—',
+                    'c' => $isOut ? '#8A8880' : '#1F9D6B',
+                ];
+            })->all();
+        } else {
+            $recent = [
+                ['txt' => $tl('Carlos Martínez clocked in', 'Carlos Martínez marcó entrada', 'Carlos Martínez 출근 처리'), 'tag' => '6:52', 'c' => '#1F9D6B'],
+                ['txt' => $tl('Miguel Torres late', 'Miguel Torres llegó tarde', 'Miguel Torres 지각'), 'tag' => '7:18', 'c' => '#E8A33D'],
+                ['txt' => $tl('New badge: A. Vargas', 'Nueva credencial: A. Vargas', '신규 베지 등록: A. Vargas'), 'tag' => $lang === 'ko' ? '등록' : 'new', 'c' => '#3B72E0'],
+                ['txt' => $tl('Antonio Díaz terminated', 'Antonio Díaz dado de baja', 'Antonio Díaz 퇴사 처리'), 'tag' => $lang === 'ko' ? '퇴사' : 'exit', 'c' => '#D9483B'],
+            ];
+        }
 
         // ---- employees ----
         $q = strtolower(trim($s['search']));
@@ -166,19 +197,21 @@ class ViewModel
         $ext = ['gc' => 'HOFFMAN', 'company' => 'Sonoran MEP', 'last' => 'MARTÍNEZ', 'first' => 'CARLOS', 'role' => 'ELECTRICIAN', 'issued' => '03/14/2026'];
         $nfcUid = $s['nfcUid'];
         $nfcId = $s['nfcId'];
-        $regEmpId = $s['scanN'] === 'done' ? $nfcId : 'N- — — —';
+        $regEmpId = ($s['hasUid'] ?? false) ? $nfcId : 'N- — — —';
         $regTeamOptions = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name . ' · ' . $companyName($t->company_id)])->all();
 
         // ---- payroll ----
-        $payRows = $scopedActive->map(function ($e) use ($empName, $inits, $teamName, $teamColor) {
-            $reg = Payroll::regHours($e->wh);
-            $ot = Payroll::otHours($e->wh);
-            $gross = Payroll::gross($e->wh, $e->rate);
+        $payRows = $scopedActive->map(function ($e) use ($empName, $inits, $teamName, $teamColor, $hoursFor, $payments) {
+            $wh = $hoursFor($e);
+            $reg = Payroll::regHours($wh);
+            $ot = Payroll::otHours($wh);
+            $gross = Payroll::gross($wh, $e->rate);
             return [
                 'id' => $e->id, 'name' => $empName($e), 'initials' => $inits($e),
                 'teamName' => $teamName($e->team_id), 'teamColor' => $teamColor($e->team_id),
                 'rate' => Money::rate($e->rate), 'reg' => (string) $reg, 'ot' => (string) $ot,
                 'gross' => Money::usd($gross), 'net' => Money::usd($gross),
+                'paid' => $payments->has($e->id),
             ];
         })->all();
 
@@ -187,22 +220,55 @@ class ViewModel
         if ($s['payDetail'] !== null) {
             $e = $activeAll->firstWhere('id', $s['payDetail']) ?? $employees->firstWhere('id', $s['payDetail']);
             if ($e) {
-                $h = Payroll::history($e->wh, $e->id, $e->rate, $tl);
+                $periodPunches = Punch::where('employee_id', $e->id)
+                    ->whereBetween('work_date', [$periodStart, $periodEnd])
+                    ->whereNotNull('in_min')->whereNotNull('out_min')
+                    ->orderBy('work_date')->get();
+                if ($periodPunches->isNotEmpty()) {
+                    $days = $periodPunches->map(function ($pn) use ($tl) {
+                        $date = Carbon::parse($pn->work_date);
+                        [$si, $so] = Payroll::scheduleFor($pn->in_min, $date->isSaturday());
+                        $c = Shift::compute(Shift::fmtMin($pn->in_min), Shift::fmtMin($pn->out_min), $si, $so, $pn->no_lunch);
+                        $chips = [];
+                        if ($c['noLunch']) {
+                            $chips[] = ['label' => $tl('No lunch', 'Sin almuerzo', '무점심'), 'bg' => '#F0F4EE', 'color' => '#5A7A4A'];
+                        }
+                        if ($pn->early_reason) {
+                            $chips[] = ['label' => $pn->early_reason, 'bg' => '#FBF1DF', 'color' => '#8A6A2E'];
+                        }
+                        return [
+                            'd' => $date->format('M j'), 'dow' => $date->format('D'),
+                            'inFmt' => $c['inFmt'], 'outFmt' => $c['outFmt'],
+                            'paid' => number_format(max(0, $c['paid']), 1) . 'h', 'chips' => $chips,
+                        ];
+                    })->all();
+                    $sum = (int) round($periodHours($e) ?? 0);
+                    $h = [
+                        'days' => $days,
+                        'reg' => Payroll::regHours($sum), 'ot' => Payroll::otHours($sum),
+                        'gross' => Payroll::gross($sum, $e->rate),
+                    ];
+                } else {
+                    $h = Payroll::history($e->wh, $e->id, $e->rate, $tl);
+                }
                 $payDetailData = [
                     'id' => $e->id, 'name' => $empName($e), 'initials' => $inits($e),
                     'teamName' => $teamName($e->team_id), 'teamColor' => $teamColor($e->team_id), 'role' => $e->role,
                     'rate' => Money::rate($e->rate) . '/hr', 'days' => $h['days'],
                     'reg' => $h['reg'] . 'h', 'ot' => $h['ot'] . 'h', 'gross' => Money::usd($h['gross']),
                 ];
+                $existingPay = $payments->get($e->id);
                 $voucher = [
                     'name' => $payDetailData['name'], 'teamName' => $payDetailData['teamName'], 'role' => $e->role,
                     'reg' => $payDetailData['reg'], 'ot' => $payDetailData['ot'], 'gross' => $payDetailData['gross'],
                     'rate' => $payDetailData['rate'], 'empId' => $e->emp_id,
-                    'checkNo' => $s['checkNo'], 'payDate' => $s['payDate'],
+                    'checkNo' => $s['checkNo'] !== '' ? $s['checkNo'] : ($existingPay->check_no ?? ''),
+                    'payDate' => $s['payDate'],
+                    'alreadyPaid' => $existingPay !== null,
                 ];
             }
         }
-        $totalPayout = Money::usd($scopedActive->sum(fn ($e) => Payroll::gross($e->wh, $e->rate)));
+        $totalPayout = Money::usd($scopedActive->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate)));
 
         // ---- attendance / qr ----
         $qrManualRows = collect($empRows)->filter(fn ($e) => ! $e['isTerminated'])->take(8)->values()->all();
@@ -225,26 +291,72 @@ class ViewModel
             ? Qr::pattern(Qr::seedFor($qrTeamModel->id, $qrTeamModel->company_id, $qrTeamModel->name))
             : Qr::pattern(11);
 
-        // ---- worker mobile (me = employee 106) ----
-        $me = $employees->firstWhere('id', 106) ?? $employees->get(5);
-        $wReg = Payroll::regHours($me->wh);
-        $wOt = Payroll::otHours($me->wh);
-        $wGross = Payroll::gross($me->wh, $me->rate);
+        // ---- worker mobile (me = authed employee, demo fallback 106) ----
+        $meId = $s['meEmployeeId'] ?? 106;
+        $me = $employees->firstWhere('id', $meId) ?? $employees->firstWhere('id', 106) ?? $employees->get(5);
+        $meWh = $hoursFor($me);
+        $wReg = Payroll::regHours($meWh);
+        $wOt = Payroll::otHours($meWh);
+        $wGross = Payroll::gross($meWh, $me->rate);
         $worker = [
             'name' => $me->first . ' ' . $me->last, 'initials' => $inits($me),
             'teamName' => $teamName($me->team_id), 'teamColor' => $teamColor($me->team_id),
             'company' => $companyName($me->company_id), 'role' => $me->role, 'nat' => $me->nat,
             'empId' => $me->emp_id, 'phone' => $me->phone, 'email' => $me->email, 'issued' => $me->issued,
-            'rate' => Money::rate($me->rate), 'reg' => $wReg, 'ot' => $wOt, 'hours' => $me->wh,
+            'rate' => Money::rate($me->rate), 'reg' => $wReg, 'ot' => $wOt, 'hours' => $meWh,
             'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_' . $me->access],
         ];
 
+        $dbPunches = Punch::where('employee_id', $me->id)
+            ->orderByDesc('work_date')->limit(10)->get();
         $rawPunches = [
             ['d' => 'Jun 30', 'dow' => 'Mon', 'in' => '5:53 AM', 'out' => '2:48 PM', 'si' => 360, 'so' => 900, 'noLunch' => false],
             ['d' => 'Jun 28', 'dow' => 'Sat', 'in' => '6:58 AM', 'out' => '1:02 PM', 'si' => 420, 'so' => 840, 'noLunch' => true],
             ['d' => 'Jun 27', 'dow' => 'Fri', 'in' => '6:02 AM', 'out' => '5:12 PM', 'si' => 360, 'so' => 900, 'noLunch' => false],
             ['d' => 'Jun 26', 'dow' => 'Thu', 'in' => '7:06 AM', 'out' => '4:04 PM', 'si' => 420, 'so' => 960, 'noLunch' => false],
         ];
+        if ($dbPunches->isNotEmpty()) {
+            $punchLog = $dbPunches->map(function ($pn) use ($tl, $L) {
+                $date = Carbon::parse($pn->work_date);
+                $base = [
+                    'd' => $date->format('M j'), 'dow' => $date->format('D'),
+                    'pid' => $pn->id, 'seedNoLunch' => false,
+                ];
+                if ($pn->in_min === null || $pn->out_min === null) {
+                    // open day — clocked in, not yet out
+                    return $base + [
+                        'inFmt' => $pn->in_min !== null ? Shift::fmtMin($pn->in_min) : '—',
+                        'outFmt' => '—', 'adjusted' => false, 'noLunch' => $pn->no_lunch,
+                        'rawNote' => '', 'h' => '—', 'chips' => [],
+                        'lunchToggleLabel' => $pn->no_lunch ? $L['m_lunchOff'] : $L['m_lunchOn'],
+                        'lunchIsNo' => $pn->no_lunch,
+                    ];
+                }
+                [$si, $so] = Payroll::scheduleFor($pn->in_min, $date->isSaturday());
+                $c = Shift::compute(Shift::fmtMin($pn->in_min), Shift::fmtMin($pn->out_min), $si, $so, $pn->no_lunch);
+                $chips = [];
+                if ($c['adjusted']) {
+                    $chips[] = ['label' => $tl('Shift-time adjusted', 'Ajuste de horario', '정규시각 보정'), 'bg' => '#EAF1FB', 'color' => '#3B72E0'];
+                }
+                if ($c['lunch'] > 0) {
+                    $chips[] = ['label' => $tl('Lunch −1h', 'Almuerzo −1h', '점심 −1h'), 'bg' => '#FBF1E9', 'color' => '#C97A34'];
+                }
+                if ($c['noLunch']) {
+                    $chips[] = ['label' => $tl('No lunch', 'Sin almuerzo', '무점심'), 'bg' => '#F0F4EE', 'color' => '#5A7A4A'];
+                }
+                if ($pn->early_reason) {
+                    $chips[] = ['label' => $pn->early_reason, 'bg' => '#FBF1DF', 'color' => '#8A6A2E'];
+                }
+                return $base + [
+                    'inFmt' => $c['inFmt'], 'outFmt' => $c['outFmt'],
+                    'adjusted' => $c['adjusted'], 'noLunch' => $c['noLunch'],
+                    'rawNote' => $c['adjusted'] ? $tl('Actual', 'Real', '실제') . ' ' . $c['rawIn'] . ' – ' . $c['rawOut'] : '',
+                    'h' => number_format(max(0, $c['paid']), 1) . 'h', 'chips' => $chips,
+                    'lunchToggleLabel' => $c['noLunch'] ? $L['m_lunchOff'] : $L['m_lunchOn'],
+                    'lunchIsNo' => $c['noLunch'],
+                ];
+            })->all();
+        } else {
         $punchLog = array_map(function ($r) use ($s, $tl, $L) {
             $nl = array_key_exists($r['d'], $s['lunchOv']) ? $s['lunchOv'][$r['d']] : $r['noLunch'];
             $c = Shift::compute($r['in'], $r['out'], $r['si'], $r['so'], $nl);
@@ -260,6 +372,7 @@ class ViewModel
             }
             return [
                 'd' => $r['d'], 'dow' => $r['dow'], 'inFmt' => $c['inFmt'], 'outFmt' => $c['outFmt'],
+                'pid' => null,
                 'adjusted' => $c['adjusted'], 'noLunch' => $c['noLunch'], 'seedNoLunch' => $r['noLunch'],
                 'rawNote' => $c['adjusted'] ? $tl('Actual', 'Real', '실제') . ' ' . $c['rawIn'] . ' – ' . $c['rawOut'] : '',
                 'h' => number_format($c['paid'], 1) . 'h', 'chips' => $chips,
@@ -267,6 +380,7 @@ class ViewModel
                 'lunchIsNo' => $c['noLunch'],
             ];
         }, $rawPunches);
+        }
 
         $ruleNote = $tl(
             'Reg 6–3 / 7–4 · 1h unpaid lunch · OT 1.5× over 40h/wk',
@@ -278,7 +392,8 @@ class ViewModel
             [['value' => '__custom__', 'label' => $L['w_earlyOther']]]
         );
 
-        $meName = $s['role'] === 'admin' ? ($lang === 'ko' ? '김현수' : 'Hyunsoo Kim') : ($lang === 'ko' ? '박정우' : 'Jungwoo Park');
+        $meName = $authUser?->name
+            ?? ($s['role'] === 'admin' ? ($lang === 'ko' ? '김현수' : 'Hyunsoo Kim') : ($lang === 'ko' ? '박정우' : 'Jungwoo Park'));
 
         return [
             'L' => $L,
@@ -299,7 +414,7 @@ class ViewModel
             // dashboard
             'dash' => [
                 'layout' => $s['dashLayout'], 'cnt' => $cnt, 'totalActive' => $totalActive, 'onsite' => $onsite, 'rate' => $rate,
-                'periodPay' => Money::usd($periodPayNum), 'payPeriod' => 'Jun 15 – 28, 2026', 'avgH' => $avgH,
+                'periodPay' => Money::usd($periodPayNum), 'payPeriod' => $periodLabel, 'avgH' => $avgH,
                 'ringDash' => (int) round(2 * M_PI * 52 * (1 - $rate / 100)),
                 'teamStats' => $teamStats, 'recent' => $recent,
             ],
@@ -330,9 +445,9 @@ class ViewModel
             // payroll
             'pay' => [
                 'rows' => $payRows, 'totalPayout' => $totalPayout, 'detail' => $payDetailData, 'voucher' => $voucher,
-                'companyName' => 'NAHSHON MEP',
+                'companyName' => 'NAHSHON MEP', 'periodLabel' => $periodLabel,
                 'pdHistory' => $tl('Attendance history', 'Historial de asistencia', '출퇴근 이력'),
-                'pdPeriod' => $tl('This pay period · Jun 15–28', 'Este periodo · Jun 15–28', '이번 정산기간 · Jun 15–28'),
+                'pdPeriod' => $tl('This pay period', 'Este periodo', '이번 정산기간') . ' · ' . $periodLabel,
                 'ruleNote' => $ruleNote,
             ],
             // worker mobile
@@ -340,6 +455,9 @@ class ViewModel
                 'me' => $worker, 'punchLog' => $punchLog, 'ruleNote' => $ruleNote,
                 'reasonOptions' => $reasonOptions, 'qrSvg' => Qr::pattern(11),
             ],
+            'isDemo' => $isDemo,
+            'authName' => $authUser?->name,
+            'googleEnabled' => (bool) config('services.google.client_id'),
             'qrPrint' => ['company' => $selQr['company'], 'team' => $selQr['team'], 'lead' => $selQr['lead'], 'svg' => $teamQrSvg, 'leadWord' => $L['pj_lead']],
             'toast' => $s['toast'],
         ];

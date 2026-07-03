@@ -10,6 +10,55 @@ class Payroll
 {
     public const PERIOD_REG_CAP = 80;
 
+    /** Bi-weekly periods anchored on Mon Jun 15 2026 (matches the seeded period). */
+    public const PERIOD_ANCHOR = '2026-06-15';
+
+    /** @return array{0:string,1:string,2:string} [startYmd, endYmd, label] for the period containing today */
+    public static function currentPeriod(): array
+    {
+        $anchor = \Illuminate\Support\Carbon::parse(self::PERIOD_ANCHOR)->startOfDay();
+        $today = now()->startOfDay();
+        $days = (int) $anchor->diffInDays($today, false);
+        $offset = (int) floor(max(0, $days) / 14) * 14;
+        $start = $anchor->copy()->addDays($offset);
+        $end = $start->copy()->addDays(13);
+        $label = $start->format('M j') . ' – ' . $end->format('M j, Y');
+
+        return [$start->format('Y-m-d'), $end->format('Y-m-d'), $label];
+    }
+
+    /**
+     * Total paid hours from completed punch records in the period, or null when
+     * the employee has no punches yet (caller falls back to the seeded figure).
+     */
+    public static function periodHoursFromPunches(int $employeeId, string $startYmd, string $endYmd): ?float
+    {
+        $punches = \App\Models\Punch::where('employee_id', $employeeId)
+            ->whereBetween('work_date', [$startYmd, $endYmd])
+            ->whereNotNull('in_min')->whereNotNull('out_min')
+            ->get();
+        if ($punches->isEmpty()) {
+            return null;
+        }
+
+        return $punches->sum(function ($p) {
+            [$si, $so] = self::scheduleFor($p->in_min, \Illuminate\Support\Carbon::parse($p->work_date)->isSaturday());
+            return max(0, Shift::compute(Shift::fmtMin($p->in_min), Shift::fmtMin($p->out_min), $si, $so, $p->no_lunch)['paid']);
+        });
+    }
+
+    /** Guess the scheduled shift from the punch-in time: 6–3 / 7–4 weekdays, 7–2 Saturdays. */
+    public static function scheduleFor(int $inMin, bool $saturday = false): array
+    {
+        if ($saturday) {
+            return [420, 840]; // 7:00 AM – 2:00 PM
+        }
+
+        return abs($inMin - 360) <= abs($inMin - 420)
+            ? [360, 900]   // 6:00 AM – 3:00 PM
+            : [420, 960];  // 7:00 AM – 4:00 PM
+    }
+
     /** Gross pay for a period given hours worked and hourly rate. */
     public static function gross(int $wh, float $rate): float
     {

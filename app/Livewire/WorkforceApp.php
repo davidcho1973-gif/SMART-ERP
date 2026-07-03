@@ -4,12 +4,15 @@ namespace App\Livewire;
 
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Payment;
+use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
 use App\Support\Money;
 use App\Support\Payroll;
 use App\Support\Qr;
 use App\Support\Shift;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -34,6 +37,10 @@ class WorkforceApp extends Component
     /** working copy of the selected employee's editable fields */
     public array $editForm = [];
 
+    // ---- login form ----
+    public string $loginEmail = '';
+    public string $loginPassword = '';
+
     // ---- badge wizard ----
     public string $bstep = 'front';
     public string $scanF = 'idle';
@@ -42,6 +49,17 @@ class WorkforceApp extends Component
     public string $regTeam = 't1';
     public string $regType = 'worker_local';
     public string $regAccess = 'worker';
+    // real registration inputs (prefilled by the demo OCR, always editable)
+    public string $regFirst = '';
+    public string $regLast = '';
+    public string $regCoName = '';
+    public string $regRoleTitle = '';
+    public string $regIssued = '';
+    public string $regRate = '';
+    public string $regPhone = '';
+    public string $regEmail = '';
+    /** NFC UID captured by Web NFC or typed manually */
+    public string $nfcUidManual = '';
 
     // ---- projects modals ----
     public bool $companyModal = false;
@@ -91,10 +109,51 @@ class WorkforceApp extends Component
         return $this->lang === 'ko' ? $ko : ($this->lang === 'es' ? $es : $en);
     }
 
-    protected function nfcId(): string
+    /** The UID currently in play: manual/Web-NFC input wins, else the simulated tag. */
+    protected function currentUid(): ?string
     {
-        $hex = preg_replace('/[^0-9A-Fa-f]/', '', self::NFC_UID);
+        $manual = trim($this->nfcUidManual);
+        if ($manual !== '') {
+            return $manual;
+        }
+        return $this->scanN === 'done' ? self::NFC_UID : null;
+    }
+
+    /** N- + last 9 hex/alnum chars of a UID. */
+    protected function nfcId(?string $uid = null): string
+    {
+        $uid = $uid ?? self::NFC_UID;
+        $hex = preg_replace('/[^0-9A-Za-z]/', '', $uid);
         return 'N-' . strtoupper(substr($hex, -9));
+    }
+
+    protected function isDemo(): bool
+    {
+        return (bool) config('workforce.demo');
+    }
+
+    /** Mutating actions require demo mode or an authenticated admin/manager. */
+    protected function canManage(): bool
+    {
+        return $this->isDemo()
+            || (Auth::check() && in_array(Auth::user()->access, ['admin', 'manager'], true));
+    }
+
+    /** The employee behind the worker-mobile view. */
+    protected function meEmployeeId(): int
+    {
+        if (! $this->isDemo() && Auth::check() && Auth::user()->employee_id) {
+            return (int) Auth::user()->employee_id;
+        }
+        return 106; // demo worker (Carlos)
+    }
+
+    protected function todayPunch(int $employeeId): Punch
+    {
+        return Punch::firstOrNew([
+            'employee_id' => $employeeId,
+            'work_date' => now()->format('Y-m-d'),
+        ]);
     }
 
     protected function showToast(string $msg): void
@@ -109,8 +168,68 @@ class WorkforceApp extends Component
 
     // =================== navigation / auth ===================
 
+    public function mount(): void
+    {
+        if (Auth::check()) {
+            $this->applyUser();
+        }
+        if (request()->query('auth') === 'denied') {
+            $this->showToast($this->dict()['a_denied']);
+        } elseif (request()->query('auth') === 'failed') {
+            $this->showToast($this->dict()['a_bad']);
+        }
+    }
+
+    /** Enter the app as the authenticated user (role, language, landing screen). */
+    protected function applyUser(): void
+    {
+        $u = Auth::user();
+        if ($u->access === 'worker') {
+            $this->role = 'worker';
+            $this->screen = 'worker';
+            $this->mobileTab = 'home';
+            $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
+            $this->lang = $emp->lang ?? 'es';
+            // restore today's clock state from the punch record
+            $p = Punch::where('employee_id', $u->employee_id)
+                ->where('work_date', now()->format('Y-m-d'))->first();
+            if ($p && $p->in_min !== null && $p->out_min === null) {
+                $this->clock = 'in';
+                $this->clockInTime = Shift::fmtMin($p->in_min);
+                $this->noLunchToday = $p->no_lunch;
+            } else {
+                $this->clock = 'out';
+            }
+        } else {
+            $this->role = $u->access === 'admin' ? 'admin' : 'manager';
+            $this->screen = 'dashboard';
+            $this->lang = $u->access === 'manager' ? 'ko' : 'en';
+        }
+    }
+
+    public function login(): void
+    {
+        $email = trim($this->loginEmail);
+        if ($email === '' || $this->loginPassword === '') {
+            $this->showToast($this->dict()['a_bad']);
+            return;
+        }
+        if (! Auth::attempt(['email' => $email, 'password' => $this->loginPassword], true)) {
+            $this->showToast($this->dict()['a_bad']);
+            return;
+        }
+        if (request()->hasSession()) {
+            request()->session()->regenerate();
+        }
+        $this->loginPassword = '';
+        $this->applyUser();
+    }
+
     public function setRole(string $r): void
     {
+        if (! $this->isDemo()) {
+            return; // in real mode the role comes from the authenticated account
+        }
         if ($r === 'worker') {
             $this->reset(['selectedEmp']);
             $this->role = 'worker';
@@ -135,6 +254,13 @@ class WorkforceApp extends Component
 
     public function go(string $screen): void
     {
+        // managers never see payroll; workers never see desktop screens
+        if ($this->role === 'manager' && $screen === 'payroll') {
+            return;
+        }
+        if ($this->role === 'worker' && $screen !== 'worker') {
+            return;
+        }
         $this->screen = $screen;
         $this->selectedEmp = null;
         $this->bstep = 'front';
@@ -151,8 +277,12 @@ class WorkforceApp extends Component
         $this->mobileTab = $k;
     }
 
+    /** Demo-mode stand-in for the Google button (real mode links to /auth/google/redirect). */
     public function googleSignIn(): void
     {
+        if (! $this->isDemo()) {
+            return;
+        }
         $this->role = 'admin';
         $this->screen = 'dashboard';
         $this->showToast($this->dict()['googleBtn']);
@@ -160,12 +290,24 @@ class WorkforceApp extends Component
 
     public function demo(string $role): void
     {
+        if (! $this->isDemo()) {
+            return;
+        }
         $this->setRole($role);
     }
 
-    public function logout(): void
+    public function logout()
     {
+        if (Auth::check()) {
+            Auth::logout();
+            if (request()->hasSession()) {
+                request()->session()->invalidate();
+                request()->session()->regenerateToken();
+            }
+            return $this->redirect('/');
+        }
         $this->screen = 'login';
+        return null;
     }
 
     // =================== employees ===================
@@ -215,6 +357,9 @@ class WorkforceApp extends Component
 
     public function saveEmp(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         $e = Employee::find($this->selectedEmp);
         if ($e) {
             $type = $this->editForm['type'] ?? 'worker_local';
@@ -252,6 +397,9 @@ class WorkforceApp extends Component
 
     public function confirmDelete(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         Employee::where('id', $this->deleteId)->delete();
         $this->deleteId = null;
         $this->selectedEmp = null;
@@ -270,6 +418,9 @@ class WorkforceApp extends Component
 
     public function confirmTerm(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         Employee::where('id', $this->terminateId)->update([
             'emp' => 'terminated', 'term' => '07/01/2026', 'access' => 'worker', 'status' => 'off',
         ]);
@@ -280,6 +431,9 @@ class WorkforceApp extends Component
 
     public function reactivate(int $id): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         Employee::where('id', $id)->update(['emp' => 'active', 'term' => null]);
         $this->showToast($this->dict()['e_reactivated']);
     }
@@ -300,6 +454,9 @@ class WorkforceApp extends Component
 
     public function saveCompany(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         $name = trim($this->newCoName);
         $siteName = trim($this->newCoSite);
         if ($name === '' || $siteName === '') {
@@ -332,6 +489,9 @@ class WorkforceApp extends Component
 
     public function saveTeam(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         if (trim($this->newTeamName) === '' || ! $this->teamModal) {
             return;
         }
@@ -350,6 +510,9 @@ class WorkforceApp extends Component
 
     public function changeLead(string $teamId, string $leadId): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         Team::where('id', $teamId)->update(['lead' => (int) $leadId]);
     }
 
@@ -364,6 +527,12 @@ class WorkforceApp extends Component
     {
         if ($this->scanF === 'scanning') {
             $this->scanF = 'done';
+            // prefill blank fields with the simulated OCR result; user can overwrite
+            $this->regCoName = $this->regCoName !== '' ? $this->regCoName : 'Sonoran MEP';
+            $this->regLast = $this->regLast !== '' ? $this->regLast : 'Martínez';
+            $this->regFirst = $this->regFirst !== '' ? $this->regFirst : 'Carlos';
+            $this->regRoleTitle = $this->regRoleTitle !== '' ? $this->regRoleTitle : 'Electrician';
+            $this->regIssued = $this->regIssued !== '' ? $this->regIssued : '03/14/2026';
         }
     }
 
@@ -429,24 +598,47 @@ class WorkforceApp extends Component
 
     public function finishBadge(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
+        $d = $this->dict();
+        if (trim($this->regFirst) === '' || trim($this->regLast) === '') {
+            $this->showToast($d['b_needName']);
+            return;
+        }
+        $uid = $this->currentUid();
+        if ($uid === null) {
+            $this->showToast($d['b_needUid']);
+            return;
+        }
+        $empId = $this->nfcId($uid);
+        if (Employee::where('emp_id', $empId)->exists()) {
+            $this->showToast($d['b_dupId']);
+            return;
+        }
         $team = Team::find($this->regTeam);
         $companyId = $team->company_id ?? 'c1';
         $siteId = optional(Company::find($companyId))->site_id ?? 's1';
         Employee::create([
-            'emp_id' => $this->nfcId(),
-            'first' => 'Carlos', 'last' => 'Martínez', 'nat' => 'Mexico', 'code' => 'MX',
+            'emp_id' => $empId,
+            'first' => trim($this->regFirst), 'last' => trim($this->regLast),
+            'nat' => '', 'code' => '',
             'team_id' => $this->regTeam, 'company_id' => $companyId, 'site_id' => $siteId,
-            'role' => 'Electrician',
+            'role' => trim($this->regRoleTitle),
             'type' => $this->regType === 'manager' ? 'manager' : 'worker',
             'lang' => $this->regType === 'worker_local' ? 'es' : 'ko',
-            'access' => $this->regAccess, 'rate' => 32.50, 'issued' => '03/14/2026',
-            'phone' => '(480) 555-0500', 'email' => 'cmartinez2@nahshon.io',
+            'access' => $this->regAccess,
+            'rate' => (float) ($this->regRate ?: 0),
+            'issued' => trim($this->regIssued),
+            'phone' => trim($this->regPhone), 'email' => trim($this->regEmail),
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0, 'emp' => 'active', 'term' => null,
         ]);
         $this->screen = 'employees';
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
-        $this->showToast($this->dict()['b_finish'] . ' ✓');
+        $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual']);
+        $this->showToast($d['b_finish'] . ' ✓');
     }
 
     // =================== attendance ===================
@@ -463,14 +655,27 @@ class WorkforceApp extends Component
 
     public function manualPunch(int $id, string $dir): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         $e = Employee::find($id);
         if (! $e || $e->emp !== 'active') {
             return;
         }
-        $now = now()->format('g:i A');
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        $now = Shift::fmtMin($nowMin);
+        $p = $this->todayPunch($e->id);
         if ($dir === 'in') {
-            $e->update(['status' => 'present', 'in_t' => $now]);
+            $p->in_min = $p->in_min ?? $nowMin;
+            $p->out_min = null;
+            $p->source = 'manual';
+            $p->save();
+            $e->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
         } else {
+            if ($p->exists && $p->in_min !== null) {
+                $p->out_min = $nowMin;
+                $p->save();
+            }
             $e->update(['status' => 'off', 'out_t' => $now]);
         }
         $label = $dir === 'in' ? $this->dict()['q_in'] : $this->dict()['q_out'];
@@ -506,9 +711,29 @@ class WorkforceApp extends Component
 
     public function printVoucher(): void
     {
+        if (! $this->canManage()) {
+            return;
+        }
         if (trim($this->checkNo) === '') {
             $this->showToast($this->dict()['pv_needCheck']);
             return;
+        }
+        $e = Employee::find($this->payDetail);
+        if ($e) {
+            [$start, $end] = Payroll::currentPeriod();
+            $hours = Payroll::periodHoursFromPunches($e->id, $start, $end) ?? $e->wh;
+            $hours = (int) round($hours);
+            Payment::updateOrCreate(
+                ['employee_id' => $e->id, 'period_start' => $start],
+                [
+                    'period_end' => $end,
+                    'check_no' => trim($this->checkNo),
+                    'pay_date' => $this->payDate,
+                    'amount' => round(Payroll::gross($hours, $e->rate), 2),
+                    'reg_hours' => Payroll::regHours($hours),
+                    'ot_hours' => Payroll::otHours($hours),
+                ]
+            );
         }
         $this->dispatch('print-now');
         $this->showToast($this->dict()['pv_paidToast']);
@@ -518,15 +743,26 @@ class WorkforceApp extends Component
 
     public function doClock(): void
     {
-        $me = Employee::find(106); // worker mobile "me" = Carlos
+        $eid = $this->meEmployeeId();
+        $me = Employee::find($eid);
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        $p = $this->todayPunch($eid);
         if ($this->clock === 'out') {
             $this->clock = 'in';
-            $this->clockInTime = now()->format('g:i A');
-            $me?->update(['status' => 'present', 'in_t' => $this->clockInTime]);
+            $this->clockInTime = Shift::fmtMin($nowMin);
+            $p->in_min = $p->in_min ?? $nowMin;
+            $p->out_min = null;                       // re-clock-in reopens the day
+            $p->no_lunch = $this->noLunchToday;
+            $p->source = 'worker';
+            $p->save();
+            $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
             $this->showToast($this->dict()['w_done_in']);
         } else {
             $this->clock = 'out';
-            $me?->update(['status' => 'off', 'out_t' => now()->format('g:i A')]);
+            $p->out_min = $nowMin;
+            $p->source = 'worker';
+            $p->save();
+            $me?->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($this->dict()['w_done_out']);
         }
     }
@@ -534,8 +770,23 @@ class WorkforceApp extends Component
     public function toggleNoLunch(): void
     {
         $this->noLunchToday = ! $this->noLunchToday;
+        $p = $this->todayPunch($this->meEmployeeId());
+        if ($p->exists) {
+            $p->update(['no_lunch' => $this->noLunchToday]);
+        }
         $d = $this->dict();
         $this->showToast($this->noLunchToday ? $d['lunchSkipToast'] : $d['lunchKeptToast']);
+    }
+
+    public function togglePunchLunch(int $punchId): void
+    {
+        $p = Punch::find($punchId);
+        if (! $p || $p->employee_id !== $this->meEmployeeId() && ! $this->canManage()) {
+            return;
+        }
+        $p->update(['no_lunch' => ! $p->no_lunch]);
+        $d = $this->dict();
+        $this->showToast($p->no_lunch ? $d['lunchSkipToast'] : $d['lunchKeptToast']);
     }
 
     public function toggleLunchRow(string $dayKey, bool $seedNoLunch): void
@@ -564,6 +815,14 @@ class WorkforceApp extends Component
         $reason = $this->earlyReasonVal === '__custom__'
             ? (trim($this->earlyCustom) ?: $d['w_earlyOther'])
             : $this->earlyReasonVal;
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        $p = $this->todayPunch($this->meEmployeeId());
+        $p->out_min = $nowMin;
+        $p->early_reason = $reason;
+        $p->source = 'worker';
+        $p->save();
+        Employee::where('id', $this->meEmployeeId())
+            ->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
         $this->clock = 'out';
         $this->earlyOpen = false;
         $this->showToast($d['w_earlyDone'] . ' · ' . $reason);
@@ -595,6 +854,9 @@ class WorkforceApp extends Component
             'editForm' => $this->editForm,
             'bstep' => $this->bstep, 'scanF' => $this->scanF, 'scanB' => $this->scanB, 'scanN' => $this->scanN,
             'regTeam' => $this->regTeam, 'regType' => $this->regType, 'regAccess' => $this->regAccess,
+            'regFirst' => $this->regFirst, 'regLast' => $this->regLast, 'regCoName' => $this->regCoName,
+            'regRoleTitle' => $this->regRoleTitle, 'regIssued' => $this->regIssued,
+            'nfcUidManual' => $this->nfcUidManual,
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,
@@ -605,7 +867,10 @@ class WorkforceApp extends Component
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
             'toast' => $this->toast,
-            'nfcUid' => self::NFC_UID, 'nfcId' => $this->nfcId(),
+            'nfcUid' => $this->currentUid() ?? self::NFC_UID,
+            'nfcId' => $this->nfcId($this->currentUid() ?? self::NFC_UID),
+            'hasUid' => $this->currentUid() !== null,
+            'meEmployeeId' => $this->meEmployeeId(),
         ];
     }
 

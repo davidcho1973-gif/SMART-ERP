@@ -55,11 +55,11 @@
                         <div style="font-size: 10.5px; color: #8A8880; margin-top: 8px;">{{ $L['b_faceCrop'] }}</div>
                     </div>
                     <div style="flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; align-content: start;">
-                        <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_company'] }} <span style="color: #D9483B;">●</span></span><input value="{{ $done ? $ext['company'] : '' }}" readonly style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_lastName'] }}</span><input value="{{ $done ? $ext['last'] : '' }}" readonly style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_firstName'] }}</span><input value="{{ $done ? $ext['first'] : '' }}" readonly style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_role'] }}</span><input value="{{ $done ? $ext['role'] : '' }}" readonly style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_issued'] }}</span><input value="{{ $done ? $ext['issued'] : '' }}" readonly style="{{ $Ui::ocrField($done) }}"/></label>
+                        <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_company'] }} <span style="color: #D9483B;">●</span></span><input wire:model.blur="regCoName" style="{{ $Ui::ocrField($done) }}"/></label>
+                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_lastName'] }}</span><input wire:model.blur="regLast" style="{{ $Ui::ocrField($done) }}"/></label>
+                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_firstName'] }}</span><input wire:model.blur="regFirst" style="{{ $Ui::ocrField($done) }}"/></label>
+                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_role'] }}</span><input wire:model.blur="regRoleTitle" style="{{ $Ui::ocrField($done) }}"/></label>
+                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_issued'] }}</span><input wire:model.blur="regIssued" style="{{ $Ui::ocrField($done) }}"/></label>
                     </div>
                 </div>
             </div>
@@ -104,16 +104,16 @@
 
     {{-- STEP 3: ASSIGN --}}
     @if($bstep === 'assign')
-        @php $ndone = $scanN === 'done'; @endphp
+        @php $ndone = $scanN === 'done' || trim($nfcUidManual) !== ''; @endphp
         <div style="max-width: 720px;">
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 26px;">
                 <div style="display: flex; align-items: center; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid #F0EEE8;">
                     <div style="width: 56px; height: 68px; border-radius: 8px; background: #F1EFE9; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="56" height="60" viewBox="0 0 56 60"><circle cx="28" cy="22" r="13" fill="#1F9D6B"/><path d="M4 60c0-16 11-24 24-24s24 8 24 24z" fill="#1F9D6B"/></svg></div>
-                    <div><div style="font-size: 19px; font-weight: 700;">Carlos Martínez</div><div style="font-size: 13px; color: #8A8880;">Sonoran MEP · Electrician</div><div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 2px;">{{ $b['regEmpId'] }}</div></div>
+                    <div><div style="font-size: 19px; font-weight: 700;">{{ trim($regFirst.' '.$regLast) ?: '—' }}</div><div style="font-size: 13px; color: #8A8880;">{{ $regCoName ?: '—' }} · {{ $regRoleTitle ?: '—' }}</div><div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 2px;">{{ $b['regEmpId'] }}</div></div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px;">
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_selectTeam'] }}</span><select wire:model="regTeam" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($b['regTeamOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
-                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_rate'] }}</span><input placeholder="32.50" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_rate'] }}</span><input wire:model.blur="regRate" placeholder="32.50" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
                     <label style="grid-column: span 2;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_type'] }}</span><select wire:change="setRegType($event.target.value)" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($b['typeOptions'] as $o)<option value="{{ $o['id'] }}" @selected($o['id']===$regType)>{{ $o['label'] }}</option>@endforeach</select></label>
                     <div style="grid-column: span 2;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_access'] }}</span><div style="display: flex; gap: 8px; margin-top: 6px;"><button wire:click="setRegAccess('admin')" style="{{ $Ui::accessSeg2($regAccess==='admin', $acc['admin']) }}">{{ $L['access_admin'] }}</button><button wire:click="setRegAccess('manager')" style="{{ $Ui::accessSeg2($regAccess==='manager', $acc['manager']) }}">{{ $L['access_manager'] }}</button><button wire:click="setRegAccess('worker')" style="{{ $Ui::accessSeg2($regAccess==='worker', $acc['worker']) }}">{{ $L['access_worker'] }}</button></div></div>
                     <div style="grid-column: span 2; border: 1.5px solid {{ $ndone ? '#1F9D6B' : '#E4E2DB' }}; border-radius: 14px; padding: 16px 18px; background: {{ $ndone ? '#F1FAF5' : '#FAFAF8' }}; display: flex; align-items: center; gap: 16px;">
@@ -134,8 +134,23 @@
                             <span style="display: inline-flex; align-items: center; gap: 6px; color: #1F9D6B; font-weight: 600; font-size: 13.5px; white-space: nowrap;">✓ {{ $L['b_nfcDone'] }}</span>
                         @endif
                     </div>
-                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_phone'] }}</span><input placeholder="(480) 555-0000" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
-                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_email'] }}</span><input placeholder="name@nahshon.io" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                    {{-- real NFC: type the UID or capture it via Web NFC (Chrome on Android) --}}
+                    <div style="grid-column: span 2; display: flex; gap: 8px; align-items: center;"
+                         x-data="{
+                            sup: 'NDEFReader' in window,
+                            scanNfc() {
+                                const r = new NDEFReader();
+                                r.scan().then(() => {
+                                    r.onreading = (ev) => { if (ev.serialNumber) $wire.set('nfcUidManual', ev.serialNumber); };
+                                }).catch((e) => console.warn('WebNFC', e));
+                            }
+                         }">
+                        <input wire:model.live.debounce.400ms="nfcUidManual" placeholder="{{ $L['b_uidManual'] }} — 04:73:AC:2F:19:B4:5E" style="flex: 1; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13.5px; font-family: 'Space Grotesk'; outline: none;"/>
+                        <button type="button" x-show="sup" x-cloak @click="scanNfc()"
+                            style="padding: 11px 14px; border: 1px solid #E4E2DB; border-radius: 10px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['b_nfcWeb'] }}</button>
+                    </div>
+                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_phone'] }}</span><input wire:model.blur="regPhone" placeholder="(480) 555-0000" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                    <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_email'] }}</span><input wire:model.blur="regEmail" placeholder="name@nahshon.io" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 26px;">
                     <button wire:click="backToBack" style="padding: 14px 20px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['b_back'] }}</button>

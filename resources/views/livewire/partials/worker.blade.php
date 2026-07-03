@@ -90,7 +90,11 @@
                                         @foreach($p['chips'] as $c)
                                             <span style="font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: {{ $c['bg'] }}; color: {{ $c['color'] }};">{{ $c['label'] }}</span>
                                         @endforeach
-                                        <button wire:click="toggleLunchRow('{{ $p['d'] }}', {{ $p['seedNoLunch'] ? 'true' : 'false' }})" style="{{ $Ui::lunchToggle($p['lunchIsNo']) }}">{{ $p['lunchToggleLabel'] }}</button>
+                                        @if(($p['pid'] ?? null) !== null)
+                                            <button wire:click="togglePunchLunch({{ $p['pid'] }})" style="{{ $Ui::lunchToggle($p['lunchIsNo']) }}">{{ $p['lunchToggleLabel'] }}</button>
+                                        @else
+                                            <button wire:click="toggleLunchRow('{{ $p['d'] }}', {{ $p['seedNoLunch'] ? 'true' : 'false' }})" style="{{ $Ui::lunchToggle($p['lunchIsNo']) }}">{{ $p['lunchToggleLabel'] }}</button>
+                                        @endif
                                     </div>
                                 </div>
                             @endforeach
@@ -100,7 +104,7 @@
                     <div style="padding: 12px 20px 20px;">
                         <div style="font-size: 18px; font-weight: 700; margin: 6px 0 16px;">{{ $L['w_payslip'] }}</div>
                         <div style="background: linear-gradient(135deg,#E85D2A,#C74A20); border-radius: 20px; padding: 22px; color: #fff;">
-                            <div style="font-size: 12.5px; opacity: 0.85;">{{ $L['w_est'] }} · Jun 15 – 28</div>
+                            <div style="font-size: 12.5px; opacity: 0.85;">{{ $L['w_est'] }} · {{ $pay['periodLabel'] }}</div>
                             <div style="font-family: 'Space Grotesk'; font-size: 34px; font-weight: 700; margin-top: 6px;">{{ $w['net'] }}</div>
                         </div>
                         <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px;">

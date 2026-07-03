@@ -57,6 +57,33 @@ Switch **role** and **language** any time from the top demo bar.
 - `lang/{en,es,ko}/app.php` — the trilingual dictionary.
 - Models: `Site`, `Company`, `Team` (crew), `Employee`.
 
+## Accounts & production mode
+
+Real login is required unless `WORKFORCE_DEMO=true`. The one-time `UserSeeder` creates:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `davidcho1973@gmail.com` | `ADMIN_PASSWORD` env, default `Nahshon!2026` |
+| Site manager | `mkim@nahshon.io` | same |
+| Worker (Carlos) | `cmartinez@nahshon.io` | same |
+
+**Change the default password immediately** (the repo is public):
+`php artisan tinker --execute="\App\Models\User::where('email','davidcho1973@gmail.com')->update(['password'=>bcrypt('NEW-PASSWORD')]);"`
+
+What is real now:
+
+- **Password login + Google (Socialite)** — Google button appears when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+  are set; unknown Google emails are auto-provisioned only if they match an active employee.
+- **Attendance records** — worker clock in/out, early leave (with reason), no-lunch, and manager manual
+  checks write `punches` rows (per employee per day, minutes since midnight, MST).
+- **Payroll** — bi-weekly period is computed from the anchor (Mon Jun 15 2026); hours come from real
+  punches when they exist (seeded `wh` as fallback). "Process payment" stores a `payments` row
+  (check no, date, amount, reg/OT) and the payroll table shows a Paid badge.
+- **Badge registration** — all fields are editable (the OCR scan prefills demo values); the NFC UID can be
+  typed, simulated, or captured via **Web NFC** (Chrome on Android). Duplicate badge IDs are rejected.
+- **Access control** — mutating actions require an authenticated admin/manager (or demo mode);
+  role switching / demo entry is disabled outside demo mode.
+
 ## Integration seams (simulated in this build, ready to wire)
 
 These are demo simulations in the prototype and remain so here — each has a clean seam for a real

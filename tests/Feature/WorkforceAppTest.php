@@ -5,8 +5,11 @@ namespace Tests\Feature;
 use App\Livewire\WorkforceApp;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Payment;
+use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
+use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -19,6 +22,7 @@ class WorkforceAppTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['workforce.demo' => true]); // tests drive the app through demo mode
         $this->seed(WorkforceSeeder::class);
     }
 
@@ -171,5 +175,120 @@ class WorkforceAppTest extends TestCase
             ->call('doClock')            // in -> out
             ->assertSet('clock', 'out');
         $this->assertSame('off', Employee::find(106)->status);
+    }
+
+    public function test_password_login_enters_role_view(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('loginEmail', 'davidcho1973@gmail.com')
+            ->set('loginPassword', 'Nahshon!2026')
+            ->call('login')
+            ->assertSet('role', 'admin')
+            ->assertSet('screen', 'dashboard');
+
+        $this->assertAuthenticated();
+    }
+
+    public function test_password_login_rejects_bad_credentials(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('loginEmail', 'davidcho1973@gmail.com')
+            ->set('loginPassword', 'wrong-password')
+            ->call('login')
+            ->assertSet('screen', 'login');
+
+        $this->assertGuest();
+    }
+
+    public function test_demo_bypass_is_blocked_outside_demo_mode(): void
+    {
+        config(['workforce.demo' => false]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->assertSet('screen', 'login');
+    }
+
+    public function test_worker_clock_creates_punch_record(): void
+    {
+        $today = now()->format('Y-m-d');
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')
+            ->call('doClock');   // in
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $this->assertNotNull($p);
+        $this->assertNotNull($p->in_min);
+        $this->assertNull($p->out_min);
+
+        Livewire::test(WorkforceApp::class)
+            ->set('clock', 'in')
+            ->call('doClock');   // out
+
+        $this->assertNotNull($p->fresh()->out_min);
+    }
+
+    public function test_manual_punch_creates_punch_record(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('manualPunch', 112, 'in');
+
+        $p = Punch::where('employee_id', 112)->where('work_date', now()->format('Y-m-d'))->first();
+        $this->assertNotNull($p);
+        $this->assertNotNull($p->in_min);
+    }
+
+    public function test_print_voucher_records_payment(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('openPayDetail', 106)
+            ->call('openVoucher')
+            ->set('checkNo', '100482')
+            ->call('printVoucher');
+
+        $pay = Payment::where('employee_id', 106)->first();
+        $this->assertNotNull($pay);
+        $this->assertSame('100482', $pay->check_no);
+        $this->assertGreaterThan(0, $pay->amount);
+    }
+
+    public function test_badge_wizard_uses_typed_values_and_manual_uid(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Luis')
+            ->set('regLast', 'Ramírez')
+            ->set('regRoleTitle', 'Welder')
+            ->set('regRate', '29.50')
+            ->set('regTeam', 't3')
+            ->set('nfcUidManual', 'AB:12:CD:34:EF:56:78')
+            ->call('finishBadge')
+            ->assertSet('screen', 'employees');
+
+        $e = Employee::where('first', 'Luis')->where('last', 'Ramírez')->first();
+        $this->assertNotNull($e);
+        $this->assertSame('N-D34EF5678', $e->emp_id);
+        $this->assertSame(29.5, $e->rate);
+    }
+
+    public function test_badge_wizard_requires_uid(): void
+    {
+        $before = Employee::count();
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Ana')
+            ->set('regLast', 'Lopez')
+            ->call('finishBadge')
+            ->assertSet('screen', 'badge'); // stays in the wizard
+
+        $this->assertSame($before, Employee::count());
     }
 }

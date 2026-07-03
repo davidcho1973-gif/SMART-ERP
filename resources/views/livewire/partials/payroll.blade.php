@@ -2,7 +2,7 @@
 <div>
     <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap;">
         <div style="background: #16181D; color: #fff; border-radius: 14px; padding: 16px 22px; display: flex; align-items: center; gap: 22px;">
-            <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ $L['p_period'] }}</div><div style="font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; margin-top: 2px;">Jun 15 – 28, 2026</div></div>
+            <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ $L['p_period'] }}</div><div style="font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; margin-top: 2px;">{{ $pay['periodLabel'] }}</div></div>
             <div style="width: 1px; height: 32px; background: rgba(255,255,255,0.15);"></div>
             <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ $L['p_total'] }}</div><div style="font-family: 'Space Grotesk'; font-size: 22px; font-weight: 700; margin-top: 2px; color: #E85D2A;">{{ $pay['totalPayout'] }}</div></div>
         </div>
@@ -20,7 +20,7 @@
                 <span style="text-align: right; font-family: 'Space Grotesk';">{{ $p['reg'] }}</span>
                 <span style="text-align: right; font-family: 'Space Grotesk'; color: #1F9D6B;">{{ $p['ot'] }}</span>
                 <span style="text-align: right; font-family: 'Space Grotesk';">{{ $p['gross'] }}</span>
-                <span style="text-align: right; font-family: 'Space Grotesk'; font-weight: 700;">{{ $p['net'] }}</span>
+                <span style="text-align: right; font-family: 'Space Grotesk'; font-weight: 700;">{{ $p['net'] }}@if($p['paid']) <span style="font-size: 10px; font-weight: 700; color: #1F9D6B; background: #E7F4EE; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">{{ $L['p_paid'] }}</span>@endif</span>
             </div>
         @endforeach
     </div>
@@ -88,7 +88,7 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 22px 30px;">
                             <div><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #A7A49B;">{{ $L['pv_payer'] }}</div><div style="font-size: 15px; font-weight: 700; margin-top: 4px;">{{ $pay['companyName'] }}</div></div>
                             <div><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #A7A49B;">{{ $L['pv_payee'] }}</div><div style="font-size: 15px; font-weight: 700; margin-top: 4px;">{{ $v['name'] }}</div><div style="font-size: 12px; color: #8A8880; font-family: 'Space Grotesk';">{{ $v['empId'] }} · {{ $v['teamName'] }}</div></div>
-                            <div><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #A7A49B;">{{ $L['pv_period'] }}</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px;">Jun 15 – 28, 2026</div></div>
+                            <div><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #A7A49B;">{{ $L['pv_period'] }}</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ $pay['periodLabel'] }}</div></div>
                             <div><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #A7A49B;">{{ $L['pv_hours'] }}</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px; font-family: 'Space Grotesk';">{{ $v['reg'] }} + {{ $v['ot'] }} OT · {{ $v['rate'] }}</div></div>
                         </div>
                         <div style="margin-top: 26px; background: #F7F6F2; border: 1px solid #E4E2DB; border-radius: 12px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;">
