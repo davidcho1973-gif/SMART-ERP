@@ -151,7 +151,7 @@ class ViewModel
             'statusLabel' => $L['st_' . $e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
             'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
             'access' => $e->access, 'accessLabel' => $L['access_' . $e->access], 'accessColor' => $accColor[$e->access],
-            'badgeQr' => $e->badge_qr,
+            'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
             'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
             'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
             'inT' => $e->in_t, 'term' => $e->term,
@@ -202,26 +202,11 @@ class ViewModel
         $regEmpId = ($s['hasUid'] ?? false) ? $nfcId : 'N- — — —';
         $regTeamOptions = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name . ' · ' . $companyName($t->company_id)])->all();
 
-        // auto-cropped face from the analyzed badge photo (CSS background crop)
-        $faceCrop = null;
+        // the analyzed badge photo, shown whole (contain) in the extracted panel
         $facePhoto = $s['facePhotoData'] ?? '';
-        if ($facePhoto !== '') {
-            $fb = $s['faceBox'] ?? [];
-            if (! empty($fb) && ($fb['w'] ?? 0) > 0 && ($fb['h'] ?? 0) > 0) {
-                $fx = (float) $fb['x'];
-                $fy = (float) $fb['y'];
-                $fw = (float) $fb['w'];
-                $fh = (float) $fb['h'];
-                $sizeX = round(100 / $fw, 2);
-                $sizeY = round(100 / $fh, 2);
-                $posX = $fw < 1 ? round($fx / (1 - $fw) * 100, 2) : 0;
-                $posY = $fh < 1 ? round($fy / (1 - $fh) * 100, 2) : 0;
-                $faceCrop = "background-image:url('{$facePhoto}');background-size:{$sizeX}% {$sizeY}%;background-position:{$posX}% {$posY}%;background-repeat:no-repeat;";
-            } else {
-                // no face detected → show the whole photo
-                $faceCrop = "background-image:url('{$facePhoto}');background-size:cover;background-position:center;background-repeat:no-repeat;";
-            }
-        }
+        $faceCrop = $facePhoto !== ''
+            ? "background-image:url('{$facePhoto}');background-size:contain;background-position:center;background-repeat:no-repeat;background-color:#16181D;"
+            : null;
 
         // ---- payroll ----
         $payRows = $scopedActive->map(function ($e) use ($empName, $inits, $teamName, $teamColor, $hoursFor, $payments) {

@@ -109,6 +109,8 @@ input, button, select { font-family: inherit; }
     /* --- badge registration: stack photo/scan over the extracted form --- */
     .wf-badge-cols { grid-template-columns: 1fr !important; }
     .wf-badge-fields { grid-template-columns: 1fr !important; }
+    /* single column → every field spans the full width (cancel any span-2) */
+    .wf-badge-fields > * { grid-column: 1 / -1 !important; }
 
     /* --- keep wide content from breaking the page --- */
     .wf-content > * { max-width: 100%; }

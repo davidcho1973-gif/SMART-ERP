@@ -1024,6 +1024,7 @@ class WorkforceApp extends Component
             'issued' => trim($this->regIssued),
             'phone' => trim($this->regPhone), 'email' => trim($this->regEmail),
             'badge_qr' => trim($this->backQrValue) ?: null,
+            'badge_photo' => $this->facePhotoData ?: null,
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0, 'emp' => 'active', 'term' => null,
         ]);
         $this->screen = 'employees';

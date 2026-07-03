@@ -66,6 +66,12 @@
                 </div>
             </div>
             <div style="padding: 24px 30px;">
+                @if(!empty($sel['badgePhoto']))
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-size: 11.5px; color: #A7A49B; margin-bottom: 8px;">{{ $L['b_faceCrop'] }}</div>
+                        <div style="width: 100%; aspect-ratio: 1.58; border-radius: 12px; border: 1px solid #E4E2DB; background-color: #16181D; background-image: url('{{ $sel['badgePhoto'] }}'); background-size: contain; background-position: center; background-repeat: no-repeat;"></div>
+                    </div>
+                @endif
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px;">
                     <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['b_firstName'] }}</span><input wire:model="editForm.first" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #E4E2DB;border-radius:9px;font-size:13.5px;background:#fff;color:#16181D;outline:none;"/></label>
                     <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['b_lastName'] }}</span><input wire:model="editForm.last" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #E4E2DB;border-radius:9px;font-size:13.5px;background:#fff;color:#16181D;outline:none;"/></label>

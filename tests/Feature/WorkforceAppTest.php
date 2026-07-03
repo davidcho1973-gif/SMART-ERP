@@ -572,7 +572,7 @@ class WorkforceAppTest extends TestCase
             ->assertSet('regIssued', '03/04/2026');
     }
 
-    public function test_badge_analysis_auto_crops_the_face(): void
+    public function test_badge_analysis_shows_whole_badge_photo(): void
     {
         config(['services.gemini.key' => 'test-key']);
         Http::fake([
@@ -582,7 +582,6 @@ class WorkforceAppTest extends TestCase
                         'text' => json_encode([
                             'company' => 'AUTORICA LLC', 'last' => 'LEE', 'first' => 'JAEWOO',
                             'role' => 'SUPERVISOR', 'issued' => '03/04/2026',
-                            'face' => ['x' => 0.1, 'y' => 0.2, 'w' => 0.3, 'h' => 0.4],
                         ]),
                     ]]],
                 ]],
@@ -594,10 +593,32 @@ class WorkforceAppTest extends TestCase
             ->set('badgePhoto', UploadedFile::fake()->image('badge.jpg', 800, 1100))
             ->call('analyzeBadge')
             ->assertSet('scanF', 'done')
-            ->assertSet('faceBox', ['x' => 0.1, 'y' => 0.2, 'w' => 0.3, 'h' => 0.4])
-            // downscaled photo captured as a data URI, rendered as a CSS crop
+            // downscaled photo captured as a data URI, shown whole (contain)
             ->assertSeeHtml('data:image/jpeg;base64,')
-            ->assertSeeHtml('background-size:333.33% 250%');
+            ->assertSeeHtml('background-size:contain');
+    }
+
+    public function test_badge_register_saves_photo_and_drawer_shows_it(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Foto')
+            ->set('regLast', 'Persona')
+            ->set('regTeam', 't3')
+            ->set('facePhotoData', 'data:image/jpeg;base64,ZZZZ')
+            ->set('nfcUidManual', '11:22:33:44:55:66')
+            ->call('finishBadge');
+
+        $e = Employee::where('first', 'Foto')->where('last', 'Persona')->first();
+        $this->assertNotNull($e);
+        $this->assertSame('data:image/jpeg;base64,ZZZZ', $e->badge_photo);
+
+        // the detail drawer renders the stored photo
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'employees')
+            ->call('selectEmp', $e->id)
+            ->assertSeeHtml('data:image/jpeg;base64,ZZZZ');
     }
 
     public function test_badge_analysis_without_photo_falls_back_to_simulation(): void

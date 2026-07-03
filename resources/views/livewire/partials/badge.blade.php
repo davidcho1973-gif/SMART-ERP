@@ -68,24 +68,18 @@
                     <div style="margin-top: 18px; display: flex; gap: 10px;"><button wire:click="rescanF" style="padding: 13px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 11px; background: transparent; color: #fff; font-size: 13px; cursor: pointer;">{{ $L['b_rescan'] }}</button><button wire:click="toBack" style="flex: 1; padding: 13px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['b_next'] }}</button></div>
                 @endif
             </div>
-            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 26px;">
+            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 24px;">
                 <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #E85D2A; margin-bottom: 16px;">{{ $L['b_extracted'] }}</div>
-                <div style="display: flex; gap: 20px;">
-                    <div style="text-align: center;">
-                        @if($b['faceCrop'])
-                            <div style="width: 96px; height: 116px; border-radius: 10px; border: 1.5px solid #1F9D6B; overflow: hidden; {{ $b['faceCrop'] }}"></div>
-                        @else
-                            <div style="width: 96px; height: 116px; border-radius: 10px; background: #F1EFE9; border: 1.5px solid {{ $done ? '#1F9D6B' : '#E4E2DB' }}; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="96" height="100" viewBox="0 0 96 100"><circle cx="48" cy="38" r="22" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/><path d="M8 100c0-26 18-40 40-40s40 14 40 40z" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/></svg></div>
-                        @endif
-                        <div style="font-size: 10.5px; color: #8A8880; margin-top: 8px;">{{ $L['b_faceCrop'] }}</div>
-                    </div>
-                    <div style="flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; align-content: start;">
-                        <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_company'] }} <span style="color: #D9483B;">●</span></span><input wire:model.blur="regCoName" style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_lastName'] }}</span><input wire:model.blur="regLast" style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_firstName'] }}</span><input wire:model.blur="regFirst" style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_role'] }}</span><input wire:model.blur="regRoleTitle" style="{{ $Ui::ocrField($done) }}"/></label>
-                        <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_issued'] }}</span><input wire:model.blur="regIssued" style="{{ $Ui::ocrField($done) }}"/></label>
-                    </div>
+                @if($b['faceCrop'])
+                    <div style="width: 100%; aspect-ratio: 1.58; border-radius: 12px; border: 1px solid #E4E2DB; margin-bottom: 18px; {{ $b['faceCrop'] }}"></div>
+                    <div style="font-size: 10.5px; color: #A7A49B; text-align: center; margin-top: -10px; margin-bottom: 16px;">{{ $L['b_faceCrop'] }}</div>
+                @endif
+                <div class="wf-badge-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px;">
+                    <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_company'] }} <span style="color: #D9483B;">●</span></span><input wire:model.blur="regCoName" style="{{ $Ui::ocrField($done) }}"/></label>
+                    <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_lastName'] }}</span><input wire:model.blur="regLast" style="{{ $Ui::ocrField($done) }}"/></label>
+                    <label><span style="font-size: 12px; color: #8A8880;">{{ $L['b_firstName'] }}</span><input wire:model.blur="regFirst" style="{{ $Ui::ocrField($done) }}"/></label>
+                    <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_role'] }}</span><input wire:model.blur="regRoleTitle" style="{{ $Ui::ocrField($done) }}"/></label>
+                    <label style="grid-column: span 2;"><span style="font-size: 12px; color: #8A8880;">{{ $L['b_issued'] }}</span><input wire:model.blur="regIssued" style="{{ $Ui::ocrField($done) }}"/></label>
                 </div>
             </div>
         </div>
