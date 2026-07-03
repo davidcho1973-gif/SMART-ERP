@@ -178,10 +178,60 @@ class WorkforceApp extends Component
         };
     }
 
+    /** Whether the current user may clock themselves in/out from the desktop. */
+    protected function canDeskClock(): bool
+    {
+        if ($this->isDemo()) {
+            return $this->role !== 'worker';
+        }
+
+        return Auth::check() && in_array(Auth::user()->access, ['admin', 'manager'], true);
+    }
+
+    /**
+     * Resolve (or create) the employee record for the signed-in admin/manager so
+     * they can clock in — admins without a roster record get one provisioned.
+     */
+    protected function ensureSelfEmployee(): ?int
+    {
+        if ($this->isDemo()) {
+            return $this->selfEmployeeId();
+        }
+        if (! Auth::check() || ! in_array(Auth::user()->access, ['admin', 'manager'], true)) {
+            return null;
+        }
+        $u = Auth::user();
+        if ($u->employee_id && Employee::find($u->employee_id)) {
+            return (int) $u->employee_id;
+        }
+
+        $parts = preg_split('/\s+/', trim($u->name)) ?: [];
+        $emp = Employee::create([
+            'emp_id' => 'STAFF-' . str_pad((string) $u->id, 4, '0', STR_PAD_LEFT),
+            'first' => $parts[0] ?? $u->name,
+            'last' => isset($parts[1]) ? implode(' ', array_slice($parts, 1)) : '',
+            'type' => 'manager',                 // staff, not a field worker (kept out of the worker timesheet)
+            'access' => $u->access,
+            'role' => $u->access === 'admin' ? 'Administrator' : 'Site Manager',
+            'email' => $u->email,
+            'company_id' => Company::first()?->id,
+            'team_id' => Team::first()?->id,
+            'site_id' => Site::first()?->id,
+            'lang' => $this->lang,
+            'emp' => 'active',
+        ]);
+        $u->update(['employee_id' => $emp->id]);
+
+        return $emp->id;
+    }
+
     /** Clock the current admin/manager in or out (records a real punch). */
     public function doDeskClock(): void
     {
-        $eid = $this->selfEmployeeId();
+        if (! $this->canDeskClock()) {
+            return;
+        }
+        $eid = $this->ensureSelfEmployee();
         if (! $eid) {
             return;
         }
@@ -1073,6 +1123,7 @@ class WorkforceApp extends Component
             'hasUid' => $this->currentUid() !== null,
             'meEmployeeId' => $this->meEmployeeId(),
             'selfEmployeeId' => $this->selfEmployeeId(),
+            'canDeskClock' => $this->canDeskClock(),
         ];
     }
 

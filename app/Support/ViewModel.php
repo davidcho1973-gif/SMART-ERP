@@ -294,73 +294,7 @@ class ViewModel
             : RealQr::svg(url('/'));
 
         // ---- daily timesheet (company → team → worker; actual vs paid, reg/OT) ----
-        $attDate = $s['attDate'] ?? now()->format('Y-m-d');
-        $isTodayTs = $attDate === now()->format('Y-m-d');
-        $isSatTs = Carbon::parse($attDate)->isSaturday();
-        $dayPunches = Punch::where('work_date', $attDate)->get()->keyBy('employee_id');
-
-        $tsRows = [];
-        $tsRegTotal = 0.0;
-        $tsOtTotal = 0.0;
-        $tsPresent = 0;
-        $tsWorkers = $scopedActive->filter(fn ($e) => $e->type === 'worker')
-            ->sortBy(fn ($e) => sprintf('%s|%s|%s', $companyName($e->company_id), $teamName($e->team_id), $empName($e)))
-            ->values();
-
-        foreach ($tsWorkers as $e) {
-            $p = $dayPunches->get($e->id);
-            $inMin = $outMin = null;
-            $noLunch = false;
-            if ($p && $p->in_min !== null) {
-                $inMin = $p->in_min;
-                $outMin = $p->out_min;
-                $noLunch = (bool) $p->no_lunch;
-            } elseif ($isTodayTs && $e->in_t !== '—' && $e->in_t !== '') {
-                $inMin = Shift::minOf($e->in_t);
-                $outMin = ($e->out_t !== '—' && $e->out_t !== '') ? Shift::minOf($e->out_t) : null;
-            }
-
-            $actIn = $inMin !== null ? Shift::fmtMin($inMin) : '—';
-            $actOut = $outMin !== null ? Shift::fmtMin($outMin) : '—';
-            $paidIn = $paidOut = $regStr = $otStr = '—';
-            if ($inMin !== null && $outMin !== null) {
-                [$si, $so] = Payroll::scheduleFor($inMin, $isSatTs);
-                $c = Shift::compute(Shift::fmtMin($inMin), Shift::fmtMin($outMin), $si, $so, $noLunch);
-                $paidIn = $c['inFmt'];
-                $paidOut = $c['outFmt'];
-                $paid = max(0, $c['paid']);
-                $reg = min($paid, 8);
-                $ot = max(0, $paid - 8);
-                $tsRegTotal += $reg;
-                $tsOtTotal += $ot;
-                $regStr = number_format($reg, 1) . 'h';
-                $otStr = $ot > 0.05 ? number_format($ot, 1) . 'h' : '—';
-            }
-            if ($inMin !== null) {
-                $tsPresent++;
-            }
-
-            $tsRows[] = [
-                'company' => $companyName($e->company_id),
-                'team' => $teamName($e->team_id),
-                'teamColor' => $teamColor($e->team_id),
-                'name' => $empName($e), 'initials' => $inits($e),
-                'actIn' => $actIn, 'actOut' => $actOut,
-                'paidIn' => $paidIn, 'paidOut' => $paidOut,
-                'reg' => $regStr, 'ot' => $otStr,
-                'onDuty' => $inMin !== null && $outMin === null,
-            ];
-        }
-
-        $timesheet = [
-            'date' => $attDate,
-            'dateLabel' => Carbon::parse($attDate)->format('D · M j, Y'),
-            'rows' => $tsRows,
-            'count' => count($tsRows),
-            'present' => $tsPresent,
-            'regTotal' => number_format($tsRegTotal, 1) . 'h',
-            'otTotal' => number_format($tsOtTotal, 1) . 'h',
-        ];
+        $timesheet = Timesheet::forDate($s['attDate'] ?? now()->format('Y-m-d'), $s['site'], $lang);
 
         // ---- worker mobile (me = authed employee, demo fallback 106) ----
         $meId = $s['meEmployeeId'] ?? 106;
@@ -486,12 +420,13 @@ class ViewModel
             }
         }
 
-        // Desktop self clock-in/out (admin & manager clocking their own record).
+        // Desktop self clock-in/out (any admin/manager, even before an employee
+        // record is linked — the record is auto-created on first clock).
         $deskClock = ['show' => false];
         $selfEid = $s['selfEmployeeId'] ?? null;
-        if ($selfEid && $s['role'] !== 'worker') {
-            $selfPunch = Punch::where('employee_id', $selfEid)
-                ->where('work_date', Carbon::now()->format('Y-m-d'))->first();
+        if (($s['canDeskClock'] ?? false)) {
+            $selfPunch = $selfEid ? Punch::where('employee_id', $selfEid)
+                ->where('work_date', Carbon::now()->format('Y-m-d'))->first() : null;
             $isIn = $selfPunch && $selfPunch->in_min !== null && $selfPunch->out_min === null;
             $deskClock = [
                 'show' => true,

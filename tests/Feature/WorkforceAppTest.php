@@ -10,6 +10,7 @@ use App\Models\Punch;
 use App\Livewire\ScanClock;
 use App\Models\Site;
 use App\Models\Team;
+use App\Models\User;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -333,6 +334,38 @@ class WorkforceAppTest extends TestCase
             ->assertSee('6:05 AM')   // actual in
             ->assertSee('6:00 AM')   // paid in (grace-snapped)
             ->assertSee('8.0h');     // regular hours
+    }
+
+    public function test_admin_without_linked_employee_can_desk_clock(): void
+    {
+        $this->seed(UserSeeder::class);
+        config(['workforce.demo' => false]);
+
+        $admin = User::where('email', 'davidcho1973@gmail.com')->first();
+        $this->assertNull($admin->employee_id);
+
+        Livewire::actingAs($admin)->test(WorkforceApp::class)->call('doDeskClock');
+
+        $admin->refresh();
+        $this->assertNotNull($admin->employee_id);            // employee auto-provisioned
+        $this->assertSame('present', Employee::find($admin->employee_id)->status);
+        $this->assertDatabaseHas('punches', [
+            'employee_id' => $admin->employee_id, 'source' => 'self',
+        ]);
+    }
+
+    public function test_timesheet_export_returns_valid_xlsx(): void
+    {
+        Punch::create([
+            'employee_id' => 106, 'work_date' => '2026-06-25',
+            'in_min' => 365, 'out_min' => 900, 'no_lunch' => false, 'source' => 'seed',
+        ]);
+
+        $res = $this->get('/export/timesheet?date=2026-06-25&site=all&lang=en');
+
+        $res->assertOk();
+        $res->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringStartsWith('PK', $res->getContent()); // zip magic
     }
 
     public function test_worker_has_no_desk_clock(): void

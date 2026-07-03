@@ -20,6 +20,9 @@
                 <span style="background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #5A5D64;">{{ $L['ts_present'] }} <b style="color:#16181D;">{{ $ts['present'] }}</b> / {{ $ts['count'] }}</span>
                 <span style="background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #5A5D64;">{{ $L['ts_reg'] }} <b style="color:#16181D;">{{ $ts['regTotal'] }}</b></span>
                 <span style="background: #FDF0EA; border: 1px solid #F3D9CB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #C05621;">{{ $L['ts_ot'] }} <b>{{ $ts['otTotal'] }}</b></span>
+                <a href="/export/timesheet?date={{ $ts['date'] }}&site={{ $siteVal }}&lang={{ $lang }}" style="display: inline-flex; align-items: center; gap: 8px; background: #1F9D6B; color: #fff; border-radius: 10px; padding: 9px 15px; font-size: 12.5px; font-weight: 600; text-decoration: none;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>{{ $L['ts_export'] }}
+                </a>
             </div>
         </div>
 
