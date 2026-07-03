@@ -202,6 +202,27 @@ class ViewModel
         $regEmpId = ($s['hasUid'] ?? false) ? $nfcId : 'N- — — —';
         $regTeamOptions = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name . ' · ' . $companyName($t->company_id)])->all();
 
+        // auto-cropped face from the analyzed badge photo (CSS background crop)
+        $faceCrop = null;
+        $facePhoto = $s['facePhotoData'] ?? '';
+        if ($facePhoto !== '') {
+            $fb = $s['faceBox'] ?? [];
+            if (! empty($fb) && ($fb['w'] ?? 0) > 0 && ($fb['h'] ?? 0) > 0) {
+                $fx = (float) $fb['x'];
+                $fy = (float) $fb['y'];
+                $fw = (float) $fb['w'];
+                $fh = (float) $fb['h'];
+                $sizeX = round(100 / $fw, 2);
+                $sizeY = round(100 / $fh, 2);
+                $posX = $fw < 1 ? round($fx / (1 - $fw) * 100, 2) : 0;
+                $posY = $fh < 1 ? round($fy / (1 - $fh) * 100, 2) : 0;
+                $faceCrop = "background-image:url('{$facePhoto}');background-size:{$sizeX}% {$sizeY}%;background-position:{$posX}% {$posY}%;background-repeat:no-repeat;";
+            } else {
+                // no face detected → show the whole photo
+                $faceCrop = "background-image:url('{$facePhoto}');background-size:cover;background-position:center;background-repeat:no-repeat;";
+            }
+        }
+
         // ---- payroll ----
         $payRows = $scopedActive->map(function ($e) use ($empName, $inits, $teamName, $teamColor, $hoursFor, $payments) {
             $wh = $hoursFor($e);
@@ -490,7 +511,7 @@ class ViewModel
             ],
             // badge
             'badge' => [
-                'ext' => $ext, 'nfcUid' => $nfcUid, 'nfcId' => $nfcId, 'regEmpId' => $regEmpId,
+                'ext' => $ext, 'nfcUid' => $nfcUid, 'nfcId' => $nfcId, 'regEmpId' => $regEmpId, 'faceCrop' => $faceCrop,
                 'regTeamOptions' => $regTeamOptions, 'typeOptions' => $typeOptions, 'accColor' => $accColor,
             ],
             // attendance

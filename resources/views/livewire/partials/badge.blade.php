@@ -72,7 +72,11 @@
                 <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: #E85D2A; margin-bottom: 16px;">{{ $L['b_extracted'] }}</div>
                 <div style="display: flex; gap: 20px;">
                     <div style="text-align: center;">
-                        <div style="width: 96px; height: 116px; border-radius: 10px; background: #F1EFE9; border: 1.5px solid {{ $done ? '#1F9D6B' : '#E4E2DB' }}; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="96" height="100" viewBox="0 0 96 100"><circle cx="48" cy="38" r="22" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/><path d="M8 100c0-26 18-40 40-40s40 14 40 40z" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/></svg></div>
+                        @if($b['faceCrop'])
+                            <div style="width: 96px; height: 116px; border-radius: 10px; border: 1.5px solid #1F9D6B; overflow: hidden; {{ $b['faceCrop'] }}"></div>
+                        @else
+                            <div style="width: 96px; height: 116px; border-radius: 10px; background: #F1EFE9; border: 1.5px solid {{ $done ? '#1F9D6B' : '#E4E2DB' }}; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="96" height="100" viewBox="0 0 96 100"><circle cx="48" cy="38" r="22" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/><path d="M8 100c0-26 18-40 40-40s40 14 40 40z" fill="{{ $done ? '#1F9D6B' : '#D8D5CD' }}"/></svg></div>
+                        @endif
                         <div style="font-size: 10.5px; color: #8A8880; margin-top: 8px;">{{ $L['b_faceCrop'] }}</div>
                     </div>
                     <div style="flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; align-content: start;">

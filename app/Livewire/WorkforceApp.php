@@ -67,6 +67,10 @@ class WorkforceApp extends Component
     public string $nfcUidManual = '';
     /** uploaded badge-front photo (camera or file) */
     public $badgePhoto = null;
+    /** downscaled data-URI of the analyzed badge photo (for the auto-cropped face) */
+    public string $facePhotoData = '';
+    /** normalized face bounding box {x,y,w,h} detected on the badge, or empty */
+    public array $faceBox = [];
     /** decoded value of the back-of-badge QR code */
     public string $backQrValue = '';
     /** uploaded badge-back photo */
@@ -820,8 +824,40 @@ class WorkforceApp extends Component
         $this->regFirst = $result['first'] !== '' ? $result['first'] : $this->regFirst;
         $this->regRoleTitle = $result['role'] !== '' ? $result['role'] : $this->regRoleTitle;
         $this->regIssued = $result['issued'] !== '' ? $result['issued'] : $this->regIssued;
+
+        // keep a small copy of the photo + detected face box for the auto-cropped headshot
+        $this->facePhotoData = $this->downscaleToDataUri(file_get_contents($this->badgePhoto->getRealPath()));
+        $this->faceBox = $result['face'] ?? [];
+
         $this->scanF = 'done';
         $this->showToast($this->dict()['b_aiDone']);
+    }
+
+    /** Downscale image bytes to a compact JPEG data-URI (keeps Livewire state light). */
+    protected function downscaleToDataUri(string $bytes, int $maxW = 420): string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return '';
+        }
+        $img = @imagecreatefromstring($bytes);
+        if (! $img) {
+            return '';
+        }
+        $w = imagesx($img);
+        $h = imagesy($img);
+        if ($w > $maxW) {
+            $nh = (int) round($h * $maxW / $w);
+            $resized = imagecreatetruecolor($maxW, $nh);
+            imagecopyresampled($resized, $img, 0, 0, 0, 0, $maxW, $nh, $w, $h);
+            imagedestroy($img);
+            $img = $resized;
+        }
+        ob_start();
+        imagejpeg($img, null, 82);
+        $data = (string) ob_get_clean();
+        imagedestroy($img);
+
+        return 'data:image/jpeg;base64,' . base64_encode($data);
     }
 
     public function finishScanF(): void
@@ -841,6 +877,8 @@ class WorkforceApp extends Component
     {
         $this->scanF = 'idle';
         $this->badgePhoto = null;
+        $this->facePhotoData = '';
+        $this->faceBox = [];
     }
 
     public function toBack(): void
@@ -992,7 +1030,8 @@ class WorkforceApp extends Component
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
-            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto', 'backManual']);
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto', 'backManual',
+            'facePhotoData', 'faceBox']);
         $this->showToast($d['b_finish'] . ' ✓');
     }
 
@@ -1213,6 +1252,7 @@ class WorkforceApp extends Component
             'deleteId' => $this->deleteId, 'terminateId' => $this->terminateId,
             'editForm' => $this->editForm,
             'bstep' => $this->bstep, 'scanF' => $this->scanF, 'scanB' => $this->scanB, 'scanN' => $this->scanN,
+            'facePhotoData' => $this->facePhotoData, 'faceBox' => $this->faceBox,
             'regTeam' => $this->regTeam, 'regType' => $this->regType, 'regAccess' => $this->regAccess,
             'regFirst' => $this->regFirst, 'regLast' => $this->regLast, 'regCoName' => $this->regCoName,
             'regRoleTitle' => $this->regRoleTitle, 'regIssued' => $this->regIssued,

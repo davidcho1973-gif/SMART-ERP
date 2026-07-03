@@ -92,8 +92,12 @@ You are reading a construction-site ID badge (front side). Extract exactly these
 - role: the job title in red below the first name (e.g. "SUPERVISOR", "ELECTRICIAN").
 - issued: the date next to "ISSUED ON:" under the face photo, converted to MM/DD/YYYY
   (e.g. "MARCH 04 2026" -> "03/04/2026").
+- face: the bounding box of the person's face/headshot photo on the badge, as
+  normalized 0..1 fractions of the whole image: {x, y, w, h} where x,y is the
+  top-left corner, w,h the width/height. Wrap the head snugly. If there is no
+  visible face photo, use {x:0, y:0, w:0, h:0}.
 
-Use empty string "" for anything unreadable. Respond with JSON only.
+Use empty string "" for text fields that are unreadable. Respond with JSON only.
 PROMPT;
 
         try {
@@ -116,6 +120,14 @@ PROMPT;
                                 'first' => ['type' => 'STRING'],
                                 'role' => ['type' => 'STRING'],
                                 'issued' => ['type' => 'STRING'],
+                                'face' => [
+                                    'type' => 'OBJECT',
+                                    'properties' => [
+                                        'x' => ['type' => 'NUMBER'], 'y' => ['type' => 'NUMBER'],
+                                        'w' => ['type' => 'NUMBER'], 'h' => ['type' => 'NUMBER'],
+                                    ],
+                                    'required' => ['x', 'y', 'w', 'h'],
+                                ],
                             ],
                             'required' => ['company', 'last', 'first', 'role', 'issued'],
                         ],
@@ -142,12 +154,30 @@ PROMPT;
 
         $clean = fn ($k) => trim((string) ($data[$k] ?? ''));
 
+        // normalize the face box: clamp to 0..1, require positive area
+        $face = null;
+        $f = $data['face'] ?? null;
+        if (is_array($f)) {
+            $num = fn ($k) => is_numeric($f[$k] ?? null) ? max(0.0, min(1.0, (float) $f[$k])) : 0.0;
+            $fx = $num('x');
+            $fy = $num('y');
+            $fw = $num('w');
+            $fh = $num('h');
+            if ($fw > 0.02 && $fh > 0.02) {
+                // keep the box inside the image
+                $fw = min($fw, 1 - $fx);
+                $fh = min($fh, 1 - $fy);
+                $face = ['x' => $fx, 'y' => $fy, 'w' => $fw, 'h' => $fh];
+            }
+        }
+
         return [
             'company' => $clean('company'),
             'last' => $clean('last'),
             'first' => $clean('first'),
             'role' => $clean('role'),
             'issued' => $clean('issued'),
+            'face' => $face,
         ];
     }
 }

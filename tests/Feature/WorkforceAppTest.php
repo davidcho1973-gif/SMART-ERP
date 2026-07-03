@@ -572,6 +572,34 @@ class WorkforceAppTest extends TestCase
             ->assertSet('regIssued', '03/04/2026');
     }
 
+    public function test_badge_analysis_auto_crops_the_face(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => ['parts' => [[
+                        'text' => json_encode([
+                            'company' => 'AUTORICA LLC', 'last' => 'LEE', 'first' => 'JAEWOO',
+                            'role' => 'SUPERVISOR', 'issued' => '03/04/2026',
+                            'face' => ['x' => 0.1, 'y' => 0.2, 'w' => 0.3, 'h' => 0.4],
+                        ]),
+                    ]]],
+                ]],
+            ]),
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('badgePhoto', UploadedFile::fake()->image('badge.jpg', 800, 1100))
+            ->call('analyzeBadge')
+            ->assertSet('scanF', 'done')
+            ->assertSet('faceBox', ['x' => 0.1, 'y' => 0.2, 'w' => 0.3, 'h' => 0.4])
+            // downscaled photo captured as a data URI, rendered as a CSS crop
+            ->assertSeeHtml('data:image/jpeg;base64,')
+            ->assertSeeHtml('background-size:333.33% 250%');
+    }
+
     public function test_badge_analysis_without_photo_falls_back_to_simulation(): void
     {
         Livewire::test(WorkforceApp::class)
