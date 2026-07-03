@@ -150,6 +150,7 @@ class ViewModel
             'statusLabel' => $L['st_' . $e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
             'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
             'access' => $e->access, 'accessLabel' => $L['access_' . $e->access], 'accessColor' => $accColor[$e->access],
+            'badgeQr' => $e->badge_qr,
             'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
             'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
             'inT' => $e->in_t, 'term' => $e->term,

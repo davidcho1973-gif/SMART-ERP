@@ -65,6 +65,8 @@ class WorkforceApp extends Component
     public string $nfcUidManual = '';
     /** uploaded badge-front photo (camera or file) */
     public $badgePhoto = null;
+    /** decoded value of the back-of-badge QR code */
+    public string $backQrValue = '';
 
     // ---- projects modals ----
     public bool $companyModal = false;
@@ -614,6 +616,24 @@ class WorkforceApp extends Component
         }
     }
 
+    /** Called from JS after decoding the back-QR client-side. */
+    public function captureBackQr(string $code): void
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return;
+        }
+        $this->backQrValue = $code;
+        $this->scanB = 'done';
+        $this->showToast($this->dict()['b_qrCaptured']);
+    }
+
+    public function rescanBack(): void
+    {
+        $this->scanB = 'idle';
+        $this->backQrValue = '';
+    }
+
     public function startScanN(): void
     {
         $this->scanN = 'scanning';
@@ -672,13 +692,14 @@ class WorkforceApp extends Component
             'rate' => (float) ($this->regRate ?: 0),
             'issued' => trim($this->regIssued),
             'phone' => trim($this->regPhone), 'email' => trim($this->regEmail),
+            'badge_qr' => trim($this->backQrValue) ?: null,
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0, 'emp' => 'active', 'term' => null,
         ]);
         $this->screen = 'employees';
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
-            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto']);
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue']);
         $this->showToast($d['b_finish'] . ' ✓');
     }
 
@@ -898,6 +919,7 @@ class WorkforceApp extends Component
             'regFirst' => $this->regFirst, 'regLast' => $this->regLast, 'regCoName' => $this->regCoName,
             'regRoleTitle' => $this->regRoleTitle, 'regIssued' => $this->regIssued,
             'nfcUidManual' => $this->nfcUidManual,
+            'backQrValue' => $this->backQrValue,
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,

@@ -79,6 +79,9 @@
                     <label><span style="font-size: 11.5px; color: #A7A49B;">Email</span><input wire:model="editForm.email" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #E4E2DB;border-radius:9px;font-size:13.5px;background:#fff;color:#16181D;outline:none;"/></label>
                     <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['e_nation'] }}</span><input wire:model="editForm.nat" style="width:100%;margin-top:5px;padding:9px 11px;border:1px solid #E4E2DB;border-radius:9px;font-size:13.5px;background:#fff;color:#16181D;outline:none;"/></label>
                     <div><div style="font-size: 11.5px; color: #A7A49B;">{{ $L['e_id'] }}</div><div style="margin-top: 5px; padding: 9px 11px; border: 1px dashed #E4E2DB; border-radius: 9px; font-size: 13px; font-family: 'Space Grotesk'; color: #E85D2A; background: #FAFAF8;">{{ $sel['empId'] }}</div></div>
+                    @if(!empty($sel['badgeQr']))
+                    <div><div style="font-size: 11.5px; color: #A7A49B;">{{ $L['e_qr'] }}</div><div style="margin-top: 5px; padding: 9px 11px; border: 1px dashed #E4E2DB; border-radius: 9px; font-size: 13px; font-family: 'Space Grotesk'; color: #16181D; background: #FAFAF8; word-break: break-all;">{{ $sel['badgeQr'] }}</div></div>
+                    @endif
                     <div style="grid-column: span 2;"><div style="font-size: 11.5px; color: #A7A49B;">{{ $L['e_status'] }}</div><div style="margin-top: 5px;"><span style="display: inline-flex; font-size: 12.5px; font-weight: 600; color: {{ $sel['statusColor'] }}; background: {{ $sel['statusBg'] }}; padding: 5px 12px; border-radius: 8px;">{{ $sel['statusLabel'] }} · {{ $sel['inT'] }}</span></div></div>
                 </div>
                 <div style="margin-top: 22px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">

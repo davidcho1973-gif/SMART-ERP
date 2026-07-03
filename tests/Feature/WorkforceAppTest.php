@@ -329,4 +329,31 @@ class WorkforceAppTest extends TestCase
             ->call('analyzeBadge')
             ->assertSet('scanF', 'scanning');
     }
+
+    public function test_back_qr_capture_saves_badge_qr_on_new_employee(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Marco')
+            ->set('regLast', 'Reyes')
+            ->set('regTeam', 't2')
+            ->set('nfcUidManual', '01:02:03:04:05:06:07')
+            ->call('captureBackQr', 'CS-00102810')
+            ->assertSet('scanB', 'done')
+            ->assertSet('backQrValue', 'CS-00102810')
+            ->call('finishBadge')
+            ->assertSet('screen', 'employees');
+
+        $e = Employee::where('first', 'Marco')->where('last', 'Reyes')->first();
+        $this->assertNotNull($e);
+        $this->assertSame('CS-00102810', $e->badge_qr);
+    }
+
+    public function test_empty_back_qr_is_ignored(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->call('captureBackQr', '   ')
+            ->assertSet('scanB', 'idle');
+    }
 }

@@ -79,38 +79,65 @@
         </div>
     @endif
 
-    {{-- STEP 2: BACK --}}
+    {{-- STEP 2: BACK — real QR decode from camera/photo --}}
     @if($bstep === 'back')
         @php $bdone = $scanB === 'done'; @endphp
-        <div style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;">
+        <div style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;"
+             x-data="{
+                preview: null, err: false, busy: false,
+                async decode(e) {
+                    const f = e.target.files[0]; if (!f) return;
+                    this.preview = URL.createObjectURL(f); this.err = false; this.busy = true;
+                    let code = null;
+                    try { code = await window.decodeQrFromImage(f); } catch (_) {}
+                    this.busy = false;
+                    if (code) { $wire.call('captureBackQr', code); }
+                    else { this.err = true; }
+                }
+             }">
             <div style="background: #16181D; border-radius: 18px; padding: 24px; color: #fff;">
                 <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ $L['b_scanBack'] }}</div>
                 <div style="font-size: 12.5px; color: rgba(255,255,255,0.55); margin-bottom: 18px;">{{ $L['b_backHint'] }}</div>
                 <div style="position: relative; aspect-ratio: 1.58; border-radius: 14px; overflow: hidden; background: #23262D; border: 1.5px dashed rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;">
-                    <div style="position: absolute; inset: 16px; border-radius: 10px; background: #fff; padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 9px; font-weight: 700; color: #A7A49B; letter-spacing: 0.1em;">SITE ACCESS · REVERSE</span><span style="font-size: 8px; color: #B7B4AB;">HOFFMAN</span></div>
-                        <div style="display: flex; align-items: flex-end; gap: 2px; height: 46px; justify-content: center;">@foreach([2,1,3,1,2,4,1,2,3,1,2,1,4,2,1,3] as $w)<span style="width:{{ $w }}px;height:100%;background:#16181D;"></span>@endforeach</div>
-                        <div style="text-align: center; font-family: 'Space Grotesk'; font-size: 9px; letter-spacing: 0.2em; color: #5A5D64;">SITE-AZ-P21-CARD</div>
-                    </div>
-                    @if($scanB === 'scanning')
-                        <div style="position: absolute; left: 4%; right: 4%; height: 3px; background: linear-gradient(90deg,transparent,#E85D2A,transparent); box-shadow: 0 0 14px 4px rgba(232,93,42,0.6); animation: ncscan 1.1s ease-in-out infinite alternate;"></div>
-                    @endif
+                    <template x-if="preview">
+                        <img :src="preview" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #16181D;" alt="badge back"/>
+                    </template>
+                    <template x-if="!preview">
+                        <div style="text-align: center; color: rgba(255,255,255,0.4);"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg></div>
+                    </template>
+                    <div x-show="busy" style="position: absolute; inset: 0; background: rgba(22,24,29,0.55); display: flex; align-items: center; justify-content: center;"><span style="width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span></div>
                     @if($bdone)
-                        <div style="position: absolute; inset: 0; background: rgba(31,157,107,0.2); display: flex; align-items: center; justify-content: center;"><span style="width: 46px; height: 46px; border-radius: 50%; background: #1F9D6B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px;">✓</span></div>
+                        <div style="position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; background: #1F9D6B; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px;">✓</div>
                     @endif
                 </div>
-                @if($scanB === 'idle')
-                    <button wire:click="startScanB" style="width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;">{{ $L['b_scanQr'] }}</button>
-                @elseif($scanB === 'scanning')
-                    <div x-data x-init="setTimeout(() => $wire.finishScanB(), 2200)" style="margin-top: 18px; padding: 14px; border-radius: 12px; background: rgba(232,93,42,0.12); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600;"><span style="width: 16px; height: 16px; border: 2px solid rgba(232,93,42,0.3); border-top-color: #E85D2A; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span>{{ $L['b_qrReading'] }}</div>
+
+                @if(! $bdone)
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg>
+                        {{ $L['b_qrPick'] }}
+                        <input type="file" accept="image/*" capture="environment" @change="decode($event)" style="display: none;"/>
+                    </label>
+                    <div x-show="err" x-cloak style="margin-top: 10px; font-size: 12px; color: #F4C168; text-align: center;">{{ $L['b_qrFail'] }}</div>
+                    <label style="display: block; margin-top: 12px;"><span style="font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['b_qrManual'] }}</span>
+                        <input wire:model.live.debounce.500ms="backQrValue" placeholder="00102810" style="width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; background: rgba(255,255,255,0.06); color: #fff; font-size: 13.5px; font-family: 'Space Grotesk'; outline: none;"/></label>
+                    @if(trim($backQrValue) !== '')
+                        <button wire:click="captureBackQr(@js(trim($backQrValue)))" style="width: 100%; margin-top: 10px; padding: 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 11px; background: transparent; color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{ $L['b_qrUse'] }}</button>
+                    @endif
                 @else
-                    <div style="margin-top: 18px; display: flex; gap: 10px;"><button wire:click="backToFront" style="padding: 13px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 11px; background: transparent; color: #fff; font-size: 13px; cursor: pointer;">{{ $L['b_back'] }}</button><button wire:click="toAssign" style="flex: 1; padding: 13px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['b_toAssign'] }}</button></div>
+                    <div style="margin-top: 18px; display: flex; gap: 10px;"><button wire:click="rescanBack" style="padding: 13px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 11px; background: transparent; color: #fff; font-size: 13px; cursor: pointer;">{{ $L['b_rescan'] }}</button><button wire:click="toAssign" style="flex: 1; padding: 13px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['b_toAssign'] }}</button></div>
                 @endif
             </div>
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 240px;">
-                <div style="width: 56px; height: 56px; border-radius: 50%; background: {{ $bdone ? '#E7F4EE' : '#F1EFE9' }}; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{{ $bdone ? '#1F9D6B' : '#B7B4AB' }}" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9h10M7 13h6"/></svg></div>
+                <div style="width: 56px; height: 56px; border-radius: 50%; background: {{ $bdone ? '#E7F4EE' : '#F1EFE9' }}; display: flex; align-items: center; justify-content: center; margin-bottom: 14px;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{{ $bdone ? '#1F9D6B' : '#B7B4AB' }}" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg></div>
                 <div style="font-size: 15px; font-weight: 700; color: {{ $bdone ? '#1F9D6B' : '#B7B4AB' }};">{{ $bdone ? $L['b_qrDone'] : $L['b_scanBack'] }}</div>
-                <div style="font-size: 12.5px; color: #A7A49B; margin-top: 10px; max-width: 260px; line-height: 1.5;">{{ $L['b_backNote'] }}</div>
+                @if($bdone)
+                    <div style="margin-top: 12px; padding: 10px 16px; border-radius: 10px; background: #F1FAF5; border: 1px solid #CBE7D8;">
+                        <div style="font-size: 10.5px; color: #8A8880; letter-spacing: 0.05em;">{{ $L['b_qrValue'] }}</div>
+                        <div style="font-family: 'Space Grotesk'; font-size: 16px; font-weight: 700; color: #16181D; word-break: break-all;">{{ $backQrValue }}</div>
+                    </div>
+                @else
+                    <div style="font-size: 12.5px; color: #A7A49B; margin-top: 10px; max-width: 260px; line-height: 1.5;">{{ $L['b_backNote'] }}</div>
+                @endif
             </div>
         </div>
     @endif
@@ -122,7 +149,7 @@
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 26px;">
                 <div style="display: flex; align-items: center; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid #F0EEE8;">
                     <div style="width: 56px; height: 68px; border-radius: 8px; background: #F1EFE9; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="56" height="60" viewBox="0 0 56 60"><circle cx="28" cy="22" r="13" fill="#1F9D6B"/><path d="M4 60c0-16 11-24 24-24s24 8 24 24z" fill="#1F9D6B"/></svg></div>
-                    <div><div style="font-size: 19px; font-weight: 700;">{{ trim($regFirst.' '.$regLast) ?: '—' }}</div><div style="font-size: 13px; color: #8A8880;">{{ $regCoName ?: '—' }} · {{ $regRoleTitle ?: '—' }}</div><div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 2px;">{{ $b['regEmpId'] }}</div></div>
+                    <div><div style="font-size: 19px; font-weight: 700;">{{ trim($regFirst.' '.$regLast) ?: '—' }}</div><div style="font-size: 13px; color: #8A8880;">{{ $regCoName ?: '—' }} · {{ $regRoleTitle ?: '—' }}</div><div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 2px;">{{ $b['regEmpId'] }}@if(trim($backQrValue) !== '') <span style="color:#8A8880;">· {{ $L['e_qr'] }} {{ $backQrValue }}</span>@endif</div></div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px;">
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_selectTeam'] }}</span><select wire:model="regTeam" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($b['regTeamOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
