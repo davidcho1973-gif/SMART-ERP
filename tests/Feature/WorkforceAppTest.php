@@ -12,6 +12,8 @@ use App\Models\Team;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -290,5 +292,41 @@ class WorkforceAppTest extends TestCase
             ->assertSet('screen', 'badge'); // stays in the wizard
 
         $this->assertSame($before, Employee::count());
+    }
+
+    public function test_badge_photo_analysis_fills_fields_from_gemini(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [[
+                    'content' => ['parts' => [[
+                        'text' => json_encode([
+                            'company' => 'AUTORICA LLC', 'last' => 'LEE', 'first' => 'JAEWOO',
+                            'role' => 'SUPERVISOR', 'issued' => '03/04/2026',
+                        ]),
+                    ]]],
+                ]],
+            ]),
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('badgePhoto', UploadedFile::fake()->image('badge.jpg', 800, 1100))
+            ->call('analyzeBadge')
+            ->assertSet('scanF', 'done')
+            ->assertSet('regCoName', 'AUTORICA LLC')
+            ->assertSet('regLast', 'LEE')
+            ->assertSet('regFirst', 'JAEWOO')
+            ->assertSet('regRoleTitle', 'SUPERVISOR')
+            ->assertSet('regIssued', '03/04/2026');
+    }
+
+    public function test_badge_analysis_without_photo_falls_back_to_simulation(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->call('analyzeBadge')
+            ->assertSet('scanF', 'scanning');
     }
 }

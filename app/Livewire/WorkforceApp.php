@@ -16,10 +16,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.app')]
 class WorkforceApp extends Component
 {
+    use WithFileUploads;
+
     // ---- primary navigation / UI state ----
     public string $screen = 'login';
     public string $role = 'admin';
@@ -60,6 +63,8 @@ class WorkforceApp extends Component
     public string $regEmail = '';
     /** NFC UID captured by Web NFC or typed manually */
     public string $nfcUidManual = '';
+    /** uploaded badge-front photo (camera or file) */
+    public $badgePhoto = null;
 
     // ---- projects modals ----
     public bool $companyModal = false;
@@ -523,6 +528,41 @@ class WorkforceApp extends Component
         $this->scanF = 'scanning';
     }
 
+    /** Analyze the uploaded badge photo with Gemini and fill the extracted fields. */
+    public function analyzeBadge(): void
+    {
+        if (! $this->badgePhoto) {
+            // no photo -> run the simulated scan animation instead
+            $this->startScanF();
+            return;
+        }
+        $this->validate(['badgePhoto' => 'image|max:10240']);
+
+        $analyzer = app(\App\Services\BadgeAnalyzer::class);
+        if (! $analyzer->isConfigured()) {
+            $this->showToast($this->dict()['b_aiOff']);
+            return;
+        }
+
+        $result = $analyzer->analyzeFront(
+            file_get_contents($this->badgePhoto->getRealPath()),
+            $this->badgePhoto->getMimeType() ?: 'image/jpeg'
+        );
+
+        if ($result === null) {
+            $this->showToast($this->dict()['b_aiFail']);
+            return;
+        }
+
+        $this->regCoName = $result['company'] !== '' ? $result['company'] : $this->regCoName;
+        $this->regLast = $result['last'] !== '' ? $result['last'] : $this->regLast;
+        $this->regFirst = $result['first'] !== '' ? $result['first'] : $this->regFirst;
+        $this->regRoleTitle = $result['role'] !== '' ? $result['role'] : $this->regRoleTitle;
+        $this->regIssued = $result['issued'] !== '' ? $result['issued'] : $this->regIssued;
+        $this->scanF = 'done';
+        $this->showToast($this->dict()['b_aiDone']);
+    }
+
     public function finishScanF(): void
     {
         if ($this->scanF === 'scanning') {
@@ -539,6 +579,7 @@ class WorkforceApp extends Component
     public function rescanF(): void
     {
         $this->scanF = 'idle';
+        $this->badgePhoto = null;
     }
 
     public function toBack(): void
@@ -637,7 +678,7 @@ class WorkforceApp extends Component
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
-            'regRate', 'regPhone', 'regEmail', 'nfcUidManual']);
+            'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto']);
         $this->showToast($d['b_finish'] . ' ✓');
     }
 

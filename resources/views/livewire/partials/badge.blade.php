@@ -20,6 +20,9 @@
                 <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ $L['b_scanFront'] }}</div>
                 <div style="font-size: 12.5px; color: rgba(255,255,255,0.55); margin-bottom: 18px;">{{ $L['b_frontHint'] }}</div>
                 <div style="position: relative; aspect-ratio: 1.58; border-radius: 14px; overflow: hidden; background: #fff; border: 1.5px dashed rgba(255,255,255,0.2);">
+                    @if($badgePhoto)
+                        <img src="{{ $badgePhoto->temporaryUrl() }}" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #16181D;" alt="badge"/>
+                    @else
                     <div style="position: absolute; inset: 0; padding: 16px; display: flex; flex-direction: column;">
                         <div style="text-align: center;"><div style="font-family: 'Space Grotesk'; font-size: 26px; font-weight: 700; color: #16181D; letter-spacing: 0.04em;">HOFFMAN</div><div style="font-size: 12px; font-weight: 700; color: #D9483B; margin-top: -2px;">Sonoran MEP</div></div>
                         <div style="display: flex; gap: 12px; margin-top: 12px; flex: 1;">
@@ -32,6 +35,7 @@
                         </div>
                         <div style="font-size: 8px; color: #A7A49B; text-align: right;">ISSUED 03/14/2026</div>
                     </div>
+                    @endif
                     @if($scanF === 'scanning')
                         <div style="position: absolute; left: 4%; right: 4%; height: 3px; background: linear-gradient(90deg,transparent,#E85D2A,transparent); box-shadow: 0 0 14px 4px rgba(232,93,42,0.6); animation: ncscan 1.3s ease-in-out infinite alternate;"></div><div style="position: absolute; inset: 0; background: rgba(232,93,42,0.06);"></div>
                     @endif
@@ -40,7 +44,16 @@
                     @endif
                 </div>
                 @if($scanF === 'idle')
-                    <button wire:click="startScanF" style="width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>{{ $L['b_startScan'] }}</button>
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 18px; padding: 13px; border: 1.5px dashed rgba(255,255,255,0.35); border-radius: 12px; background: rgba(255,255,255,0.06); color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer;">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        {{ $badgePhoto ? $L['b_photoChange'] : $L['b_photoPick'] }}
+                        <input type="file" wire:model="badgePhoto" accept="image/*" capture="environment" style="display: none;"/>
+                    </label>
+                    <div wire:loading wire:target="badgePhoto" style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.6); text-align: center;">…</div>
+                    <button wire:click="analyzeBadge" wire:loading.attr="disabled" wire:target="analyzeBadge, badgePhoto" style="width: 100%; margin-top: 10px; padding: 14px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px;">
+                        <span wire:loading.remove wire:target="analyzeBadge" style="display: flex; align-items: center; gap: 9px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>{{ $L['b_startScan'] }}</span>
+                        <span wire:loading wire:target="analyzeBadge" style="display: flex; align-items: center; gap: 9px;"><span style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span>{{ $L['b_scanning'] }}</span>
+                    </button>
                 @elseif($scanF === 'scanning')
                     <div x-data x-init="setTimeout(() => $wire.finishScanF(), 2400)" style="margin-top: 18px; padding: 14px; border-radius: 12px; background: rgba(232,93,42,0.12); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; font-weight: 600;"><span style="width: 16px; height: 16px; border: 2px solid rgba(232,93,42,0.3); border-top-color: #E85D2A; border-radius: 50%; animation: ncspin 0.8s linear infinite; display: inline-block;"></span>{{ $L['b_scanning'] }}</div>
                 @else
