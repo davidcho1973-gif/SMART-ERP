@@ -1,6 +1,65 @@
 @php $Ui = \App\Support\Ui::class; @endphp
-{{-- ============ ATTENDANCE / QR ============ --}}
+{{-- ============ ATTENDANCE ============ --}}
+@php $ts = $att['timesheet']; @endphp
 <div>
+    {{-- view toggle: daily records table | QR tools --}}
+    <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+        <button wire:click="setAttView('records')" style="padding: 9px 18px; border-radius: 10px; border: 1px solid {{ $att['view']==='records' ? '#16181D' : '#E4E2DB' }}; background: {{ $att['view']==='records' ? '#16181D' : '#fff' }}; color: {{ $att['view']==='records' ? '#fff' : '#5A5D64' }}; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{ $L['ts_records'] }}</button>
+        <button wire:click="setAttView('qr')" style="padding: 9px 18px; border-radius: 10px; border: 1px solid {{ $att['view']==='qr' ? '#16181D' : '#E4E2DB' }}; background: {{ $att['view']==='qr' ? '#16181D' : '#fff' }}; color: {{ $att['view']==='qr' ? '#fff' : '#5A5D64' }}; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{ $L['ts_qr'] }}</button>
+    </div>
+
+    @if($att['view'] === 'records')
+        {{-- date picker + daily summary --}}
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <label style="display: flex; align-items: center; gap: 9px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 9px 13px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8880" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <input type="date" wire:model.live="attDate" style="border: none; outline: none; background: transparent; font-size: 13.5px; font-weight: 600; color: #16181D; cursor: pointer;"/>
+            </label>
+            <div style="flex: 1;"></div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span style="background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #5A5D64;">{{ $L['ts_present'] }} <b style="color:#16181D;">{{ $ts['present'] }}</b> / {{ $ts['count'] }}</span>
+                <span style="background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #5A5D64;">{{ $L['ts_reg'] }} <b style="color:#16181D;">{{ $ts['regTotal'] }}</b></span>
+                <span style="background: #FDF0EA; border: 1px solid #F3D9CB; border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: #C05621;">{{ $L['ts_ot'] }} <b>{{ $ts['otTotal'] }}</b></span>
+            </div>
+        </div>
+
+        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; min-width: 780px; font-size: 13px;">
+                <thead>
+                    <tr style="text-align: left; color: #8A8880; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; background: #FAFAF8;">
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_company'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_team'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_name'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_actIn'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_actOut'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_paidIn'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_paidOut'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_reg'] }}</th>
+                        <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_ot'] }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse($ts['rows'] as $r)
+                    <tr style="border-top: 1px solid #F2F0EA;">
+                        <td style="padding: 11px 14px; color: #5A5D64;">{{ $r['company'] }}</td>
+                        <td style="padding: 11px 14px;"><span style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $r['teamColor'] }};"></span>{{ $r['team'] }}</span></td>
+                        <td style="padding: 11px 14px; font-weight: 600;">{{ $r['name'] }}</td>
+                        <td style="padding: 11px 14px; font-family: 'Space Grotesk';">{{ $r['actIn'] }}</td>
+                        <td style="padding: 11px 14px; font-family: 'Space Grotesk';">@if($r['onDuty'])<span style="color: #1F9D6B; font-weight: 600;">{{ $L['ts_onduty'] }}</span>@else{{ $r['actOut'] }}@endif</td>
+                        <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidIn'] }}</td>
+                        <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidOut'] }}</td>
+                        <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600;">{{ $r['reg'] }}</td>
+                        <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600; color: {{ $r['ot'] !== '—' ? '#C05621' : '#C7C4BB' }};">{{ $r['ot'] }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="9" style="padding: 34px; text-align: center; color: #A7A49B; font-size: 13.5px;">{{ $L['ts_none'] }}</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div style="font-size: 11.5px; color: #A7A49B; margin-top: 12px; line-height: 1.5;">{{ $L['ts_note'] }}</div>
+
+    @else
     <div style="display: flex; gap: 14px; margin-bottom: 20px;">
         <button wire:click="setQrMode('reader')" style="{{ $Ui::tile($qrMode==='reader') }}"><div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #FDF0EA; display: inline-flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/></svg></span><span style="font-size: 14px; font-weight: 600;">{{ $L['q_reader'] }}</span></div><div style="font-size: 12px; color: #8A8880; margin-top: 8px; line-height: 1.4;">{{ $L['q_readerd'] }}</div></button>
         <button wire:click="setQrMode('site')" style="{{ $Ui::tile($qrMode==='site') }}"><div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #E9F1FB; display: inline-flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg></span><span style="font-size: 14px; font-weight: 600;">{{ $L['q_site'] }}</span></div><div style="font-size: 12px; color: #8A8880; margin-top: 8px; line-height: 1.4;">{{ $L['q_sited'] }}</div></button>
@@ -44,5 +103,6 @@
                 @endforeach
             </div>
         </div>
+    @endif
     @endif
 </div>

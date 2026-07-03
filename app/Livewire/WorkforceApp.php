@@ -83,6 +83,8 @@ class WorkforceApp extends Component
     public string $newTeamLead = '';
 
     // ---- attendance ----
+    public string $attView = 'records';   // records | qr
+    public string $attDate = '';          // Y-m-d for the daily timesheet (set in mount)
     public string $qrMode = 'reader';
     public string $qrTeam = 't1';
 
@@ -229,6 +231,7 @@ class WorkforceApp extends Component
 
     public function mount(): void
     {
+        $this->attDate = now()->format('Y-m-d');
         if (Auth::check()) {
             $this->applyUser();
         }
@@ -834,6 +837,11 @@ class WorkforceApp extends Component
 
     // =================== attendance ===================
 
+    public function setAttView(string $v): void
+    {
+        $this->attView = in_array($v, ['records', 'qr'], true) ? $v : 'records';
+    }
+
     public function setQrMode(string $m): void
     {
         $this->qrMode = $m;
@@ -1052,6 +1060,7 @@ class WorkforceApp extends Component
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,
+            'attView' => $this->attView, 'attDate' => $this->attDate ?: now()->format('Y-m-d'),
             'qrMode' => $this->qrMode, 'qrTeam' => $this->qrTeam,
             'payDetail' => $this->payDetail, 'payVoucher' => $this->payVoucher,
             'checkNo' => $this->checkNo, 'payDate' => $this->payDate,

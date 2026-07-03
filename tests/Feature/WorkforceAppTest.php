@@ -316,6 +316,25 @@ class WorkforceAppTest extends TestCase
         $this->assertSame('off', Employee::find(103)->status);
     }
 
+    public function test_daily_timesheet_shows_actual_paid_and_reg(): void
+    {
+        // completed shift: 6:05 AM in (snaps to 6:00), 3:00 PM out → 8h paid
+        Punch::create([
+            'employee_id' => 106, 'work_date' => '2026-06-25',
+            'in_min' => 365, 'out_min' => 900, 'no_lunch' => false, 'source' => 'seed',
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'attendance')
+            ->set('attView', 'records')
+            ->set('attDate', '2026-06-25')
+            ->assertSee('Carlos Martínez')
+            ->assertSee('6:05 AM')   // actual in
+            ->assertSee('6:00 AM')   // paid in (grace-snapped)
+            ->assertSee('8.0h');     // regular hours
+    }
+
     public function test_worker_has_no_desk_clock(): void
     {
         Livewire::test(WorkforceApp::class)
