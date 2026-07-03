@@ -29,4 +29,5 @@ return [
     'b_qrAnalyze' => 'Analyze QR', 'b_qrAi' => 'Reading with AI…',
     'b_photoLoading' => 'Loading photo…',
     'sc_noWorker' => 'This account is not linked to a worker profile — clock in from a worker account.', 'sc_home' => 'Go to app',
+    'a_googleOff' => 'Google sign-in is not configured yet (GOOGLE_CLIENT_ID). Use password for now.', 'a_signinWith' => 'Sign in to reach your role view.',
 ];

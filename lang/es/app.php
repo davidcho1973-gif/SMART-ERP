@@ -29,4 +29,5 @@ return [
     'b_qrAnalyze' => 'Analizar QR', 'b_qrAi' => 'Leyendo con IA…',
     'b_photoLoading' => 'Cargando foto…',
     'sc_noWorker' => 'Esta cuenta no está vinculada a un perfil de trabajador — marca desde una cuenta de trabajador.', 'sc_home' => 'Ir a la app',
+    'a_googleOff' => 'El inicio con Google aún no está configurado (GOOGLE_CLIENT_ID). Usa contraseña por ahora.', 'a_signinWith' => 'Inicia sesión para entrar a tu vista.',
 ];

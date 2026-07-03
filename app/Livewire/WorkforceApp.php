@@ -188,6 +188,8 @@ class WorkforceApp extends Component
             $this->showToast($this->dict()['a_denied']);
         } elseif (request()->query('auth') === 'failed') {
             $this->showToast($this->dict()['a_bad']);
+        } elseif (request()->query('auth') === 'unconfigured') {
+            $this->showToast($this->dict()['a_googleOff']);
         }
     }
 

@@ -12,7 +12,9 @@ class GoogleAuthController extends Controller
 {
     public function redirect()
     {
-        abort_unless(config('services.google.client_id'), 404);
+        if (! config('services.google.client_id')) {
+            return redirect('/?auth=unconfigured');
+        }
 
         return Socialite::driver('google')->redirect();
     }

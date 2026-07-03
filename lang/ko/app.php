@@ -29,4 +29,5 @@ return [
     'b_qrAnalyze' => 'QR 분석', 'b_qrAi' => 'AI로 판독 중…',
     'b_photoLoading' => '사진 불러오는 중…',
     'sc_noWorker' => '이 계정은 작업자 프로필과 연결되어 있지 않습니다 — 작업자 계정으로 출퇴근하세요.', 'sc_home' => '앱으로 이동',
+    'a_googleOff' => 'Google 로그인이 아직 설정되지 않았습니다 (GOOGLE_CLIENT_ID). 당분간 비밀번호를 사용하세요.', 'a_signinWith' => '로그인하면 권한에 맞는 화면으로 이동합니다.',
 ];
