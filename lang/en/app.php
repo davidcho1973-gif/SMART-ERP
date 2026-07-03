@@ -27,4 +27,5 @@ return [
     'b_photoPick' => 'Take / upload badge photo', 'b_photoChange' => 'Change photo', 'b_aiDone' => 'Badge analyzed ✓', 'b_aiFail' => 'Could not analyze the photo — try a clearer shot', 'b_aiOff' => 'AI analysis is not configured (GEMINI_API_KEY)',
     'b_qrPick' => 'Take / upload QR photo', 'b_qrFail' => 'No QR found — try a clearer, closer photo', 'b_qrManual' => 'Or type the code under the QR', 'b_qrUse' => 'Use this code', 'b_qrValue' => 'Decoded QR value', 'b_qrCaptured' => 'QR code captured ✓', 'e_qr' => 'Badge QR',
     'b_qrAnalyze' => 'Analyze QR', 'b_qrAi' => 'Reading with AI…',
+    'b_photoLoading' => 'Loading photo…',
 ];

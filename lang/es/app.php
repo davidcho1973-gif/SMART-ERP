@@ -27,4 +27,5 @@ return [
     'b_photoPick' => 'Tomar / subir foto de credencial', 'b_photoChange' => 'Cambiar foto', 'b_aiDone' => 'Credencial analizada ✓', 'b_aiFail' => 'No se pudo analizar la foto — intenta una más clara', 'b_aiOff' => 'Análisis IA no configurado (GEMINI_API_KEY)',
     'b_qrPick' => 'Tomar / subir foto del QR', 'b_qrFail' => 'No se encontró QR — usa una foto más clara y cercana', 'b_qrManual' => 'O escribe el código bajo el QR', 'b_qrUse' => 'Usar este código', 'b_qrValue' => 'Valor QR decodificado', 'b_qrCaptured' => 'Código QR capturado ✓', 'e_qr' => 'QR de credencial',
     'b_qrAnalyze' => 'Analizar QR', 'b_qrAi' => 'Leyendo con IA…',
+    'b_photoLoading' => 'Cargando foto…',
 ];
