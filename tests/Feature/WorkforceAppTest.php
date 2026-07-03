@@ -248,6 +248,37 @@ class WorkforceAppTest extends TestCase
         $this->assertNotNull($p->in_min);
     }
 
+    public function test_admin_desk_clock_records_own_punch(): void
+    {
+        $today = now()->format('Y-m-d');
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('doDeskClock');   // in
+
+        $p = Punch::where('employee_id', 103)->where('work_date', $today)->first();
+        $this->assertNotNull($p);
+        $this->assertNotNull($p->in_min);
+        $this->assertNull($p->out_min);
+        $this->assertSame('self', $p->source);
+        $this->assertSame('present', Employee::find(103)->status);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('doDeskClock');   // out
+
+        $this->assertNotNull($p->fresh()->out_min);
+        $this->assertSame('off', Employee::find(103)->status);
+    }
+
+    public function test_worker_has_no_desk_clock(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')
+            ->call('doDeskClock');   // no-op: workers have no self-clock desk control
+
+        $this->assertSame(0, Punch::where('source', 'self')->count());
+    }
+
     public function test_print_voucher_records_payment(): void
     {
         Livewire::test(WorkforceApp::class)

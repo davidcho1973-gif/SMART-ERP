@@ -159,6 +159,51 @@ class WorkforceApp extends Component
         return 106; // demo worker (Carlos)
     }
 
+    /** The employee to clock for from the desktop (admin/manager's own record). */
+    protected function selfEmployeeId(): ?int
+    {
+        if (! $this->isDemo() && Auth::check()) {
+            return Auth::user()->employee_id;
+        }
+        // demo personas map to a manager employee so the control is usable
+        return match ($this->role) {
+            'manager' => 101,
+            'admin' => 103,
+            default => null,
+        };
+    }
+
+    /** Clock the current admin/manager in or out (records a real punch). */
+    public function doDeskClock(): void
+    {
+        $eid = $this->selfEmployeeId();
+        if (! $eid) {
+            return;
+        }
+        $emp = Employee::find($eid);
+        if (! $emp) {
+            return;
+        }
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        $p = $this->todayPunch($eid);
+        $d = $this->dict();
+        $open = $p->exists && $p->in_min !== null && $p->out_min === null;
+        if (! $open) {
+            $p->in_min = $nowMin;
+            $p->out_min = null;
+            $p->source = 'self';
+            $p->save();
+            $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
+            $this->showToast($d['w_done_in']);
+        } else {
+            $p->out_min = $nowMin;
+            $p->source = 'self';
+            $p->save();
+            $emp->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
+            $this->showToast($d['w_done_out']);
+        }
+    }
+
     protected function todayPunch(int $employeeId): Punch
     {
         return Punch::firstOrNew([
@@ -977,6 +1022,7 @@ class WorkforceApp extends Component
             'nfcId' => $this->nfcId($this->currentUid() ?? self::NFC_UID),
             'hasUid' => $this->currentUid() !== null,
             'meEmployeeId' => $this->meEmployeeId(),
+            'selfEmployeeId' => $this->selfEmployeeId(),
         ];
     }
 

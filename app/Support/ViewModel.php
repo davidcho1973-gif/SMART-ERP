@@ -397,6 +397,23 @@ class ViewModel
         $meName = $authUser?->name
             ?? ($s['role'] === 'admin' ? ($lang === 'ko' ? '김현수' : 'Hyunsoo Kim') : ($lang === 'ko' ? '박정우' : 'Jungwoo Park'));
 
+        // Desktop self clock-in/out (admin & manager clocking their own record).
+        $deskClock = ['show' => false];
+        $selfEid = $s['selfEmployeeId'] ?? null;
+        if ($selfEid && $s['role'] !== 'worker') {
+            $selfPunch = Punch::where('employee_id', $selfEid)
+                ->where('work_date', Carbon::now()->format('Y-m-d'))->first();
+            $isIn = $selfPunch && $selfPunch->in_min !== null && $selfPunch->out_min === null;
+            $deskClock = [
+                'show' => true,
+                'isIn' => $isIn,
+                'statusLabel' => $isIn ? $L['w_status_in'] : $L['w_status_out'],
+                'btnLabel' => $isIn ? $L['w_clockout'] : $L['w_clockin'],
+                'since' => $isIn && $selfPunch->in_min !== null ? Shift::fmtMin($selfPunch->in_min) : null,
+                'sinceWord' => $L['w_since'],
+            ];
+        }
+
         return [
             'L' => $L,
             'role' => $s['role'], 'lang' => $lang, 'screen' => $s['screen'],
@@ -457,6 +474,7 @@ class ViewModel
                 'me' => $worker, 'punchLog' => $punchLog, 'ruleNote' => $ruleNote,
                 'reasonOptions' => $reasonOptions, 'qrSvg' => RealQr::svg(url('/scan/' . $me->team_id)),
             ],
+            'deskClock' => $deskClock,
             'isDemo' => $isDemo,
             'authName' => $authUser?->name,
             'googleEnabled' => (bool) config('services.google.client_id'),

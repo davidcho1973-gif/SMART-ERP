@@ -35,6 +35,14 @@
                     @endforeach
                 </select>
             </div>
+            @if(($deskClock['show'] ?? false))
+                <div style="display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: {{ $deskClock['isIn'] ? '#1F9D6B' : '#8A8880' }};">
+                        <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ $deskClock['isIn'] ? '#1F9D6B' : '#C4C1B8' }};"></span>{{ $deskClock['statusLabel'] }}@if($deskClock['since']) · {{ $deskClock['sinceWord'] }} {{ $deskClock['since'] }}@endif
+                    </span>
+                    <button wire:click="doDeskClock" style="padding: 7px 14px; border: none; border-radius: 8px; background: {{ $deskClock['isIn'] ? '#D9483B' : '#16181D' }}; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $deskClock['btnLabel'] }}</button>
+                </div>
+            @endif
             <div style="display: flex; align-items: center; gap: 8px; padding: 7px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #1F9D6B;"></span>{{ $today }}</div>
         </div>
 
