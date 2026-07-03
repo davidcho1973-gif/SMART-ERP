@@ -106,6 +106,10 @@ input, button, select { font-family: inherit; }
     .wf-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
     .wf-2col { grid-template-columns: 1fr !important; }
 
+    /* --- badge registration: stack photo/scan over the extracted form --- */
+    .wf-badge-cols { grid-template-columns: 1fr !important; }
+    .wf-badge-fields { grid-template-columns: 1fr !important; }
+
     /* --- keep wide content from breaking the page --- */
     .wf-content > * { max-width: 100%; }
 

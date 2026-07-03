@@ -15,7 +15,7 @@
 
     {{-- STEP 1: FRONT --}}
     @if($bstep === 'front')
-        <div style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;">
+        <div class="wf-badge-cols" style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;">
             <div style="background: #16181D; border-radius: 18px; padding: 24px; color: #fff;">
                 <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ $L['b_scanFront'] }}</div>
                 <div style="font-size: 12.5px; color: rgba(255,255,255,0.55); margin-bottom: 18px;">{{ $L['b_frontHint'] }}</div>
@@ -90,7 +90,7 @@
     {{-- STEP 2: BACK — QR photo analysis (mirrors the front step) --}}
     @if($bstep === 'back')
         @php $bdone = $scanB === 'done'; @endphp
-        <div style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;">
+        <div class="wf-badge-cols" style="display: grid; grid-template-columns: 380px 1fr; gap: 22px; align-items: start;">
             <div style="background: #16181D; border-radius: 18px; padding: 24px; color: #fff;">
                 <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ $L['b_scanBack'] }}</div>
                 <div style="font-size: 12.5px; color: rgba(255,255,255,0.55); margin-bottom: 18px;">{{ $L['b_backHint'] }}</div>
@@ -161,7 +161,7 @@
                     <div style="width: 56px; height: 68px; border-radius: 8px; background: #F1EFE9; overflow: hidden; display: flex; align-items: flex-end; justify-content: center;"><svg width="56" height="60" viewBox="0 0 56 60"><circle cx="28" cy="22" r="13" fill="#1F9D6B"/><path d="M4 60c0-16 11-24 24-24s24 8 24 24z" fill="#1F9D6B"/></svg></div>
                     <div><div style="font-size: 19px; font-weight: 700;">{{ trim($regFirst.' '.$regLast) ?: '—' }}</div><div style="font-size: 13px; color: #8A8880;">{{ $regCoName ?: '—' }} · {{ $regRoleTitle ?: '—' }}</div><div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 2px;">{{ $b['regEmpId'] }}@if(trim($backQrValue) !== '') <span style="color:#8A8880;">· {{ $L['e_qr'] }} {{ $backQrValue }}</span>@endif</div></div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px;">
+                <div class="wf-badge-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px;">
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_selectTeam'] }}</span><select wire:model="regTeam" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($b['regTeamOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_rate'] }}</span><input wire:model.blur="regRate" placeholder="32.50" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
                     <label style="grid-column: span 2;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_type'] }}</span><select wire:change="setRegType($event.target.value)" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($b['typeOptions'] as $o)<option value="{{ $o['id'] }}" @selected($o['id']===$regType)>{{ $o['label'] }}</option>@endforeach</select></label>
