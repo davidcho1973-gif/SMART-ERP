@@ -131,6 +131,19 @@ class WorkforceAppTest extends TestCase
         }
     }
 
+    public function test_app_renders_with_empty_roster_after_clear(): void
+    {
+        Punch::query()->delete();
+        Employee::query()->delete();
+        Team::query()->delete();
+        Company::query()->delete();
+        Site::query()->delete();
+
+        // login screen and admin dashboard must still render (no null-employee crash)
+        Livewire::test(WorkforceApp::class)->assertSet('screen', 'login');
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->assertSet('screen', 'dashboard');
+    }
+
     public function test_clear_demo_command_wipes_data_but_keeps_admin(): void
     {
         $this->seed(UserSeeder::class);

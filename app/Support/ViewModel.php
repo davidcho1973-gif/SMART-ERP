@@ -298,7 +298,16 @@ class ViewModel
 
         // ---- worker mobile (me = authed employee, demo fallback 106) ----
         $meId = $s['meEmployeeId'] ?? 106;
-        $me = $employees->firstWhere('id', $meId) ?? $employees->firstWhere('id', 106) ?? $employees->get(5);
+        $me = $employees->firstWhere('id', $meId) ?? $employees->firstWhere('id', 106) ?? $employees->first();
+        if (! $me) {
+            // empty roster (e.g. right after app:clear-demo) — safe placeholder so the app still renders
+            $me = new Employee([
+                'first' => $authUser?->name ?? 'Staff', 'last' => '', 'team_id' => null, 'company_id' => null,
+                'role' => '', 'nat' => '', 'emp_id' => '—', 'phone' => '', 'email' => $authUser?->email ?? '',
+                'issued' => '', 'rate' => 0, 'access' => $authUser?->access ?? 'worker', 'wh' => 0,
+            ]);
+            $me->id = 0;
+        }
         $meWh = $hoursFor($me);
         $wReg = Payroll::regHours($meWh);
         $wOt = Payroll::otHours($meWh);
