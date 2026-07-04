@@ -25,15 +25,25 @@
     </div>
     <div class="wf-2col" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-top: 16px;">
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
-            <div style="font-weight: 600; font-size: 15px; margin-bottom: 16px;">{{ $L['d_byteam'] }}</div>
-            @foreach($d['teamStats'] as $tm)
-                <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid #F0EEE8;">
-                    <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $tm['color'] }};"></span>
-                    <span style="width: 150px; font-size: 13px;"><span style="font-weight: 500;">{{ $tm['name'] }}</span><span style="display: block; font-size: 11px; color: #A7A49B;">{{ $tm['company'] }}</span></span>
-                    <span style="flex: 1; height: 8px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ $tm['pct'] }}%; background: {{ $tm['color'] }}; border-radius: 5px;"></span></span>
-                    <span style="font-family: 'Space Grotesk'; font-size: 13px; font-weight: 600; width: 52px; text-align: right;">{{ $tm['present'] }}/{{ $tm['total'] }}</span>
+            <div style="font-weight: 600; font-size: 15px; margin-bottom: 6px;">{{ $L['d_byteam'] }}</div>
+            @forelse($d['companyStats'] as $co)
+                <div style="margin-top: 14px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 8px; border-bottom: 2px solid #EFECE6;">
+                        <span style="font-size: 13.5px; font-weight: 700; color: #16181D;">{{ $co['company'] }}</span>
+                        <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600; color: #1F9D6B;">{{ $co['present'] }}/{{ $co['total'] }} · {{ $co['pct'] }}%</span>
+                    </div>
+                    @foreach($co['teams'] as $tm)
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 6px; border-bottom: 1px solid #F5F3EE;">
+                            <span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $tm['color'] }}; flex-shrink: 0;"></span>
+                            <span style="width: 120px; font-size: 13px; font-weight: 500;">{{ $tm['name'] }}</span>
+                            <span style="flex: 1; height: 7px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ $tm['pct'] }}%; background: {{ $tm['color'] }}; border-radius: 5px;"></span></span>
+                            <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600; width: 48px; text-align: right;">{{ $tm['present'] }}/{{ $tm['total'] }}</span>
+                        </div>
+                    @endforeach
                 </div>
-            @endforeach
+            @empty
+                <div style="padding: 24px 0; text-align: center; color: #A7A49B; font-size: 13px;">—</div>
+            @endforelse
         </div>
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
             <div style="font-weight: 600; font-size: 15px; margin-bottom: 14px;">{{ $L['d_recent'] }}</div>

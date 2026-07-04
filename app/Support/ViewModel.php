@@ -100,11 +100,26 @@ class ViewModel
             $list = $scopedActive->filter(fn ($e) => $e->team_id === $t->id);
             $pres = $list->filter(fn ($e) => in_array($e->status, ['present', 'late']))->count();
             return [
-                'id' => $t->id, 'name' => $t->name, 'company' => $companyName($t->company_id), 'color' => $t->color,
+                'id' => $t->id, 'name' => $t->name, 'companyId' => $t->company_id,
+                'company' => $companyName($t->company_id), 'color' => $t->color,
                 'total' => $list->count(), 'present' => $pres,
                 'pct' => $list->count() ? (int) round($pres / $list->count() * 100) : 0,
             ];
-        })->values()->all();
+        })->values();
+
+        // grouped by company → crews, with a company-level roll-up
+        $companyStats = $teamStats->groupBy('companyId')->map(function ($teams) use ($companyName) {
+            $present = $teams->sum('present');
+            $total = $teams->sum('total');
+            return [
+                'company' => $companyName($teams->first()['companyId']),
+                'present' => $present, 'total' => $total,
+                'pct' => $total ? (int) round($present / $total * 100) : 0,
+                'teams' => $teams->sortBy('name')->values()->all(),
+            ];
+        })->sortBy('company')->values()->all();
+
+        $teamStats = $teamStats->all();
 
         $recentPunches = Punch::orderByDesc('updated_at')->limit(4)->get();
         if ($recentPunches->isNotEmpty()) {
@@ -474,7 +489,7 @@ class ViewModel
                 'layout' => $s['dashLayout'], 'cnt' => $cnt, 'totalActive' => $totalActive, 'onsite' => $onsite, 'rate' => $rate,
                 'periodPay' => Money::usd($periodPayNum), 'payPeriod' => $periodLabel, 'avgH' => $avgH,
                 'ringDash' => (int) round(2 * M_PI * 52 * (1 - $rate / 100)),
-                'teamStats' => $teamStats, 'recent' => $recent,
+                'teamStats' => $teamStats, 'companyStats' => $companyStats, 'recent' => $recent,
             ],
             // employees
             'emp' => [
