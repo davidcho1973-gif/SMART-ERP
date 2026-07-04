@@ -488,6 +488,26 @@ class WorkforceAppTest extends TestCase
         $this->assertStringStartsWith('PK', $res->getContent()); // zip magic
     }
 
+    public function test_timesheet_includes_managers_who_clock_in(): void
+    {
+        $mgr = Employee::create([
+            'emp_id' => 'N-MGR01', 'first' => 'Jane', 'last' => 'Boss',
+            'type' => 'manager', 'access' => 'manager', 'emp' => 'active',
+            'company_id' => 'c1', 'team_id' => 't1', 'site_id' => 's1', 'rate' => 50,
+        ]);
+        Punch::create([
+            'employee_id' => $mgr->id, 'work_date' => '2026-06-25',
+            'in_min' => 360, 'out_min' => 900, 'no_lunch' => false, 'source' => 'self',
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'attendance')
+            ->set('attView', 'records')
+            ->set('attDate', '2026-06-25')
+            ->assertSee('Jane Boss');   // manager now appears on the attendance sheet
+    }
+
     public function test_worker_has_no_desk_clock(): void
     {
         Livewire::test(WorkforceApp::class)

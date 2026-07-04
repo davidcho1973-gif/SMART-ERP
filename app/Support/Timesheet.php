@@ -30,7 +30,8 @@ class Timesheet
         $isSat = Carbon::parse($date)->isSaturday();
         $dayPunches = Punch::where('work_date', $date)->get()->keyBy('employee_id');
 
-        $workers = Employee::where('emp', 'active')->where('type', 'worker')
+        // everyone active on the roster — workers and managers/staff who clock in
+        $workers = Employee::where('emp', 'active')
             ->when($siteId !== 'all', fn ($q) => $q->where('site_id', $siteId))
             ->get()
             ->sortBy(fn ($e) => sprintf('%s|%s|%s', $companyName($e->company_id), $teamName($e->team_id), $e->displayName($lang)))
