@@ -3,11 +3,14 @@
     $Icon = \App\Support\Icons::class;
     $w = $worker['me'];
     $clockedIn = $clock === 'in';
-    $clockBtnStyle = $clockedIn
-        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
-        : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);';
-    $statusPillBg = $clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)';
-    $statusPillColor = $clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)';
+    $clockDone = $clock === 'done';
+    $clockBtnStyle = $clockDone
+        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#3A3D45;color:rgba(255,255,255,0.8);font-size:19px;font-weight:700;cursor:not-allowed;opacity:0.75;'
+        : ($clockedIn
+            ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
+            : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);');
+    $statusPillBg = $clockDone ? 'rgba(255,255,255,0.12)' : ($clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)');
+    $statusPillColor = $clockDone ? 'rgba(255,255,255,0.8)' : ($clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)');
     $noLunchRowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:12px 14px;border-radius:14px;background:'.($noLunchToday?'rgba(74,222,128,0.12)':'rgba(255,255,255,0.06)').';border:1px solid '.($noLunchToday?'rgba(74,222,128,0.4)':'rgba(255,255,255,0.14)').';';
     $noLunchSwStyle = 'width:44px;height:26px;border-radius:20px;border:none;cursor:pointer;position:relative;flex-shrink:0;transition:background .15s;background:'.($noLunchToday?'#4ADE80':'rgba(255,255,255,0.25)').';';
     $noLunchKnobStyle = 'position:absolute;top:3px;left:'.($noLunchToday?'21px':'3px').';width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;';
@@ -31,20 +34,28 @@
                             <div style="display: flex; gap: 2px; padding: 3px; background: #EAE8E1; border-radius: 8px;"><button wire:click="setLang('es')" style="{{ $Ui::mLang($lang==='es') }}">ES</button><button wire:click="setLang('en')" style="{{ $Ui::mLang($lang==='en') }}">EN</button><button wire:click="setLang('ko')" style="{{ $Ui::mLang($lang==='ko') }}">KO</button></div>
                         </div>
                         <div style="background: #16181D; border-radius: 22px; padding: 24px; color: #fff; text-align: center;">
-                            <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; background: {{ $statusPillBg }}; color: {{ $statusPillColor }}; padding: 6px 14px; border-radius: 20px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $statusPillColor }};"></span>{{ $clockedIn ? $L['w_status_in'] : $L['w_status_out'] }}</div>
+                            <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; background: {{ $statusPillBg }}; color: {{ $statusPillColor }}; padding: 6px 14px; border-radius: 20px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $statusPillColor }};"></span>{{ $clockDone ? $L['w_workDone'] : ($clockedIn ? $L['w_status_in'] : $L['w_status_out']) }}</div>
                             <div class="wk-bigtime" style="font-family: 'Space Grotesk'; font-size: 46px; font-weight: 700; margin-top: 16px;">{{ now()->format('g:i A') }}</div>
                             <div style="font-size: 12.5px; color: rgba(255,255,255,0.5);">{{ $w['teamName'] }} · {{ $w['role'] }}</div>
                             @if($clockedIn)
                                 <div style="margin-top: 10px; font-size: 12.5px; color: #4ADE80;">{{ $L['w_since'] }} {{ $clockInTime }}</div>
                             @endif
-                            <div style="margin-top: 20px;"><button wire:click="doClock" style="{{ $clockBtnStyle }}">{{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}</button></div>
+                            <div style="margin-top: 20px;">
+                                @if($clockDone)
+                                    <button type="button" disabled style="{{ $clockBtnStyle }}">{{ $L['w_workDone'] }}</button>
+                                @else
+                                    <button wire:click="doClock" style="{{ $clockBtnStyle }}">{{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}</button>
+                                @endif
+                            </div>
                             @if($clockedIn)
                                 <div style="{{ $noLunchRowStyle }}">
                                     <div style="text-align: left;"><div style="font-size: 13.5px; font-weight: 600; color: #fff;">{{ $L['w_noLunch'] }}</div><div style="font-size: 11px; color: rgba(255,255,255,0.5);">{{ $L['w_noLunchHint'] }}</div></div>
                                     <button wire:click="toggleNoLunch" style="{{ $noLunchSwStyle }}"><span style="{{ $noLunchKnobStyle }}"></span></button>
                                 </div>
                             @endif
-                            <button wire:click="openEarly" style="margin-top: 10px; width: 100%; padding: 13px; border: 1px solid rgba(255,255,255,0.22); border-radius: 16px; background: transparent; color: #F4C168; font-size: 15px; font-weight: 600; cursor: pointer;">{{ $L['w_early'] }}</button>
+                            @if($clockedIn)
+                                <button wire:click="openEarly" style="margin-top: 10px; width: 100%; padding: 13px; border: 1px solid rgba(255,255,255,0.22); border-radius: 16px; background: transparent; color: #F4C168; font-size: 15px; font-weight: 600; cursor: pointer;">{{ $L['w_early'] }}</button>
+                            @endif
                         </div>
                         @if($earlyOpen)
                             <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px;">

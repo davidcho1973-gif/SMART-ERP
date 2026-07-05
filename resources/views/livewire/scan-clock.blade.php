@@ -1,10 +1,13 @@
 @php
     $Ui = \App\Support\Ui::class;
-    $clockBtnStyle = $clockedIn
-        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
-        : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);';
-    $pillBg = $clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)';
-    $pillColor = $clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)';
+    $clockDone = $clockDone ?? false;
+    $clockBtnStyle = $clockDone
+        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#8A8880;color:rgba(255,255,255,0.85);font-size:19px;font-weight:700;cursor:not-allowed;opacity:0.7;'
+        : ($clockedIn
+            ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
+            : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);');
+    $pillBg = $clockDone ? 'rgba(255,255,255,0.14)' : ($clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)');
+    $pillColor = $clockDone ? 'rgba(255,255,255,0.85)' : ($clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)');
 @endphp
 <div style="min-height: 100vh; background: linear-gradient(180deg,#EDECE7,#E6E4DD); display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px;">
     <div style="width: 420px; max-width: 100%;">
@@ -38,7 +41,13 @@
                 @if($clockedIn)
                     <div style="margin-top: 10px; font-size: 12.5px; color: #4ADE80;">{{ $L['w_since'] }} {{ $clockInTime }}</div>
                 @endif
-                <div style="margin-top: 22px;"><button wire:click="doClock" style="{{ $clockBtnStyle }}">{{ $clockLabel }}</button></div>
+                <div style="margin-top: 22px;">
+                    @if($clockDone)
+                        <button type="button" disabled style="{{ $clockBtnStyle }}">{{ $clockLabel }}</button>
+                    @else
+                        <button wire:click="doClock" style="{{ $clockBtnStyle }}">{{ $clockLabel }}</button>
+                    @endif
+                </div>
             </div>
             <div style="text-align: center; font-size: 11.5px; color: #A7A49B; margin-top: 14px; line-height: 1.5;">{{ $L['q_sited'] }}</div>
         @else

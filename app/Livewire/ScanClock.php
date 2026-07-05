@@ -20,9 +20,13 @@ use Livewire\Component;
 class ScanClock extends Component
 {
     public string $teamId = '';
+
     public string $lang = 'es';
+
     public string $clock = 'out';
+
     public string $clockInTime = '';
+
     public ?string $toast = null;
 
     public function mount(string $team): void
@@ -32,8 +36,8 @@ class ScanClock extends Component
         if ($emp) {
             $this->lang = $emp->lang ?: 'es';
             $p = $this->todayPunch($emp->id);
-            if ($p->exists && $p->in_min !== null && $p->out_min === null) {
-                $this->clock = 'in';
+            $this->clock = $this->clockStateFor($p);
+            if ($this->clock === 'in') {
                 $this->clockInTime = Shift::fmtMin($p->in_min);
             }
         } else {
@@ -44,6 +48,7 @@ class ScanClock extends Component
     protected function me(): ?Employee
     {
         $eid = Auth::user()->employee_id ?? null;
+
         return $eid ? Employee::find($eid) : null;
     }
 
@@ -53,6 +58,22 @@ class ScanClock extends Component
             'employee_id' => $employeeId,
             'work_date' => now()->format('Y-m-d'),
         ]);
+    }
+
+    /** A day is locked once the punch holds both an in and an out (one of each per day). */
+    protected function dayLocked(Punch $p): bool
+    {
+        return $p->exists && $p->in_min !== null && $p->out_min !== null;
+    }
+
+    /** Clock state derived from the punch: 'out' (pre-in) · 'in' (working) · 'done' (locked). */
+    protected function clockStateFor(Punch $p): string
+    {
+        if ($this->dayLocked($p)) {
+            return 'done';
+        }
+
+        return ($p->exists && $p->in_min !== null && $p->out_min === null) ? 'in' : 'out';
     }
 
     protected function dict(): array
@@ -76,20 +97,28 @@ class ScanClock extends Component
         if (! $emp) {
             return;
         }
-        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
         $p = $this->todayPunch($emp->id);
         $d = $this->dict();
-        if ($this->clock === 'out') {
+        // one clock-in + one clock-out per day. Once both are recorded the day is
+        // locked (punch-based, not UI state) — a re-scan can't reopen or overwrite it.
+        if ($this->dayLocked($p)) {
+            $this->clock = 'done';
+            $this->toast = $d['w_workDone'];
+
+            return;
+        }
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        if ($p->in_min === null) {
             $this->clock = 'in';
             $this->clockInTime = Shift::fmtMin($nowMin);
-            $p->in_min = $p->in_min ?? $nowMin;
+            $p->in_min = $nowMin;
             $p->out_min = null;
             $p->source = 'qr';
             $p->save();
-            $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
+            $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->toast = $d['w_done_in'];
         } else {
-            $this->clock = 'out';
+            $this->clock = 'done';
             $p->out_min = $nowMin;
             $p->source = 'qr';
             $p->save();
@@ -112,14 +141,23 @@ class ScanClock extends Component
             'teamName' => $team->name ?? '—',
             'teamColor' => $team->color ?? '#E85D2A',
             'companyName' => $company->name ?? '—',
-            'siteName' => $site ? ($site->name . ' · ' . $site->city) : '',
+            'siteName' => $site ? ($site->name.' · '.$site->city) : '',
             'emp' => $emp,
-            'empName' => $emp ? ($this->lang === 'ko' && $emp->ko ? $emp->ko : $emp->first . ' ' . $emp->last) : null,
-            'empInitials' => $emp ? strtoupper(mb_substr($emp->first, 0, 1) . mb_substr($emp->last, 0, 1)) : '',
+            'empName' => $emp ? ($this->lang === 'ko' && $emp->ko ? $emp->ko : $emp->first.' '.$emp->last) : null,
+            'empInitials' => $emp ? strtoupper(mb_substr($emp->first, 0, 1).mb_substr($emp->last, 0, 1)) : '',
             'empRole' => $emp->role ?? '',
             'clockedIn' => $this->clock === 'in',
-            'clockLabel' => $this->clock === 'out' ? $L['w_clockin'] : $L['w_clockout'],
-            'statusLabel' => $this->clock === 'in' ? $L['w_status_in'] : $L['w_status_out'],
+            'clockDone' => $this->clock === 'done',
+            'clockLabel' => match ($this->clock) {
+                'in' => $L['w_clockout'],
+                'done' => $L['w_workDone'],
+                default => $L['w_clockin'],
+            },
+            'statusLabel' => match ($this->clock) {
+                'in' => $L['w_status_in'],
+                'done' => $L['w_workDone'],
+                default => $L['w_status_out'],
+            },
             'toast' => $this->toast,
         ]);
     }

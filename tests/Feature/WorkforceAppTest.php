@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\ScanClock;
 use App\Livewire\WorkforceApp;
+use App\Models\Assignment;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Payment;
 use App\Models\Punch;
-use App\Livewire\ScanClock;
 use App\Models\Site;
 use App\Models\Team;
 use App\Models\User;
@@ -88,7 +89,7 @@ class WorkforceAppTest extends TestCase
         $this->assertNotNull($e);
         $this->assertSame($team->id, $e->team_id);
         $this->assertSame($team->company_id, $e->company_id);          // company follows the crew
-        $this->assertNotNull(\App\Models\Company::find($e->company_id)); // and it's a real company
+        $this->assertNotNull(Company::find($e->company_id)); // and it's a real company
     }
 
     public function test_employee_with_stale_crew_is_repaired_on_edit(): void
@@ -122,7 +123,7 @@ class WorkforceAppTest extends TestCase
             ->set('newAssignRelation', '파견')
             ->call('addAssignment');
 
-        $a = \App\Models\Assignment::where('employee_id', 106)->first();
+        $a = Assignment::where('employee_id', 106)->first();
         $this->assertNotNull($a);
         $this->assertSame('c1', $a->company_id);
         $this->assertSame('t1', $a->team_id);
@@ -135,13 +136,13 @@ class WorkforceAppTest extends TestCase
             ->set('newAssignCompany', 'c2')
             ->set('newAssignRelation', '기타: 감리 지원')
             ->call('addAssignment');
-        $this->assertSame('기타: 감리 지원', \App\Models\Assignment::where('employee_id', 106)->where('company_id', 'c2')->first()->relation);
+        $this->assertSame('기타: 감리 지원', Assignment::where('employee_id', 106)->where('company_id', 'c2')->first()->relation);
 
         Livewire::test(WorkforceApp::class)
             ->call('demo', 'admin')
             ->call('selectEmp', 106)
             ->call('removeAssignment', $a->id);
-        $this->assertNull(\App\Models\Assignment::find($a->id));
+        $this->assertNull(Assignment::find($a->id));
     }
 
     public function test_changes_a_crew_lead(): void
@@ -328,9 +329,124 @@ class WorkforceAppTest extends TestCase
 
         Livewire::test(WorkforceApp::class)
             ->set('clock', 'in')
-            ->call('doClock')            // in -> out
-            ->assertSet('clock', 'out');
+            ->call('doClock')            // in -> done (clocked out, day locked)
+            ->assertSet('clock', 'done');
         $this->assertSame('off', Employee::find(106)->status);
+    }
+
+    public function test_worker_cannot_clock_in_again_after_clocking_out(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // clock in then out — the day is now complete
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+        Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $this->assertNotNull($p->in_min);
+        $this->assertNotNull($p->out_min);
+        $in = $p->in_min;
+        $out = $p->out_min;
+
+        // a stale UI ('out') must NOT reopen the record — punch-based lock wins
+        Livewire::test(WorkforceApp::class)
+            ->set('clock', 'out')
+            ->call('doClock')
+            ->assertSet('clock', 'done');
+
+        $p->refresh();
+        $this->assertSame($in, $p->in_min);   // clock-in time preserved
+        $this->assertSame($out, $p->out_min); // clock-out NOT cleared/overwritten
+        $this->assertSame('off', Employee::find(106)->status);
+    }
+
+    public function test_qr_scan_locks_after_clock_out(): void
+    {
+        $this->seed(UserSeeder::class);
+        $worker = User::where('email', 'cmartinez@nahshon.io')->first();
+        $today = now()->format('Y-m-d');
+
+        Livewire::actingAs($worker)->test(ScanClock::class, ['team' => 't1'])
+            ->call('doClock')                      // in
+            ->assertSet('clock', 'in')
+            ->call('doClock')                      // out -> done
+            ->assertSet('clock', 'done');
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $in = $p->in_min;
+        $out = $p->out_min;
+        $this->assertNotNull($in);
+        $this->assertNotNull($out);
+
+        // a further scan/tap is a no-op — no reopen, no overwrite
+        Livewire::actingAs($worker)->test(ScanClock::class, ['team' => 't1'])
+            ->assertSet('clock', 'done')           // mount restores the locked state
+            ->call('doClock')
+            ->assertSet('clock', 'done');
+
+        $p->refresh();
+        $this->assertSame($in, $p->in_min);
+        $this->assertSame($out, $p->out_min);
+    }
+
+    public function test_desk_clock_locks_after_clock_out(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('doDeskClock'); // in
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('doDeskClock'); // out
+
+        $p = Punch::where('employee_id', 103)->where('work_date', $today)->first();
+        $in = $p->in_min;
+        $out = $p->out_min;
+        $this->assertNotNull($in);
+        $this->assertNotNull($out);
+
+        // third tap must not reopen the day
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('doDeskClock');
+
+        $p->refresh();
+        $this->assertSame($in, $p->in_min);
+        $this->assertSame($out, $p->out_min);
+        $this->assertSame('off', Employee::find(103)->status);
+    }
+
+    public function test_admin_manual_punch_can_correct_a_locked_day(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // worker completes the day (locked for the worker/QR/desk paths)
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+        Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $this->assertNotNull($p->out_min);
+
+        // admin correction reopens/adjusts the record via manualPunch
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('manualPunch', 106, 'in');
+
+        $p->refresh();
+        $this->assertNull($p->out_min);                    // reopened by the admin tool
+        $this->assertSame('present', Employee::find(106)->status);
+    }
+
+    public function test_early_leave_does_not_reopen_a_locked_day(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock'); // in
+        Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');     // out -> locked
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $out = $p->out_min;
+
+        Livewire::test(WorkforceApp::class)
+            ->set('clock', 'done')
+            ->call('submitEarly')
+            ->assertSet('clock', 'done');
+
+        $p->refresh();
+        $this->assertSame($out, $p->out_min);   // clock-out time untouched
     }
 
     public function test_password_login_enters_role_view(): void
@@ -685,7 +801,7 @@ class WorkforceAppTest extends TestCase
         $emp = Employee::create([
             'emp_id' => 'N-ROT01', 'first' => 'Rot', 'last' => 'Test',
             'type' => 'manager', 'access' => 'manager', 'emp' => 'active', 'rate' => 0,
-            'badge_photo' => 'data:image/jpeg;base64,' . base64_encode($bytes),
+            'badge_photo' => 'data:image/jpeg;base64,'.base64_encode($bytes),
         ]);
 
         Livewire::test(WorkforceApp::class)
@@ -771,7 +887,7 @@ class WorkforceAppTest extends TestCase
     public function test_scanning_crew_qr_lets_worker_clock_in(): void
     {
         $this->seed(UserSeeder::class);
-        $worker = \App\Models\User::where('email', 'cmartinez@nahshon.io')->first();
+        $worker = User::where('email', 'cmartinez@nahshon.io')->first();
 
         Livewire::actingAs($worker)
             ->test(ScanClock::class, ['team' => 't1'])

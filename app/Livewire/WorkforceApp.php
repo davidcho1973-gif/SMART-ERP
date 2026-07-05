@@ -318,7 +318,27 @@ class WorkforceApp extends Component
         return $emp->id;
     }
 
-    /** Clock the current admin/manager in or out (records a real punch). */
+    /**
+     * A day is locked once the punch has both an in and an out — one clock-in and
+     * one clock-out per worker per day. Locking is decided from the punch record,
+     * never from transient UI state, so a re-tap can't reopen and overwrite the day.
+     */
+    protected function dayLocked(Punch $p): bool
+    {
+        return $p->exists && $p->in_min !== null && $p->out_min !== null;
+    }
+
+    /** Clock UI state derived from the punch: 'out' (pre-in) · 'in' (working) · 'done' (locked). */
+    protected function clockStateFor(Punch $p): string
+    {
+        if ($this->dayLocked($p)) {
+            return 'done';
+        }
+
+        return ($p->exists && $p->in_min !== null && $p->out_min === null) ? 'in' : 'out';
+    }
+
+    /** Clock the current admin/manager in or out (records a real punch, one in/out per day). */
     public function doDeskClock(): void
     {
         if (! $this->canDeskClock()) {
@@ -332,11 +352,17 @@ class WorkforceApp extends Component
         if (! $emp) {
             return;
         }
-        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
         $p = $this->todayPunch($eid);
         $d = $this->dict();
-        $open = $p->exists && $p->in_min !== null && $p->out_min === null;
-        if (! $open) {
+        // already clocked in AND out today — the day is locked, only an admin may
+        // correct it via manualPunch. A repeat tap must not reopen the record.
+        if ($this->dayLocked($p)) {
+            $this->showToast($d['w_workDone']);
+
+            return;
+        }
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        if ($p->in_min === null) {
             $p->in_min = $nowMin;
             $p->out_min = null;
             $p->source = 'self';
@@ -398,15 +424,12 @@ class WorkforceApp extends Component
             $this->mobileTab = 'home';
             $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
             $this->lang = $emp->lang ?? 'es';
-            // restore today's clock state from the punch record
-            $p = Punch::where('employee_id', $u->employee_id)
-                ->where('work_date', now()->format('Y-m-d'))->first();
-            if ($p && $p->in_min !== null && $p->out_min === null) {
-                $this->clock = 'in';
+            // restore today's clock state from the punch record (out · in · done)
+            $p = $this->todayPunch($this->meEmployeeId());
+            $this->clock = $this->clockStateFor($p);
+            if ($this->clock === 'in') {
                 $this->clockInTime = Shift::fmtMin($p->in_min);
                 $this->noLunchToday = $p->no_lunch;
-            } else {
-                $this->clock = 'out';
             }
         } else {
             $this->role = $u->access === 'admin' ? 'admin' : 'manager';
@@ -465,6 +488,7 @@ class WorkforceApp extends Component
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
+            $this->syncWorkerClock();
         } else {
             $this->role = $target;
             if (in_array($this->screen, ['worker', 'login'], true)) {
@@ -489,6 +513,7 @@ class WorkforceApp extends Component
             $this->screen = 'worker';
             $this->mobileTab = 'home';
             $this->lang = 'es';
+            $this->syncWorkerClock();
         } elseif ($r === 'manager') {
             $this->role = 'manager';
             $this->screen = 'dashboard';
@@ -1464,29 +1489,51 @@ class WorkforceApp extends Component
 
     // =================== worker mobile ===================
 
+    /** Point the worker-mobile clock button at the real punch state (out · in · done). */
+    protected function syncWorkerClock(): void
+    {
+        $p = $this->todayPunch($this->meEmployeeId());
+        $this->clock = $this->clockStateFor($p);
+        if ($this->clock === 'in') {
+            $this->clockInTime = Shift::fmtMin($p->in_min);
+            $this->noLunchToday = (bool) $p->no_lunch;
+        }
+    }
+
     public function doClock(): void
     {
         $eid = $this->meEmployeeId();
         $me = Employee::find($eid);
-        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
         $p = $this->todayPunch($eid);
-        if ($this->clock === 'out') {
+        $d = $this->dict();
+        // day already complete (in + out) — locked. Only an admin may correct it via
+        // manualPunch; a repeat tap must not reopen the record or overwrite the times.
+        if ($this->dayLocked($p)) {
+            $this->clock = 'done';
+            $this->showToast($d['w_workDone']);
+
+            return;
+        }
+        $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        if ($p->in_min === null) {
+            // first clock-in of the day
             $this->clock = 'in';
             $this->clockInTime = Shift::fmtMin($nowMin);
-            $p->in_min = $p->in_min ?? $nowMin;
-            $p->out_min = null;                       // re-clock-in reopens the day
+            $p->in_min = $nowMin;
+            $p->out_min = null;
             $p->no_lunch = $this->noLunchToday;
             $p->source = 'worker';
             $p->save();
-            $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
-            $this->showToast($this->dict()['w_done_in']);
+            $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
+            $this->showToast($d['w_done_in']);
         } else {
-            $this->clock = 'out';
+            // clock-out completes and locks the day
+            $this->clock = 'done';
             $p->out_min = $nowMin;
             $p->source = 'worker';
             $p->save();
             $me?->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
-            $this->showToast($this->dict()['w_done_out']);
+            $this->showToast($d['w_done_out']);
         }
     }
 
@@ -1535,18 +1582,27 @@ class WorkforceApp extends Component
     public function submitEarly(): void
     {
         $d = $this->dict();
+        $p = $this->todayPunch($this->meEmployeeId());
+        // early leave is a clock-out: only valid while on the clock (in, not yet out).
+        // A completed day is locked, and there's nothing to leave early from before in.
+        if ($p->in_min === null || $p->out_min !== null) {
+            $this->earlyOpen = false;
+            $this->clock = $this->clockStateFor($p);
+            $this->showToast($this->dayLocked($p) ? $d['w_workDone'] : $d['w_status_out']);
+
+            return;
+        }
         $reason = $this->earlyReasonVal === '__custom__'
             ? (trim($this->earlyCustom) ?: $d['w_earlyOther'])
             : $this->earlyReasonVal;
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
-        $p = $this->todayPunch($this->meEmployeeId());
         $p->out_min = $nowMin;
         $p->early_reason = $reason;
         $p->source = 'worker';
         $p->save();
         Employee::where('id', $this->meEmployeeId())
             ->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
-        $this->clock = 'out';
+        $this->clock = 'done';   // in + out recorded → day locked
         $this->earlyOpen = false;
         $this->showToast($d['w_earlyDone'].' · '.$reason);
     }

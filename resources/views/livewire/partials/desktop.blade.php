@@ -40,7 +40,11 @@
                     <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: {{ $deskClock['isIn'] ? '#1F9D6B' : '#8A8880' }};">
                         <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ $deskClock['isIn'] ? '#1F9D6B' : '#C4C1B8' }};"></span>{{ $deskClock['statusLabel'] }}@if($deskClock['since']) · {{ $deskClock['sinceWord'] }} {{ $deskClock['since'] }}@endif
                     </span>
-                    <button wire:click="doDeskClock" style="padding: 7px 14px; border: none; border-radius: 8px; background: {{ $deskClock['isIn'] ? '#D9483B' : '#16181D' }}; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $deskClock['btnLabel'] }}</button>
+                    @if(($deskClock['isDone'] ?? false))
+                        <button type="button" disabled style="padding: 7px 14px; border: none; border-radius: 8px; background: #8A8880; color: rgba(255,255,255,0.85); font-size: 12.5px; font-weight: 600; cursor: not-allowed; opacity: 0.7;">{{ $deskClock['btnLabel'] }}</button>
+                    @else
+                        <button wire:click="doDeskClock" style="padding: 7px 14px; border: none; border-radius: 8px; background: {{ $deskClock['isIn'] ? '#D9483B' : '#16181D' }}; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $deskClock['btnLabel'] }}</button>
+                    @endif
                 </div>
             @endif
             {{-- notification bell --}}

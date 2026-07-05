@@ -499,11 +499,14 @@ class ViewModel
             $selfPunch = $selfEid ? Punch::where('employee_id', $selfEid)
                 ->where('work_date', Carbon::now()->format('Y-m-d'))->first() : null;
             $isIn = $selfPunch && $selfPunch->in_min !== null && $selfPunch->out_min === null;
+            // both in and out recorded → the day is locked (one clock-in + one clock-out)
+            $isDone = $selfPunch && $selfPunch->in_min !== null && $selfPunch->out_min !== null;
             $deskClock = [
                 'show' => true,
                 'isIn' => $isIn,
-                'statusLabel' => $isIn ? $L['w_status_in'] : $L['w_status_out'],
-                'btnLabel' => $isIn ? $L['w_clockout'] : $L['w_clockin'],
+                'isDone' => $isDone,
+                'statusLabel' => $isDone ? $L['w_workDone'] : ($isIn ? $L['w_status_in'] : $L['w_status_out']),
+                'btnLabel' => $isDone ? $L['w_workDone'] : ($isIn ? $L['w_clockout'] : $L['w_clockin']),
                 'since' => $isIn && $selfPunch->in_min !== null ? Shift::fmtMin($selfPunch->in_min) : null,
                 'sinceWord' => $L['w_since'],
             ];
