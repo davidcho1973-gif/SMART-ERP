@@ -159,18 +159,30 @@ class ViewModel
             return $okTeam && ($q === '' || str_contains($hay, $q));
         })->values();
 
-        $mapEmp = fn (Employee $e) => [
-            'id' => $e->id, 'name' => $empName($e), 'initials' => $inits($e), 'empId' => $e->emp_id,
-            'teamName' => $teamName($e->team_id), 'teamColor' => $teamColor($e->team_id), 'companyName' => $companyName($e->company_id),
-            'role' => $e->role, 'rate' => $e->rate,
-            'statusLabel' => $L['st_' . $e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
-            'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
-            'access' => $e->access, 'accessLabel' => $L['access_' . $e->access], 'accessColor' => $accColor[$e->access],
-            'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
-            'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
-            'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
-            'inT' => $e->in_t, 'term' => $e->term,
-        ];
+        // all company involvements, grouped per employee (primary + assignments)
+        $assignmentsByEmp = \App\Models\Assignment::all()->groupBy('employee_id');
+
+        $mapEmp = function (Employee $e) use ($empName, $inits, $teamName, $teamColor, $companyName, $L, $stColor, $stBg, $accColor, $assignmentsByEmp) {
+            $companies = collect([$companyName($e->company_id)]);
+            foreach (($assignmentsByEmp[$e->id] ?? collect()) as $a) {
+                $companies->push($companyName($a->company_id));
+            }
+            $companyList = $companies->filter(fn ($c) => $c && $c !== '—')->unique()->values()->all();
+
+            return [
+                'id' => $e->id, 'name' => $empName($e), 'initials' => $inits($e), 'empId' => $e->emp_id,
+                'teamName' => $teamName($e->team_id), 'teamColor' => $teamColor($e->team_id), 'companyName' => $companyName($e->company_id),
+                'companies' => $companyList, 'phone' => $e->phone, 'email' => $e->email,
+                'role' => $e->role, 'rate' => $e->rate,
+                'statusLabel' => $L['st_' . $e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
+                'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
+                'access' => $e->access, 'accessLabel' => $L['access_' . $e->access], 'accessColor' => $accColor[$e->access],
+                'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
+                'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
+                'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
+                'inT' => $e->in_t, 'term' => $e->term,
+            ];
+        };
         $empRows = $filtered->map($mapEmp)->all();
 
         $selRaw = $employees->firstWhere('id', $s['selectedEmp']);

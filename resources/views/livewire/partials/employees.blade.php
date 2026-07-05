@@ -22,18 +22,27 @@
         </div>
     </div>
     <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: auto;">
-        <div style="display: grid; grid-template-columns: 2.1fr 1.1fr 1fr 1fr 0.9fr 1fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880; min-width: 820px;">
-            <span>{{ $L['e_name'] }}</span><span>{{ $L['e_company'] }}</span><span>{{ $L['e_team'] }}</span><span>{{ $L['e_role'] }}</span><span>{{ $L['e_status'] }}</span><span style="text-align: right;">{{ $L['e_action'] }}</span>
+        <div style="display: grid; grid-template-columns: 1.7fr 1.5fr 0.9fr 1fr 1.6fr 0.8fr 0.9fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880; min-width: 1060px;">
+            <span>{{ $L['e_name'] }}</span><span>{{ $L['e_company'] }}</span><span>{{ $L['e_team'] }}</span><span>{{ $L['e_role'] }}</span><span>{{ $L['e_contact'] }}</span><span>{{ $L['e_status'] }}</span><span style="text-align: right;">{{ $L['e_action'] }}</span>
         </div>
         @foreach($emp['rows'] as $e)
-            <div wire:click="selectEmp({{ $e['id'] }})" style="display: grid; grid-template-columns: 2.1fr 1.1fr 1fr 1fr 0.9fr 1fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; cursor: pointer; font-size: 13px; min-width: 820px; opacity: {{ $e['rowOpacity'] }};">
+            <div wire:click="selectEmp({{ $e['id'] }})" style="display: grid; grid-template-columns: 1.7fr 1.5fr 0.9fr 1fr 1.6fr 0.8fr 0.9fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; cursor: pointer; font-size: 13px; min-width: 1060px; opacity: {{ $e['rowOpacity'] }};">
                 <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
                     <span style="display: inline-flex; width: 36px; height: 36px; border-radius: 50%; background: {{ $e['teamColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; font-family: 'Space Grotesk';">{{ $e['initials'] }}</span>
                     <span style="min-width: 0; overflow: hidden;"><span style="display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['name'] }}</span><span style="display: block; font-size: 11px; color: #A7A49B; font-family: 'Space Grotesk'; white-space: nowrap;">{{ $e['empId'] }}</span></span>
                 </span>
-                <span style="color: #5A5D64; font-size: 12.5px;">{{ $e['companyName'] }}</span>
+                <span style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    @foreach($e['companies'] as $i => $co)
+                        <span style="font-size: 11.5px; font-weight: {{ $i === 0 ? '600' : '500' }}; color: {{ $i === 0 ? '#16181D' : '#5A5D64' }}; background: {{ $i === 0 ? '#EFECE6' : '#F5F3EE' }}; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">{{ $co }}</span>
+                    @endforeach
+                    @if(empty($e['companies']))<span style="color:#A7A49B;">—</span>@endif
+                </span>
                 <span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: #5A5D64;"><span style="width: 7px; height: 7px; border-radius: 2px; background: {{ $e['teamColor'] }};"></span>{{ $e['teamName'] }}</span></span>
                 <span style="color: #5A5D64;">{{ $e['role'] }}</span>
+                <span style="min-width: 0; overflow: hidden;">
+                    <span style="display: block; font-size: 12.5px; color: #3A3D44; font-family: 'Space Grotesk'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['phone'] ?: '—' }}</span>
+                    <span style="display: block; font-size: 11.5px; color: #8A8880; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['email'] ?: '—' }}</span>
+                </span>
                 <span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{ $e['statusColor'] }}; background: {{ $e['statusBg'] }}; padding: 4px 9px; border-radius: 7px;">{{ $e['statusLabel'] }}</span></span>
                 <span style="display: flex; gap: 6px; justify-content: flex-end;">
                     @if($e['isTerminated'])
