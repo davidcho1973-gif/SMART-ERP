@@ -2,16 +2,21 @@
 
 namespace App\Livewire;
 
+use App\Models\Assignment;
+use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
-use App\Support\Money;
+use App\Services\BadgeAnalyzer;
+use App\Support\Comms;
 use App\Support\Payroll;
 use App\Support\Qr;
 use App\Support\Shift;
+use App\Support\ViewModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -25,97 +30,166 @@ class WorkforceApp extends Component
 
     // ---- primary navigation / UI state ----
     public string $screen = 'login';
+
     public string $role = 'admin';
+
     /** the account's access ceiling — the highest view it may switch to */
     public string $access = 'admin';
+
     public string $lang = 'en';
+
     public string $dashLayout = 'A';
+
     public string $site = 'all';
 
     // ---- employees ----
     public ?int $selectedEmp = null;
+
     public string $empFilter = 'active';
+
     public string $teamFilter = 'all';
+
     public string $search = '';
+
     public ?int $deleteId = null;
+
     public ?int $terminateId = null;
+
     // ---- company-involvement assignments (add form) ----
     public string $newAssignCompany = '';
+
     public string $newAssignTeam = '';
+
     public string $newAssignRelation = '파견';
+
     /** working copy of the selected employee's editable fields */
     public array $editForm = [];
 
     // ---- login form ----
     public string $loginEmail = '';
+
     public string $loginPassword = '';
 
     // ---- badge wizard ----
     public string $bstep = 'front';
+
     public string $scanF = 'idle';
+
     public string $scanB = 'idle';
+
     public string $scanN = 'idle';
+
     public string $regTeam = 't1';
+
     public string $regType = 'worker_local';
+
     public string $regAccess = 'worker';
+
     // real registration inputs (prefilled by the demo OCR, always editable)
     public string $regFirst = '';
+
     public string $regLast = '';
+
     public string $regCoName = '';
+
     public string $regRoleTitle = '';
+
     public string $regIssued = '';
+
     public string $regRate = '';
+
     public string $regPhone = '';
+
     public string $regEmail = '';
+
     /** NFC UID captured by Web NFC or typed manually */
     public string $nfcUidManual = '';
+
     /** uploaded badge-front photo (camera or file) */
     public $badgePhoto = null;
+
     /** downscaled data-URI of the analyzed badge photo (for the auto-cropped face) */
     public string $facePhotoData = '';
+
     /** normalized face bounding box {x,y,w,h} detected on the badge, or empty */
     public array $faceBox = [];
+
     /** decoded value of the back-of-badge QR code */
     public string $backQrValue = '';
+
     /** uploaded badge-back photo */
     public $backQrPhoto = null;
+
     /** show the manual code-entry field */
     public bool $backManual = false;
 
     // ---- projects modals ----
     public bool $companyModal = false;
+
     public ?string $teamModal = null;
+
     public string $newCoName = '';
+
     public string $newCoSite = '';
+
     public string $newTeamName = '';
+
     public string $newTeamLead = '';
+
     public ?string $editCompanyId = null;   // company modal in edit mode
+
     public ?string $editTeamId = null;       // team modal in edit mode
+
     public ?string $deleteCompanyId = null;  // pending company deletion
+
     public ?string $deleteTeamId = null;     // pending team deletion
 
     // ---- attendance ----
     public string $attView = 'records';   // records | qr
+
     public string $attDate = '';          // Y-m-d for the daily timesheet (set in mount)
+
     public string $qrMode = 'reader';
+
     public string $qrTeam = 't1';
 
     // ---- payroll ----
     public ?int $payDetail = null;
+
     public bool $payVoucher = false;
+
     public string $checkNo = '';
+
     public string $payDate = 'Jul 1, 2026';
 
     // ---- worker mobile ----
     public string $mobileTab = 'home';
+
     public string $clock = 'out';
+
     public string $clockInTime = '6:58 AM';
+
     public bool $earlyOpen = false;
+
     public string $earlyReasonVal = '';
+
     public string $earlyCustom = '';
+
     public bool $noLunchToday = false;
+
     /** per-date lunch overrides keyed by day label */
     public array $lunchOv = [];
+
+    // ---- internal comms (announcements · company/crew chat · DM · bell) ----
+    public ?int $commsChannel = null;
+
+    public string $commsCompose = '';
+
+    public bool $commsNewDm = false;
+
+    public string $commsDmSearch = '';
+
+    public bool $bellOpen = false;
 
     // ---- toast ----
     public ?string $toast = null;
@@ -143,6 +217,7 @@ class WorkforceApp extends Component
         if ($manual !== '') {
             return $manual;
         }
+
         return $this->scanN === 'done' ? self::NFC_UID : null;
     }
 
@@ -151,7 +226,8 @@ class WorkforceApp extends Component
     {
         $uid = $uid ?? self::NFC_UID;
         $hex = preg_replace('/[^0-9A-Za-z]/', '', $uid);
-        return 'N-' . strtoupper(substr($hex, -9));
+
+        return 'N-'.strtoupper(substr($hex, -9));
     }
 
     protected function isDemo(): bool
@@ -173,6 +249,7 @@ class WorkforceApp extends Component
         if (! $this->isDemo() && Auth::check() && Auth::user()->employee_id) {
             return (int) Auth::user()->employee_id;
         }
+
         return 106; // sample worker (Carlos) — demo & admins with no linked employee
     }
 
@@ -182,6 +259,7 @@ class WorkforceApp extends Component
         if (! $this->isDemo() && Auth::check()) {
             return Auth::user()->employee_id;
         }
+
         // demo personas map to a manager employee so the control is usable
         return match ($this->role) {
             'manager' => 101,
@@ -219,7 +297,7 @@ class WorkforceApp extends Component
 
         $parts = preg_split('/\s+/', trim($u->name)) ?: [];
         $emp = Employee::create([
-            'emp_id' => 'STAFF-' . str_pad((string) $u->id, 4, '0', STR_PAD_LEFT),
+            'emp_id' => 'STAFF-'.str_pad((string) $u->id, 4, '0', STR_PAD_LEFT),
             'first' => $parts[0] ?? $u->name,
             'last' => isset($parts[1]) ? implode(' ', array_slice($parts, 1)) : '',
             'type' => 'manager',                 // staff, not a field worker (kept out of the worker timesheet)
@@ -339,10 +417,12 @@ class WorkforceApp extends Component
         $email = trim($this->loginEmail);
         if ($email === '' || $this->loginPassword === '') {
             $this->showToast($this->dict()['a_bad']);
+
             return;
         }
         if (! Auth::attempt(['email' => $email, 'password' => $this->loginPassword], true)) {
             $this->showToast($this->dict()['a_bad']);
+
             return;
         }
         if (request()->hasSession()) {
@@ -354,6 +434,7 @@ class WorkforceApp extends Component
         if (($intended = session()->pull('url.intended')) && $intended !== url('/')) {
             return $this->redirect($intended);
         }
+
         return null;
     }
 
@@ -438,6 +519,129 @@ class WorkforceApp extends Component
         if ($screen === 'badge' && ! Team::find($this->regTeam)) {
             $this->regTeam = Team::first()?->id ?? '';
         }
+        if ($screen === 'comms') {
+            $this->bellOpen = false;
+            $this->enterComms();
+        }
+    }
+
+    // =================== internal comms ===================
+
+    /** The employee acting as the current user (display side — never provisions a record). */
+    protected function actorId(): int
+    {
+        if ($this->role === 'worker') {
+            return $this->meEmployeeId();
+        }
+
+        return $this->selfEmployeeId() ?? $this->meEmployeeId();
+    }
+
+    /** The employee acting as the current user, provisioning a staff record if needed. */
+    protected function actorEmployee(): ?Employee
+    {
+        $id = $this->role === 'worker' ? $this->meEmployeeId() : ($this->ensureSelfEmployee() ?? $this->meEmployeeId());
+
+        return Employee::find($id);
+    }
+
+    /** Land on the comms screen: make sure rooms exist and a channel is selected + read. */
+    public function enterComms(): void
+    {
+        Comms::ensureRooms();
+        $me = Employee::find($this->actorId());
+        if (! $me) {
+            return;
+        }
+        $channels = Comms::visibleChannels($me);
+        $current = $this->commsChannel ? $channels->firstWhere('id', $this->commsChannel) : null;
+        if (! $current) {
+            $current = $channels->firstWhere('type', 'announcement') ?? $channels->first();
+            $this->commsChannel = $current?->id;
+        }
+        if ($current) {
+            Comms::markRead($current, $me);
+        }
+    }
+
+    public function selectChannel(int $id): void
+    {
+        $me = Employee::find($this->actorId());
+        if (! $me) {
+            return;
+        }
+        $ch = Channel::find($id);
+        if (! $ch || ! Comms::canAccess($ch, $me)) {
+            return;
+        }
+        $this->commsChannel = $id;
+        $this->commsCompose = '';
+        $this->commsNewDm = false;
+        $this->bellOpen = false;
+        Comms::markRead($ch, $me);
+    }
+
+    public function sendMessage(): void
+    {
+        $body = trim($this->commsCompose);
+        if ($body === '' || ! $this->commsChannel) {
+            return;
+        }
+        $me = $this->actorEmployee();
+        if (! $me) {
+            return;
+        }
+        $ch = Channel::find($this->commsChannel);
+        if (! $ch || ! Comms::canPost($ch, $me, $this->canManage())) {
+            $this->showToast($this->tl('You can’t post here', 'No puedes publicar aquí', '여기에는 글을 쓸 수 없어요'));
+
+            return;
+        }
+        Message::create([
+            'channel_id' => $ch->id,
+            'sender_id' => $me->id,
+            'body' => mb_substr($body, 0, 2000),
+        ]);
+        $this->commsCompose = '';
+        Comms::markRead($ch, $me);
+    }
+
+    public function toggleNewDm(): void
+    {
+        $this->commsNewDm = ! $this->commsNewDm;
+        $this->commsDmSearch = '';
+    }
+
+    public function startDm(int $employeeId): void
+    {
+        $me = $this->actorEmployee();
+        if (! $me || $employeeId === $me->id) {
+            return;
+        }
+        if (! Employee::whereKey($employeeId)->exists()) {
+            return;
+        }
+        $ch = Comms::findOrCreateDm($me->id, $employeeId);
+        $this->commsChannel = $ch->id;
+        $this->commsNewDm = false;
+        $this->commsDmSearch = '';
+        $this->commsCompose = '';
+        Comms::markRead($ch, $me);
+    }
+
+    public function toggleBell(): void
+    {
+        $this->bellOpen = ! $this->bellOpen;
+    }
+
+    public function openFromBell(int $channelId): void
+    {
+        $this->bellOpen = false;
+        if ($this->role === 'worker') {
+            return;
+        }
+        $this->screen = 'comms';
+        $this->selectChannel($channelId);
     }
 
     public function setDash(string $l): void
@@ -477,9 +681,11 @@ class WorkforceApp extends Component
                 request()->session()->invalidate();
                 request()->session()->regenerateToken();
             }
+
             return $this->redirect('/');
         }
         $this->screen = 'login';
+
         return null;
     }
 
@@ -545,7 +751,7 @@ class WorkforceApp extends Component
         imagejpeg($rot, null, 82);
         $data = (string) ob_get_clean();
         imagedestroy($rot);
-        $e->update(['badge_photo' => 'data:image/jpeg;base64,' . base64_encode($data)]);
+        $e->update(['badge_photo' => 'data:image/jpeg;base64,'.base64_encode($data)]);
     }
 
     /** Add a company-involvement assignment to the selected employee. */
@@ -556,10 +762,11 @@ class WorkforceApp extends Component
         }
         if ($this->newAssignCompany === '') {
             $this->showToast($this->dict()['e_involveNeedCompany']);
+
             return;
         }
         try {
-            \App\Models\Assignment::create([
+            Assignment::create([
                 'employee_id' => $this->selectedEmp,
                 'company_id' => $this->newAssignCompany,
                 'team_id' => $this->newAssignTeam !== '' ? $this->newAssignTeam : null,
@@ -567,6 +774,7 @@ class WorkforceApp extends Component
             ]);
         } catch (\Throwable) {
             $this->showToast($this->dict()['e_involveSaveFail']);
+
             return;
         }
         $this->reset(['newAssignCompany', 'newAssignTeam']);
@@ -579,7 +787,7 @@ class WorkforceApp extends Component
         if (! $this->canManage()) {
             return;
         }
-        \App\Models\Assignment::where('id', $id)
+        Assignment::where('id', $id)
             ->where('employee_id', $this->selectedEmp)->delete();
     }
 
@@ -630,7 +838,7 @@ class WorkforceApp extends Component
             ]);
         }
         $this->selectedEmp = null;
-        $this->showToast($this->dict()['e_save'] . ' ✓');
+        $this->showToast($this->dict()['e_save'].' ✓');
     }
 
     public function askDelete(int $id): void
@@ -651,7 +859,7 @@ class WorkforceApp extends Component
         Employee::where('id', $this->deleteId)->delete();
         $this->deleteId = null;
         $this->selectedEmp = null;
-        $this->showToast($this->dict()['e_delete'] . ' ✓');
+        $this->showToast($this->dict()['e_delete'].' ✓');
     }
 
     public function askTerm(int $id): void
@@ -674,7 +882,7 @@ class WorkforceApp extends Component
         ]);
         $this->terminateId = null;
         $this->selectedEmp = null;
-        $this->showToast($this->dict()['e_terminate'] . ' ✓');
+        $this->showToast($this->dict()['e_terminate'].' ✓');
     }
 
     public function reactivate(int $id): void
@@ -705,7 +913,7 @@ class WorkforceApp extends Component
         $site = Site::find($co->site_id);
         $this->editCompanyId = $id;
         $this->newCoName = $co->name;
-        $this->newCoSite = $site ? trim($site->name . ($site->city ? ' · ' . $site->city : '')) : '';
+        $this->newCoSite = $site ? trim($site->name.($site->city ? ' · '.$site->city : '')) : '';
         $this->companyModal = true;
     }
 
@@ -726,18 +934,18 @@ class WorkforceApp extends Component
             return;
         }
         $site = Site::all()->first(function ($s) use ($siteName) {
-            return strcasecmp($s->name . ' · ' . $s->city, $siteName) === 0
+            return strcasecmp($s->name.' · '.$s->city, $siteName) === 0
                 || strcasecmp($s->name, $siteName) === 0;
         });
         if (! $site) {
-            $site = Site::create(['id' => 's' . Str::random(6), 'name' => $siteName, 'city' => '', 'gc' => 'Hoffman', 'code' => '']);
+            $site = Site::create(['id' => 's'.Str::random(6), 'name' => $siteName, 'city' => '', 'gc' => 'Hoffman', 'code' => '']);
         }
         if ($this->editCompanyId) {
             Company::where('id', $this->editCompanyId)->update(['name' => $name, 'site_id' => $site->id]);
-            $this->showToast($this->dict()['pj_saved'] . ' ✓');
+            $this->showToast($this->dict()['pj_saved'].' ✓');
         } else {
-            Company::create(['id' => 'c' . Str::random(6), 'name' => $name, 'site_id' => $site->id]);
-            $this->showToast(str_replace('+ ', '', $this->dict()['pj_create']) . ' ✓');
+            Company::create(['id' => 'c'.Str::random(6), 'name' => $name, 'site_id' => $site->id]);
+            $this->showToast(str_replace('+ ', '', $this->dict()['pj_create']).' ✓');
         }
         $this->companyModal = false;
         $this->editCompanyId = null;
@@ -764,7 +972,7 @@ class WorkforceApp extends Component
         Team::where('company_id', $id)->delete();
         Company::where('id', $id)->delete();
         $this->deleteCompanyId = null;
-        $this->showToast($this->dict()['pj_deleted'] . ' ✓');
+        $this->showToast($this->dict()['pj_deleted'].' ✓');
     }
 
     public function openTeamModal(string $companyId): void
@@ -807,18 +1015,18 @@ class WorkforceApp extends Component
                 'name' => trim($this->newTeamName),
                 'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
             ]);
-            $this->showToast($this->dict()['pj_saved'] . ' ✓');
+            $this->showToast($this->dict()['pj_saved'].' ✓');
         } else {
             $cols = ['#3B72E0', '#1F9D6B', '#E85D2A', '#D9483B', '#8A5CF6', '#0EA5A0'];
             $count = Team::count();
             Team::create([
-                'id' => 't' . Str::random(6),
+                'id' => 't'.Str::random(6),
                 'name' => trim($this->newTeamName),
                 'company_id' => $this->teamModal,
                 'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
                 'color' => $cols[$count % count($cols)],
             ]);
-            $this->showToast(str_replace('+ ', '', $this->dict()['pj_newTeam']) . ' ✓');
+            $this->showToast(str_replace('+ ', '', $this->dict()['pj_newTeam']).' ✓');
         }
         $this->teamModal = null;
         $this->editTeamId = null;
@@ -842,7 +1050,7 @@ class WorkforceApp extends Component
         Employee::where('team_id', $this->deleteTeamId)->update(['team_id' => null]);
         Team::where('id', $this->deleteTeamId)->delete();
         $this->deleteTeamId = null;
-        $this->showToast($this->dict()['pj_deleted'] . ' ✓');
+        $this->showToast($this->dict()['pj_deleted'].' ✓');
     }
 
     public function changeLead(string $teamId, string $leadId): void
@@ -866,13 +1074,15 @@ class WorkforceApp extends Component
         if (! $this->badgePhoto) {
             // no photo -> run the simulated scan animation instead
             $this->startScanF();
+
             return;
         }
         $this->validate(['badgePhoto' => 'image|max:10240']);
 
-        $analyzer = app(\App\Services\BadgeAnalyzer::class);
+        $analyzer = app(BadgeAnalyzer::class);
         if (! $analyzer->isConfigured()) {
             $this->showToast($this->dict()['b_aiOff']);
+
             return;
         }
 
@@ -883,6 +1093,7 @@ class WorkforceApp extends Component
 
         if ($result === null) {
             $this->showToast($this->dict()['b_aiFail']);
+
             return;
         }
 
@@ -950,7 +1161,7 @@ class WorkforceApp extends Component
         $data = (string) ob_get_clean();
         imagedestroy($img);
 
-        return 'data:image/jpeg;base64,' . base64_encode($data);
+        return 'data:image/jpeg;base64,'.base64_encode($data);
     }
 
     public function finishScanF(): void
@@ -1036,13 +1247,15 @@ class WorkforceApp extends Component
     {
         if (! $this->backQrPhoto) {
             $this->showToast($this->dict()['b_qrFail']);
+
             return;
         }
         $this->validate(['backQrPhoto' => 'image|max:10240']);
 
-        $analyzer = app(\App\Services\BadgeAnalyzer::class);
+        $analyzer = app(BadgeAnalyzer::class);
         if (! $analyzer->isConfigured()) {
             $this->showToast($this->dict()['b_aiOff']);
+
             return;
         }
         $code = $analyzer->analyzeBack(
@@ -1051,6 +1264,7 @@ class WorkforceApp extends Component
         );
         if ($code === null) {
             $this->showToast($this->dict()['b_qrFail']);
+
             return;
         }
         $this->captureBackQr($code);
@@ -1087,16 +1301,19 @@ class WorkforceApp extends Component
         $d = $this->dict();
         if (trim($this->regFirst) === '' || trim($this->regLast) === '') {
             $this->showToast($d['b_needName']);
+
             return;
         }
         $uid = $this->currentUid();
         if ($uid === null) {
             $this->showToast($d['b_needUid']);
+
             return;
         }
         $empId = $this->nfcId($uid);
         if (Employee::where('emp_id', $empId)->exists()) {
             $this->showToast($d['b_dupId']);
+
             return;
         }
         // resolve the crew robustly (a stale regTeam falls back to a real crew),
@@ -1126,7 +1343,7 @@ class WorkforceApp extends Component
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
             'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto', 'backManual',
             'facePhotoData', 'faceBox']);
-        $this->showToast($d['b_finish'] . ' ✓');
+        $this->showToast($d['b_finish'].' ✓');
     }
 
     // =================== attendance ===================
@@ -1172,12 +1389,12 @@ class WorkforceApp extends Component
             $e->update(['status' => 'off', 'out_t' => $now]);
         }
         $label = $dir === 'in' ? $this->dict()['q_in'] : $this->dict()['q_out'];
-        $this->showToast($e->first . ' ' . $e->last . ' · ' . $label);
+        $this->showToast($e->first.' '.$e->last.' · '.$label);
     }
 
     public function exportPayroll(): void
     {
-        $this->showToast($this->dict()['p_export'] . ' ✓');
+        $this->showToast($this->dict()['p_export'].' ✓');
     }
 
     // =================== payroll ===================
@@ -1209,6 +1426,7 @@ class WorkforceApp extends Component
         }
         if (trim($this->checkNo) === '') {
             $this->showToast($this->dict()['pv_needCheck']);
+
             return;
         }
         $e = Employee::find($this->payDetail);
@@ -1318,7 +1536,7 @@ class WorkforceApp extends Component
             ->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
         $this->clock = 'out';
         $this->earlyOpen = false;
-        $this->showToast($d['w_earlyDone'] . ' · ' . $reason);
+        $this->showToast($d['w_earlyDone'].' · '.$reason);
     }
 
     public function printQr(): void
@@ -1330,7 +1548,7 @@ class WorkforceApp extends Component
 
     public function render()
     {
-        $vm = \App\Support\ViewModel::build($this->state());
+        $vm = ViewModel::build($this->state());
 
         return view('livewire.workforce-app', $vm);
     }
@@ -1365,6 +1583,11 @@ class WorkforceApp extends Component
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
+            'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
+            'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
+            'bellOpen' => $this->bellOpen,
+            'actorId' => $this->actorId(),
+            'canManage' => $this->canManage(),
             'toast' => $this->toast,
             'nfcUid' => $this->currentUid() ?? self::NFC_UID,
             'nfcId' => $this->nfcId($this->currentUid() ?? self::NFC_UID),

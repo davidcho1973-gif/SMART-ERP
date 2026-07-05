@@ -1,0 +1,141 @@
+@php
+    $C = $comms;
+    $lab = $C['labels'];
+    $act = $C['active'];
+    // small helper: a single channel row in the left list
+    $roomRow = function ($r, $activeId) {
+        $isActive = $activeId === $r['id'];
+        $bg = $isActive ? '#FDF0EA' : 'transparent';
+        $bd = $isActive ? '#F1C9B4' : 'transparent';
+        return compact('isActive', 'bg', 'bd');
+    };
+@endphp
+
+{{-- ============ INTERNAL COMMS ============ --}}
+<div class="wf-comms" style="display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: calc(100vh - 44px - 71px - 52px); min-height: 460px;">
+
+    {{-- ---------- channel list ---------- --}}
+    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+        <div style="padding: 16px 16px 12px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px;">{{ $lab['title'] }}</div>
+            <button wire:click="toggleNewDm" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: none; border-radius: 9px; background: #16181D; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>{{ $lab['newDm'] }}
+            </button>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding: 8px;">
+            @if($C['newDm'])
+                {{-- new DM: person picker --}}
+                <div style="padding: 6px 6px 10px;">
+                    <input type="text" wire:model.live.debounce.250ms="commsDmSearch" placeholder="{{ $lab['dmSearchPh'] }}" autofocus
+                        style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;">
+                    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 2px;">
+                        @forelse($C['dmCandidates'] as $p)
+                            <button wire:click="startDm({{ $p['id'] }})" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border: none; border-radius: 10px; background: transparent; cursor: pointer;"
+                                onmouseover="this.style.background='#F5F3EE'" onmouseout="this.style.background='transparent'">
+                                <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: {{ $p['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0;">{{ $p['initials'] }}</span>
+                                <span style="min-width: 0;"><span style="display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $p['name'] }}</span><span style="font-size: 11.5px; color: #A7A49B;">{{ $p['role'] }}</span></span>
+                            </button>
+                        @empty
+                            <div style="padding: 18px 8px; text-align: center; color: #A7A49B; font-size: 12.5px;">—</div>
+                        @endforelse
+                    </div>
+                    <button wire:click="toggleNewDm" style="margin-top: 8px; width: 100%; padding: 7px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                </div>
+            @else
+                @foreach(['announcement' => $lab['announcements'], 'company' => $lab['companies'], 'team' => $lab['crews'], 'dm' => $lab['dms']] as $gkey => $glabel)
+                    @if(count($C['groups'][$gkey]))
+                        <div style="padding: 12px 8px 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A7A49B;">{{ $glabel }}</div>
+                        @foreach($C['groups'][$gkey] as $r)
+                            @php $isActive = $act && $act['id'] === $r['id']; @endphp
+                            <button wire:click="selectChannel({{ $r['id'] }})" wire:key="room-{{ $r['id'] }}"
+                                style="display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 9px 8px; border: none; border-radius: 11px; background: {{ $isActive ? '#FDF0EA' : 'transparent' }}; cursor: pointer; margin-top: 1px;"
+                                @if(!$isActive) onmouseover="this.style.background='#F5F3EE'" onmouseout="this.style.background='transparent'" @endif>
+                                @if($gkey === 'announcement')
+                                    <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; background: #16181D; color: #fff; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg></span>
+                                @elseif($gkey === 'dm')
+                                    <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: {{ $r['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; flex-shrink: 0;">{{ $r['initials'] }}</span>
+                                @else
+                                    <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; background: {{ $r['color'] }}; color: #fff; align-items: center; justify-content: center; flex-shrink: 0;">#</span>
+                                @endif
+                                <span style="flex: 1; min-width: 0;">
+                                    <span style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="flex: 1; font-size: 13.5px; font-weight: {{ $r['unread'] ? '700' : '600' }}; color: #16181D; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $r['name'] }}</span>
+                                        @if($r['time'])<span style="font-size: 10.5px; color: #B7B4AB; flex-shrink: 0;">{{ $r['time'] }}</span>@endif
+                                    </span>
+                                    <span style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                                        <span style="flex: 1; font-size: 12px; color: {{ $r['unread'] ? '#5A5D64' : '#A7A49B' }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $r['preview'] ?: '—' }}</span>
+                                        @if($r['unread'])<span style="flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #E85D2A; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">{{ $r['unread'] }}</span>@endif
+                                    </span>
+                                </span>
+                            </button>
+                        @endforeach
+                    @endif
+                @endforeach
+            @endif
+        </div>
+    </div>
+
+    {{-- ---------- thread ---------- --}}
+    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+        @if($act)
+            <div style="padding: 15px 20px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: center; gap: 12px;">
+                @if($act['type'] === 'dm')
+                    <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 50%; background: {{ $act['partnerColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">{{ $act['partnerInitials'] }}</span>
+                @elseif($act['type'] === 'announcement')
+                    <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #16181D; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg></span>
+                @endif
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 16px;">{{ $act['title'] }}</div>
+                    <div style="font-size: 12px; color: #8A8880;">{{ $act['sub'] }}</div>
+                </div>
+            </div>
+
+            {{-- messages --}}
+            <div class="wf-thread" x-data x-init="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
+                 style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 3px; background: linear-gradient(180deg,#FBFAF7,#F6F5F0);">
+                @forelse($act['messages'] as $i => $m)
+                    @php
+                        $prev = $act['messages'][$i - 1] ?? null;
+                        $grouped = $prev && $prev['mine'] === $m['mine'] && $prev['senderName'] === $m['senderName'];
+                    @endphp
+                    <div wire:key="msg-{{ $m['id'] }}" style="display: flex; gap: 9px; margin-top: {{ $grouped ? '1px' : '12px' }}; {{ $m['mine'] ? 'flex-direction: row-reverse;' : '' }}">
+                        <span style="width: 30px; flex-shrink: 0;">
+                            @if(!$grouped && !$m['mine'])
+                                <span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ $m['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">{{ $m['initials'] }}</span>
+                            @endif
+                        </span>
+                        <div style="max-width: 64%; display: flex; flex-direction: column; align-items: {{ $m['mine'] ? 'flex-end' : 'flex-start' }};">
+                            @if(!$grouped)
+                                <div style="font-size: 11.5px; color: #8A8880; margin-bottom: 3px; padding: 0 3px;">{{ $m['mine'] ? '' : $m['senderName'] }}<span style="color: #B7B4AB;"> · {{ $m['time'] }}</span></div>
+                            @endif
+                            <div style="padding: 9px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; {{ $m['mine'] ? 'background: #16181D; color: #fff; border-bottom-right-radius: 4px;' : 'background: #fff; color: #16181D; border: 1px solid #ECEAE3; border-bottom-left-radius: 4px;' }}">{{ $m['body'] }}</div>
+                        </div>
+                    </div>
+                @empty
+                    <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #B7B4AB; font-size: 13px;">{{ $lab['empty'] }}</div>
+                @endforelse
+            </div>
+
+            {{-- composer --}}
+            @if($act['canPost'])
+                <form wire:submit.prevent="sendMessage" style="padding: 12px 16px; border-top: 1px solid #F0EEE8; display: flex; align-items: flex-end; gap: 10px; background: #fff;">
+                    <textarea wire:model="commsCompose" rows="1" placeholder="{{ $act['type'] === 'announcement' ? $lab['announce'] : $lab['compose'] }}"
+                        x-data x-init="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
+                        x-on:input="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
+                        x-on:keydown.enter.prevent="if(!$event.shiftKey){ $wire.sendMessage() }"
+                        style="flex: 1; resize: none; padding: 11px 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; outline: none; background: #FAFAF8; max-height: 120px;"></textarea>
+                    <button type="submit" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 16px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
+                        {{ $lab['send'] }}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </button>
+                </form>
+            @else
+                <div style="padding: 15px 16px; border-top: 1px solid #F0EEE8; text-align: center; font-size: 12.5px; color: #A7A49B; background: #FBFAF7; display: flex; align-items: center; justify-content: center; gap: 7px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>{{ $act['readOnlyNote'] }}
+                </div>
+            @endif
+        @else
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #B7B4AB; font-size: 13.5px;">{{ $lab['empty'] }}</div>
+        @endif
+    </div>
+</div>
