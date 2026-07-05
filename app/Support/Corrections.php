@@ -117,24 +117,40 @@ class Corrections
         return $c->lead_id !== null && $actorEmpId === (int) $c->lead_id;
     }
 
-    /** Apply an approved request to the punch record and close it out. */
-    public static function approve(AttendanceCorrection $c, int $actorEmpId): void
+    /**
+     * Apply an approved request to the punch record and close it out.
+     *
+     * The approver may pass adjusted in/out minutes to override what the worker asked
+     * for (approve-with-adjustment); the applied values are recorded for the audit trail.
+     * Pass the sentinel false to "leave unset" vs null which means "clear the time".
+     */
+    public static function approve(AttendanceCorrection $c, int $actorEmpId, int|null|false $inMin = false, int|null|false $outMin = false): void
     {
         if (! $c->isPending()) {
             return; // idempotent — a concurrent decision already closed it
         }
 
+        $applIn = $applOut = null;
         if ($c->type === 'delete') {
             Punch::where('employee_id', $c->employee_id)->where('work_date', $c->work_date)->delete();
         } else {
+            // approver's edit wins when provided; otherwise apply exactly what was requested
+            $applIn = $inMin === false ? $c->req_in_min : $inMin;
+            $applOut = $outMin === false ? $c->req_out_min : $outMin;
             $p = Punch::firstOrNew(['employee_id' => $c->employee_id, 'work_date' => $c->work_date]);
-            $p->in_min = $c->req_in_min;
-            $p->out_min = $c->req_out_min;
+            $p->in_min = $applIn;
+            $p->out_min = $applOut;
             $p->source = 'manual';
             $p->save();
         }
 
-        $c->update(['status' => 'approved', 'decided_by' => $actorEmpId, 'decided_at' => now()]);
+        $c->update([
+            'status' => 'approved',
+            'decided_by' => $actorEmpId,
+            'decided_at' => now(),
+            'appl_in_min' => $applIn,
+            'appl_out_min' => $applOut,
+        ]);
         self::syncEmployeeStatus($c);
     }
 

@@ -100,6 +100,81 @@ class CorrectionTest extends TestCase
         $this->assertSame('manual', $p->source);
     }
 
+    public function test_approver_can_adjust_times_before_approving(): void
+    {
+        $date = $this->yesterday();
+        Punch::create(['employee_id' => 106, 'work_date' => $date, 'in_min' => 500, 'out_min' => 900, 'source' => 'worker']);
+        // worker requests 06:30–15:30 (390–930); the lead trims it to 07:00–15:00
+        $c = Corrections::submit(Employee::find(106), $date, 'set', 390, 930, 'fix');
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'manager')                     // employee 101 = crew lead
+            ->call('askAdjustCorrection', $c->id)
+            ->assertSet('adjustIn', '06:30')              // prefilled from the request
+            ->assertSet('adjustOut', '15:30')
+            ->set('adjustIn', '07:00')
+            ->set('adjustOut', '15:00')
+            ->call('approveAdjusted', $c->id)
+            ->assertSet('adjustingId', null);
+
+        $c->refresh();
+        $this->assertSame('approved', $c->status);
+        $this->assertSame(101, $c->decided_by);
+        $this->assertSame(390, $c->req_in_min);   // worker's original request preserved
+        $this->assertSame(420, $c->appl_in_min);  // 07:00 applied
+        $this->assertSame(900, $c->appl_out_min); // 15:00 applied
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $date)->first();
+        $this->assertSame(420, $p->in_min);   // adjusted value went to the punch
+        $this->assertSame(900, $p->out_min);
+        $this->assertSame('manual', $p->source);
+    }
+
+    public function test_plain_approve_records_requested_times_as_applied(): void
+    {
+        $date = $this->yesterday();
+        $c = Corrections::submit(Employee::find(106), $date, 'set', 390, 930, 'fix');
+
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('approveCorrection', $c->id);
+
+        $c->refresh();
+        $this->assertSame(390, $c->appl_in_min);   // applied == requested on a plain approve
+        $this->assertSame(930, $c->appl_out_min);
+    }
+
+    public function test_adjust_approve_rejects_out_before_in(): void
+    {
+        $date = $this->yesterday();
+        Punch::create(['employee_id' => 106, 'work_date' => $date, 'in_min' => 500, 'out_min' => 900, 'source' => 'worker']);
+        $c = Corrections::submit(Employee::find(106), $date, 'set', 390, 930, 'fix');
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'manager')
+            ->call('askAdjustCorrection', $c->id)
+            ->set('adjustIn', '15:00')
+            ->set('adjustOut', '07:00')          // out before in → invalid
+            ->call('approveAdjusted', $c->id);
+
+        $this->assertSame('pending', $c->fresh()->status);   // not applied
+        $p = Punch::where('employee_id', 106)->where('work_date', $date)->first();
+        $this->assertSame(500, $p->in_min);      // punch untouched
+    }
+
+    public function test_requester_cannot_adjust_approve_their_own_request(): void
+    {
+        $date = $this->yesterday();
+        $mgr = Employee::find(101);
+        $c = Corrections::submit($mgr, $date, 'set', 390, 930, 'my own fix');
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'manager')             // employee 101 = the requester
+            ->call('askAdjustCorrection', $c->id)
+            ->set('adjustIn', '07:00')
+            ->call('approveAdjusted', $c->id);
+
+        $this->assertSame('pending', $c->fresh()->status);   // self-approval blocked
+    }
+
     public function test_approval_creates_a_punch_when_the_day_had_none(): void
     {
         $date = $this->yesterday();

@@ -220,6 +220,13 @@ class WorkforceApp extends Component
 
     public string $rejectNote = '';
 
+    /** approver: id of the request being adjusted (edit-times-before-approve box open) */
+    public ?int $adjustingId = null;
+
+    public string $adjustIn = '';        // HH:MM (24h) — approver's edited clock-in
+
+    public string $adjustOut = '';       // HH:MM (24h) — approver's edited clock-out
+
     // ---- internal comms (announcements · company/crew chat · DM · bell) ----
     public ?int $commsChannel = null;
 
@@ -1947,9 +1954,61 @@ class WorkforceApp extends Component
         $this->showToast($this->tl('Approved & applied', 'Aprobado y aplicado', '정정 승인·반영 완료'));
     }
 
+    /** Approver: open the adjust box, prefilled with the worker's requested times. */
+    public function askAdjustCorrection(int $id): void
+    {
+        $c = AttendanceCorrection::find($id);
+        if (! $c || $c->type === 'delete') {
+            return;
+        }
+        $this->adjustingId = $id;
+        $this->rejectingId = null;
+        $this->adjustIn = $this->hhmm($c->req_in_min);
+        $this->adjustOut = $this->hhmm($c->req_out_min);
+    }
+
+    public function cancelAdjust(): void
+    {
+        $this->adjustingId = null;
+        $this->adjustIn = '';
+        $this->adjustOut = '';
+    }
+
+    /** Approver: approve with edited times — the adjusted values are applied to the punch. */
+    public function approveAdjusted(int $id): void
+    {
+        $c = AttendanceCorrection::find($id);
+        $me = $this->actorEmployee();
+        if (! $c || ! $me) {
+            return;
+        }
+        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+            $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '승인 권한이 없습니다'));
+
+            return;
+        }
+        $in = $this->minsFromHHMM($this->adjustIn);
+        $out = $this->adjustOut === '' ? null : $this->minsFromHHMM($this->adjustOut);
+        if ($in === null) {
+            $this->showToast($this->tl('Enter a clock-in time', 'Ingresa la hora de entrada', '출근 시각을 입력하세요'));
+
+            return;
+        }
+        if ($out !== null && $out < $in) {
+            $this->showToast($this->tl('Clock-out is before clock-in', 'La salida es antes de la entrada', '퇴근이 출근보다 빠릅니다'));
+
+            return;
+        }
+        Corrections::approve($c, $me->id, $in, $out);
+        $this->adjustingId = null;
+        $this->adjustIn = $this->adjustOut = '';
+        $this->showToast($this->tl('Adjusted & applied', 'Ajustado y aplicado', '조정 승인·반영 완료'));
+    }
+
     public function askRejectCorrection(int $id): void
     {
         $this->rejectingId = $id;
+        $this->adjustingId = null;
         $this->rejectNote = '';
     }
 
@@ -2023,6 +2082,7 @@ class WorkforceApp extends Component
             'correctionType' => $this->correctionType, 'correctionIn' => $this->correctionIn,
             'correctionOut' => $this->correctionOut, 'correctionReason' => $this->correctionReason,
             'rejectingId' => $this->rejectingId, 'actorIsAdmin' => $this->actorIsAdmin(),
+            'adjustingId' => $this->adjustingId,
             'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
             'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
             'commsPane' => $this->commsPane,

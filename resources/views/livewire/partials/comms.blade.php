@@ -126,9 +126,25 @@
                                             <button wire:click="rejectCorrection({{ $c['id'] }})" style="flex: 1; padding: 8px; border: none; border-radius: 9px; background: #D9483B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['corrConfirmReject'] }}</button>
                                         </div>
                                     </div>
+                                @elseif(($act['adjustingId'] ?? null) === $c['id'])
+                                    {{-- approver edits the times, then approves — applied straight to the punch --}}
+                                    <div style="margin-top: 10px;">
+                                        <div style="font-size: 11px; color: #A7A49B; margin-bottom: 7px;">{{ $lab['corrAdjustHint'] }}</div>
+                                        <div style="display: flex; gap: 8px;">
+                                            <label style="flex: 1;"><span style="display: block; font-size: 10.5px; color: #8A8880; margin-bottom: 3px;">↓ {{ $lab['corrIn'] }}</span><input type="time" wire:model="adjustIn" style="width: 100%; padding: 9px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;"></label>
+                                            <label style="flex: 1;"><span style="display: block; font-size: 10.5px; color: #8A8880; margin-bottom: 3px;">↑ {{ $lab['corrOut'] }}</span><input type="time" wire:model="adjustOut" style="width: 100%; padding: 9px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;"></label>
+                                        </div>
+                                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                            <button wire:click="cancelAdjust" style="flex: 1; padding: 8px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                                            <button wire:click="approveAdjusted({{ $c['id'] }})" style="flex: 1.4; padding: 8px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['corrConfirmAdjust'] }}</button>
+                                        </div>
+                                    </div>
                                 @else
                                     <div style="display: flex; gap: 8px; margin-top: 12px;">
                                         <button wire:click="approveCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['corrApprove'] }}</button>
+                                        @unless($c['isDelete'])
+                                            <button wire:click="askAdjustCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: 1px solid #16181D; border-radius: 9px; background: #fff; color: #16181D; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $lab['corrAdjust'] }}</button>
+                                        @endunless
                                         <button wire:click="askRejectCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #D9483B; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $lab['corrReject'] }}</button>
                                     </div>
                                 @endif
