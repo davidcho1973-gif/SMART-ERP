@@ -157,6 +157,12 @@ class WorkforceApp extends Component
 
     public string $siteAddress = '';
 
+    public string $siteName = '';
+
+    public string $siteCity = '';
+
+    public ?string $deleteSiteId = null;  // pending site deletion
+
     // ---- attendance ----
     public string $attView = 'records';   // records | qr
 
@@ -1120,6 +1126,8 @@ class WorkforceApp extends Component
             return;
         }
         $this->siteModal = $id;
+        $this->siteName = $site->name;
+        $this->siteCity = $site->city;
         $this->siteLat = $site->lat !== null ? (string) $site->lat : '';
         $this->siteLng = $site->lng !== null ? (string) $site->lng : '';
         $this->siteRadius = (string) ($site->radius_m ?: Geo::DEFAULT_RADIUS_M);
@@ -1190,13 +1198,47 @@ class WorkforceApp extends Component
         $lat = trim($this->siteLat);
         $lng = trim($this->siteLng);
         $radius = (int) $this->siteRadius;
+        $name = trim($this->siteName);
         $site->update([
+            'name' => $name !== '' ? $name : $site->name,
+            'city' => trim($this->siteCity),
             'lat' => $lat !== '' ? (float) $lat : null,
             'lng' => $lng !== '' ? (float) $lng : null,
             'radius_m' => $radius > 0 ? $radius : Geo::DEFAULT_RADIUS_M,
         ]);
         $this->siteModal = null;
         $this->showToast($this->dict()['pj_saved'].' ✓');
+    }
+
+    public function askDeleteSite(string $id): void
+    {
+        $this->deleteSiteId = $id;
+    }
+
+    public function cancelDeleteSite(): void
+    {
+        $this->deleteSiteId = null;
+    }
+
+    /**
+     * Delete a site. Companies and workers pointing at it are unassigned (site_id
+     * cleared) rather than deleted — records are kept, matching company/crew deletes.
+     */
+    public function confirmDeleteSite(): void
+    {
+        if (! $this->canManage() || ! $this->deleteSiteId) {
+            return;
+        }
+        $id = $this->deleteSiteId;
+        Company::where('site_id', $id)->update(['site_id' => null]);
+        Employee::where('site_id', $id)->update(['site_id' => null]);
+        Site::where('id', $id)->delete();
+        if ($this->site === $id) {
+            $this->site = 'all';   // the filtered-on site is gone → fall back to all
+        }
+        $this->deleteSiteId = null;
+        $this->siteModal = null;
+        $this->showToast($this->dict()['pj_deleted'].' ✓');
     }
 
     // =================== badge wizard ===================
@@ -1762,6 +1804,7 @@ class WorkforceApp extends Component
             'editCompanyId' => $this->editCompanyId, 'editTeamId' => $this->editTeamId,
             'deleteCompanyId' => $this->deleteCompanyId, 'deleteTeamId' => $this->deleteTeamId,
             'siteModal' => $this->siteModal, 'siteLat' => $this->siteLat, 'siteLng' => $this->siteLng, 'siteRadius' => $this->siteRadius,
+            'siteName' => $this->siteName, 'siteCity' => $this->siteCity, 'deleteSiteId' => $this->deleteSiteId,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,
             'attView' => $this->attView, 'attDate' => $this->attDate ?: now()->format('Y-m-d'),

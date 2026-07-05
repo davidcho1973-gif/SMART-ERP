@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\ScanClock;
 use App\Livewire\WorkforceApp;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Punch;
 use App\Models\Site;
@@ -198,6 +199,50 @@ class GpsAttendanceTest extends TestCase
             ->set('attDate', '2026-06-25')
             ->assertSee('Carlos Martínez')
             ->assertSee('Off-site');   // geo_ok=false badge
+    }
+
+    public function test_admin_can_rename_a_site(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('openSiteModal', 's1')
+            ->assertSet('siteName', 'TSMC Fab 21')
+            ->set('siteName', 'TSMC Fab 21 (North)')
+            ->set('siteCity', 'Phoenix, AZ')
+            ->call('saveSiteGeo')
+            ->assertSet('siteModal', null);
+
+        $s = Site::find('s1');
+        $this->assertSame('TSMC Fab 21 (North)', $s->name);
+        $this->assertSame('Phoenix, AZ', $s->city);
+    }
+
+    public function test_admin_can_delete_a_site_and_unassign_its_companies(): void
+    {
+        // c1/c2/c3 are seeded on s1; workers reference s1 too
+        $this->assertGreaterThan(0, Company::where('site_id', 's1')->count());
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('askDeleteSite', 's1')
+            ->call('confirmDeleteSite')
+            ->assertSet('deleteSiteId', null);
+
+        $this->assertNull(Site::find('s1'));
+        $this->assertSame(0, Company::where('site_id', 's1')->count());   // detached, not deleted
+        $this->assertGreaterThan(0, Company::whereNull('site_id')->count());
+        $this->assertNotNull(Employee::find(106));                          // worker record kept
+        $this->assertNull(Employee::find(106)->site_id);                    // just unassigned
+    }
+
+    public function test_deleting_the_filtered_site_resets_filter_to_all(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->set('site', 's1')
+            ->call('askDeleteSite', 's1')
+            ->call('confirmDeleteSite')
+            ->assertSet('site', 'all');   // no longer filtering on a deleted site
     }
 
     public function test_site_managers_can_reach_site_geofence_editor(): void

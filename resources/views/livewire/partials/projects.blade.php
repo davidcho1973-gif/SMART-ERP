@@ -20,7 +20,10 @@
                                 <div style="font-size: 11.5px; color: #C0522B; margin-top: 4px;">{{ $L['pj_noGeo'] }}</div>
                             @endif
                         </div>
-                        <button wire:click="openSiteModal('{{ $st['id'] }}')" style="padding: 8px 13px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_setLocation'] }}</button>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <button wire:click="openSiteModal('{{ $st['id'] }}')" style="padding: 8px 13px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_setLocation'] }}</button>
+                            <button wire:click="askDeleteSite('{{ $st['id'] }}')" title="{{ $L['pj_delete'] }}" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #F3D9CB; border-radius: 8px; background: #fff; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+                        </div>
                     </div>
                 @endforeach
             </div>
@@ -122,8 +125,15 @@
 @if($projects['siteModal'])
     <div style="position: fixed; inset: 0; z-index: 72; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
         <div style="width: 420px; max-width: 100%; background: #fff; border-radius: 18px; padding: 26px;">
-            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_siteLocT'] }}</div>
-            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 18px;">{{ $projects['siteModal']['name'] }}</div>
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_siteEditT'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 16px;">{{ $projects['siteModal']['name'] }}</div>
+
+            {{-- name + city --}}
+            <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                <label style="flex: 2;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_siteName'] }}</span><input wire:model="siteName" placeholder="TSMC Fab 21" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                <label style="flex: 1;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_siteCity'] }}</span><input wire:model="siteCity" placeholder="Phoenix, AZ" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+            </div>
+            <div style="height: 1px; background: #F0EEE8; margin: 14px 0 16px;"></div>
 
             {{-- use my current position ("현재 위치로 설정") --}}
             <button type="button" x-data
@@ -166,6 +176,26 @@
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelSiteModal" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
                 <button wire:click="saveSiteGeo" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_saveEdit'] }}</button>
+            </div>
+        </div>
+    </div>
+@endif
+
+{{-- delete site confirm --}}
+@if($projects['delSiteName'])
+    <div style="position: fixed; inset: 0; z-index: 75; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div style="width: 400px; background: #fff; border-radius: 18px; padding: 26px;">
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_delSiteT'] }}</div>
+            <div style="font-size: 13.5px; color: #16181D; margin-top: 6px; font-weight: 600;">{{ $projects['delSiteName'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-top: 8px; line-height: 1.5;">
+                {{ $L['pj_delSiteMsg'] }}
+                @if($projects['delSiteCompanies'] > 0)
+                    <br><span style="color: #C0522B; font-weight: 600;">{{ $projects['delSiteCompanies'] }} {{ $L['pj_delSiteCos'] }}</span>
+                @endif
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 22px;">
+                <button wire:click="cancelDeleteSite" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
+                <button wire:click="confirmDeleteSite" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #D9483B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_confirmDelete'] }}</button>
             </div>
         </div>
     </div>

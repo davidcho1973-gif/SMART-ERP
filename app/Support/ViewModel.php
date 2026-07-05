@@ -257,9 +257,12 @@ class ViewModel
             'coords' => $st->lat !== null && $st->lng !== null
                 ? number_format((float) $st->lat, 5).', '.number_format((float) $st->lng, 5)
                 : null,
+            'companyCount' => $companies->where('site_id', $st->id)->count(),
         ])->all();
         $siteModalId = $s['siteModal'] ?? null;
         $siteModal = $siteModalId ? ($siteById->get($siteModalId)) : null;
+        $delSiteId = $s['deleteSiteId'] ?? null;
+        $delSite = $delSiteId ? $siteById->get($delSiteId) : null;
 
         // ---- badge wizard ----
         $ext = ['gc' => 'HOFFMAN', 'company' => 'Sonoran MEP', 'last' => 'MARTÍNEZ', 'first' => 'CARLOS', 'role' => 'ELECTRICIAN', 'issued' => '03/14/2026'];
@@ -583,6 +586,8 @@ class ViewModel
                     'name' => trim($siteModal->name.($siteModal->city ? ' · '.$siteModal->city : '')),
                 ] : null,
                 'siteLat' => $s['siteLat'] ?? '', 'siteLng' => $s['siteLng'] ?? '', 'siteRadius' => $s['siteRadius'] ?? '',
+                'delSiteName' => $delSite ? trim($delSite->name.($delSite->city ? ' · '.$delSite->city : '')) : null,
+                'delSiteCompanies' => $delSite ? $companies->where('site_id', $delSite->id)->count() : 0,
             ],
             // badge
             'badge' => [
