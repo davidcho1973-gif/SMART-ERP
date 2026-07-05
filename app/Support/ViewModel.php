@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Assignment;
+use App\Models\AttendanceCorrection;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
@@ -422,7 +423,7 @@ class ViewModel
                 $date = Carbon::parse($pn->work_date);
                 $base = [
                     'd' => $date->format('M j'), 'dow' => $date->format('D'),
-                    'pid' => $pn->id, 'seedNoLunch' => false,
+                    'pid' => $pn->id, 'seedNoLunch' => false, 'workDate' => $pn->work_date,
                 ];
                 if ($pn->in_min === null || $pn->out_min === null) {
                     // open day — clocked in, not yet out
@@ -476,7 +477,7 @@ class ViewModel
 
                 return [
                     'd' => $r['d'], 'dow' => $r['dow'], 'inFmt' => $c['inFmt'], 'outFmt' => $c['outFmt'],
-                    'pid' => null,
+                    'pid' => null, 'workDate' => null,
                     'adjusted' => $c['adjusted'], 'noLunch' => $c['noLunch'], 'seedNoLunch' => $r['noLunch'],
                     'rawNote' => $c['adjusted'] ? $tl('Actual', 'Real', '실제').' '.$c['rawIn'].' – '.$c['rawOut'] : '',
                     'h' => number_format($c['paid'], 1).'h', 'chips' => $chips,
@@ -484,6 +485,44 @@ class ViewModel
                     'lunchIsNo' => $c['noLunch'],
                 ];
             }, $rawPunches);
+        }
+
+        // ---- attendance-correction requests (worker side): status chips + open form ----
+        $corrByDate = AttendanceCorrection::where('employee_id', $me->id)
+            ->orderByDesc('id')->get()->groupBy('work_date')->map(fn ($g) => $g->first());
+        $corrChip = function (?string $workDate) use ($corrByDate, $tl) {
+            $c = $workDate ? $corrByDate->get($workDate) : null;
+            if (! $c) {
+                return null;
+            }
+
+            return match ($c->status) {
+                'pending' => ['label' => $tl('Correction pending', 'Corrección pendiente', '정정 검토중'), 'bg' => '#FBF1DF', 'color' => '#8A6A2E'],
+                'approved' => ['label' => $tl('Corrected', 'Corregido', '정정 완료'), 'bg' => '#EAF5EE', 'color' => '#2E7D4F'],
+                'rejected' => ['label' => $tl('Correction rejected', 'Corrección rechazada', '정정 반려'), 'bg' => '#FBEAEA', 'color' => '#B23B3B'],
+                default => null,
+            };
+        };
+        $punchLog = array_map(function ($row) use ($corrChip, $corrByDate) {
+            $wd = $row['workDate'] ?? null;
+            $row['corrChip'] = $corrChip($wd);
+            $row['corrPending'] = $wd && optional($corrByDate->get($wd))->status === 'pending';
+
+            return $row;
+        }, $punchLog);
+
+        $correctionForm = null;
+        if (! empty($s['correctionOpen']) && ! empty($s['correctionDate'])) {
+            $cTeam = $me->team_id ? Team::find($me->team_id) : null;
+            $cLead = $cTeam && $cTeam->lead ? Employee::find($cTeam->lead) : null;
+            $correctionForm = [
+                'date' => $s['correctionDate'],
+                'dateLabel' => Carbon::parse($s['correctionDate'])->format('M j, Y (D)'),
+                'company' => $companyName($cTeam?->company_id ?? $me->company_id),
+                'team' => $cTeam?->name ?? '—',
+                'lead' => $cLead ? $cLead->displayName($lang) : $tl('No lead — HR reviews', 'Sin líder — RR. HH.', '팀장 미지정 · 인사팀 검토'),
+                'type' => $s['correctionType'] ?? 'set',
+            ];
         }
 
         $ruleNote = $tl(
@@ -637,6 +676,7 @@ class ViewModel
             'worker' => [
                 'me' => $worker, 'punchLog' => $punchLog, 'ruleNote' => $ruleNote,
                 'reasonOptions' => $reasonOptions, 'qrSvg' => RealQr::svg(url('/scan/'.$me->team_id)),
+                'correctionForm' => $correctionForm, 'canRequestCorrection' => $me->id > 0,
             ],
             'deskClock' => $deskClock,
             'comms' => $comms,

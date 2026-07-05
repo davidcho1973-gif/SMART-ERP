@@ -40,11 +40,18 @@ class Comms
         return array_values(array_unique(array_filter($ids)));
     }
 
+    /** Whether an employee is an attendance-correction approver (HR admin or any crew lead). */
+    public static function isApprover(Employee $me): bool
+    {
+        return $me->access === 'admin' || Team::where('lead', $me->id)->exists();
+    }
+
     /** Whether an employee may see (and post in) a channel. */
     public static function canAccess(Channel $ch, Employee $me): bool
     {
         return match ($ch->type) {
             'announcement' => true,
+            'correction' => self::isApprover($me),
             'company' => in_array($ch->company_id, self::companyIdsFor($me), true),
             'team' => in_array($ch->team_id, self::teamIdsFor($me), true),
             'dm' => ChannelMember::where('channel_id', $ch->id)->where('employee_id', $me->id)->exists(),
@@ -52,11 +59,14 @@ class Comms
         };
     }
 
-    /** Only admins/managers may broadcast to an announcement room. */
+    /** Only admins/managers may broadcast to an announcement room; the correction room is a queue. */
     public static function canPost(Channel $ch, Employee $me, bool $canManage): bool
     {
         if (! self::canAccess($ch, $me)) {
             return false;
+        }
+        if ($ch->type === 'correction') {
+            return false; // approve/reject actions, not chat
         }
 
         return $ch->type === 'announcement' ? $canManage : true;
@@ -109,14 +119,18 @@ class Comms
     {
         $companyIds = self::companyIdsFor($me);
         $teamIds = self::teamIdsFor($me);
+        $approver = self::isApprover($me);
 
         return Channel::query()
-            ->where(function ($q) use ($me, $companyIds, $teamIds) {
+            ->where(function ($q) use ($me, $companyIds, $teamIds, $approver) {
                 $q->where('type', 'announcement')
                     ->orWhere(fn ($q) => $q->where('type', 'company')->whereIn('company_id', $companyIds ?: ['__none__']))
                     ->orWhere(fn ($q) => $q->where('type', 'team')->whereIn('team_id', $teamIds ?: ['__none__']))
                     ->orWhere(fn ($q) => $q->where('type', 'dm')
                         ->whereHas('members', fn ($m) => $m->where('employee_id', $me->id)));
+                if ($approver) {
+                    $q->orWhere('type', 'correction');
+                }
             })
             ->get();
     }

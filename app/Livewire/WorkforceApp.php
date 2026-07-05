@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Assignment;
+use App\Models\AttendanceCorrection;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
@@ -13,11 +14,13 @@ use App\Models\Site;
 use App\Models\Team;
 use App\Services\BadgeAnalyzer;
 use App\Support\Comms;
+use App\Support\Corrections;
 use App\Support\Geo;
 use App\Support\Payroll;
 use App\Support\Qr;
 use App\Support\Shift;
 use App\Support\ViewModel;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -198,6 +201,24 @@ class WorkforceApp extends Component
 
     /** per-date lunch overrides keyed by day label */
     public array $lunchOv = [];
+
+    // ---- attendance-correction requests (worker files · lead/HR approves) ----
+    public bool $correctionOpen = false;
+
+    public string $correctionDate = '';      // Y-m-d being corrected
+
+    public string $correctionType = 'set';   // set | delete
+
+    public string $correctionIn = '';        // HH:MM (24h)
+
+    public string $correctionOut = '';       // HH:MM (24h)
+
+    public string $correctionReason = '';
+
+    /** approver: id of the request being rejected (reject-with-note box open) */
+    public ?int $rejectingId = null;
+
+    public string $rejectNote = '';
 
     // ---- internal comms (announcements · company/crew chat · DM · bell) ----
     public ?int $commsChannel = null;
@@ -1775,6 +1796,188 @@ class WorkforceApp extends Component
         $this->dispatch('print-now');
     }
 
+    // =================== attendance corrections ===================
+
+    /** Parse a 24h "HH:MM" field into minutes-from-midnight (null if blank/invalid). */
+    protected function minsFromHHMM(string $t): ?int
+    {
+        if (! preg_match('/^\s*(\d{1,2}):(\d{2})\s*$/', $t, $m)) {
+            return null;
+        }
+        $h = (int) $m[1];
+        $mi = (int) $m[2];
+
+        return ($h > 23 || $mi > 59) ? null : $h * 60 + $mi;
+    }
+
+    protected function hhmm(?int $min): string
+    {
+        return $min === null ? '' : sprintf('%02d:%02d', intdiv($min, 60), $min % 60);
+    }
+
+    /** Reason the worker may NOT file a correction for this date (window / paid-period), else null. */
+    protected function correctionBlockedReason(int $eid, string $workDate): ?string
+    {
+        $d = \DateTime::createFromFormat('Y-m-d', $workDate);
+        if (! $d || $d->format('Y-m-d') !== $workDate) {
+            return $this->tl('Invalid date', 'Fecha inválida', '날짜 오류');
+        }
+        $today = now()->startOfDay();
+        $day = Carbon::instance($d)->startOfDay();
+        if ($day->gt($today)) {
+            return $this->tl('Future date', 'Fecha futura', '미래 날짜는 정정 불가');
+        }
+        if ($day->lt($today->copy()->subDays(Corrections::WINDOW_DAYS))) {
+            return $this->tl('Too old to correct — ask HR', 'Muy antiguo — consulta a RR. HH.', '기간 초과 · 인사팀 문의');
+        }
+        if (Corrections::isPaidPeriod($eid, $workDate)) {
+            return $this->tl('Paid period — ask HR', 'Periodo pagado — consulta a RR. HH.', '지급 완료 기간 · 인사팀 문의');
+        }
+
+        return null;
+    }
+
+    /** Worker: open the correction form for a work date (prefilled with the current punch). */
+    public function openCorrection(string $workDate): void
+    {
+        $eid = $this->meEmployeeId();
+        if ($reason = $this->correctionBlockedReason($eid, $workDate)) {
+            $this->showToast($reason);
+
+            return;
+        }
+        if (AttendanceCorrection::where('employee_id', $eid)->where('work_date', $workDate)->where('status', 'pending')->exists()) {
+            $this->showToast($this->tl('A request is already pending', 'Ya hay una solicitud pendiente', '이미 처리 대기 중인 요청이 있어요'));
+
+            return;
+        }
+        $p = Punch::where('employee_id', $eid)->where('work_date', $workDate)->first();
+        $this->correctionDate = $workDate;
+        $this->correctionType = 'set';
+        $this->correctionIn = $this->hhmm($p?->in_min);
+        $this->correctionOut = $this->hhmm($p?->out_min);
+        $this->correctionReason = '';
+        $this->correctionOpen = true;
+    }
+
+    public function closeCorrection(): void
+    {
+        $this->correctionOpen = false;
+        $this->reset(['correctionDate', 'correctionIn', 'correctionOut', 'correctionReason']);
+        $this->correctionType = 'set';
+    }
+
+    /** Worker: validate and file the correction request. */
+    public function submitCorrection(): void
+    {
+        $eid = $this->meEmployeeId();
+        $me = Employee::find($eid);
+        if (! $me || $this->correctionDate === '') {
+            return;
+        }
+        if ($reason = $this->correctionBlockedReason($eid, $this->correctionDate)) {
+            $this->showToast($reason);
+            $this->closeCorrection();
+
+            return;
+        }
+        if (AttendanceCorrection::where('employee_id', $eid)->where('work_date', $this->correctionDate)->where('status', 'pending')->exists()) {
+            $this->showToast($this->tl('A request is already pending', 'Ya hay una solicitud pendiente', '이미 처리 대기 중인 요청이 있어요'));
+
+            return;
+        }
+        $note = trim($this->correctionReason);
+        if ($note === '') {
+            $this->showToast($this->tl('Enter a reason', 'Escribe un motivo', '정정 사유를 입력하세요'));
+
+            return;
+        }
+
+        $in = null;
+        $out = null;
+        if ($this->correctionType !== 'delete') {
+            $in = $this->minsFromHHMM($this->correctionIn);
+            $out = $this->correctionOut === '' ? null : $this->minsFromHHMM($this->correctionOut);
+            if ($in === null) {
+                $this->showToast($this->tl('Enter a clock-in time', 'Indica la hora de entrada', '출근 시각을 입력하세요'));
+
+                return;
+            }
+            if ($this->correctionOut !== '' && $out === null) {
+                $this->showToast($this->tl('Invalid clock-out time', 'Hora de salida inválida', '퇴근 시각 형식 오류'));
+
+                return;
+            }
+            if ($out !== null && $out < $in) {
+                $this->showToast($this->tl('Clock-out is before clock-in', 'La salida es antes de la entrada', '퇴근이 출근보다 빠릅니다'));
+
+                return;
+            }
+        }
+
+        Corrections::submit($me, $this->correctionDate, $this->correctionType, $in, $out, $note);
+        $this->closeCorrection();
+        $this->showToast($this->tl('Request sent — pending review', 'Solicitud enviada — en revisión', '정정요청을 보냈어요 · 팀장·인사 확인 예정'));
+    }
+
+    /** Whether the current viewer is an HR admin (may approve any request). */
+    protected function actorIsAdmin(): bool
+    {
+        if ($this->isDemo()) {
+            return $this->role === 'admin';
+        }
+
+        return Auth::check() && Auth::user()->access === 'admin';
+    }
+
+    /** Approver: approve a request → apply it to the punch immediately. */
+    public function approveCorrection(int $id): void
+    {
+        $c = AttendanceCorrection::find($id);
+        $me = $this->actorEmployee();
+        if (! $c || ! $me) {
+            return;
+        }
+        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+            $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '승인 권한이 없습니다'));
+
+            return;
+        }
+        Corrections::approve($c, $me->id);
+        $this->showToast($this->tl('Approved & applied', 'Aprobado y aplicado', '정정 승인·반영 완료'));
+    }
+
+    public function askRejectCorrection(int $id): void
+    {
+        $this->rejectingId = $id;
+        $this->rejectNote = '';
+    }
+
+    public function cancelReject(): void
+    {
+        $this->rejectingId = null;
+        $this->rejectNote = '';
+    }
+
+    /** Approver: reject a request with a note. */
+    public function rejectCorrection(int $id): void
+    {
+        $c = AttendanceCorrection::find($id);
+        $me = $this->actorEmployee();
+        if (! $c || ! $me) {
+            return;
+        }
+        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+            $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '반려 권한이 없습니다'));
+
+            return;
+        }
+        Corrections::reject($c, $me->id, $this->rejectNote);
+        $this->rejectingId = null;
+        $this->rejectNote = '';
+        $this->showToast($this->tl('Request rejected', 'Solicitud rechazada', '정정요청을 반려했어요'));
+    }
+
     // =================== render ===================
 
     public function render()
@@ -1816,6 +2019,10 @@ class WorkforceApp extends Component
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
+            'correctionOpen' => $this->correctionOpen, 'correctionDate' => $this->correctionDate,
+            'correctionType' => $this->correctionType, 'correctionIn' => $this->correctionIn,
+            'correctionOut' => $this->correctionOut, 'correctionReason' => $this->correctionReason,
+            'rejectingId' => $this->rejectingId, 'actorIsAdmin' => $this->actorIsAdmin(),
             'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
             'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
             'commsPane' => $this->commsPane,

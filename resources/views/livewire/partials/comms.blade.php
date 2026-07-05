@@ -37,7 +37,7 @@
                     <button wire:click="toggleNewDm" style="margin-top: 8px; width: 100%; padding: 7px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
                 </div>
             @else
-                @foreach(['announcement' => $lab['announcements'], 'company' => $lab['companies'], 'team' => $lab['crews'], 'dm' => $lab['dms']] as $gkey => $glabel)
+                @foreach(['announcement' => $lab['announcements'], 'correction' => $lab['corrections'], 'company' => $lab['companies'], 'team' => $lab['crews'], 'dm' => $lab['dms']] as $gkey => $glabel)
                     @if(count($C['groups'][$gkey]))
                         <div style="padding: 12px 8px 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A7A49B;">{{ $glabel }}</div>
                         @foreach($C['groups'][$gkey] as $r)
@@ -47,6 +47,8 @@
                                 @if(!$isActive) onmouseover="this.style.background='#F5F3EE'" onmouseout="this.style.background='transparent'" @endif>
                                 @if($gkey === 'announcement')
                                     <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; background: #16181D; color: #fff; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg></span>
+                                @elseif($gkey === 'correction')
+                                    <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 10px; background: #E8A33D; color: #fff; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
                                 @elseif($gkey === 'dm')
                                     <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: {{ $r['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; flex-shrink: 0;">{{ $r['initials'] }}</span>
                                 @else
@@ -83,6 +85,8 @@
                     <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 50%; background: {{ $act['partnerColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">{{ $act['partnerInitials'] }}</span>
                 @elseif($act['type'] === 'announcement')
                     <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #16181D; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg></span>
+                @elseif($act['type'] === 'correction')
+                    <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #E8A33D; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
                 @endif
                 <div style="flex: 1; min-width: 0;">
                     <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 16px;">{{ $act['title'] }}</div>
@@ -90,6 +94,51 @@
                 </div>
             </div>
 
+            @if($act['isCorrection'] ?? false)
+                {{-- attendance-correction approval queue --}}
+                <div style="flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(180deg,#FBFAF7,#F6F5F0);">
+                    @forelse($act['corrections'] as $c)
+                        <div wire:key="corr-{{ $c['id'] }}" style="background: #fff; border: 1px solid #E9E6DE; border-radius: 14px; padding: 14px 16px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: #E8A33D; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;">{{ $c['workerInitials'] }}</span>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 14px; font-weight: 700;">{{ $c['worker'] }}</div>
+                                    <div style="font-size: 11.5px; color: #8A8880;">{{ $c['dateLabel'] }}</div>
+                                </div>
+                            </div>
+                            <div style="font-size: 11.5px; color: #8A8880; margin-top: 9px;">{{ $c['company'] }} · {{ $c['team'] }} · {{ $c['lead'] }}</div>
+                            @if($c['isDelete'])
+                                <div style="margin-top: 9px; font-size: 13px; color: #B23B3B; font-weight: 600;">{{ $lab['corrDelete'] }}</div>
+                            @else
+                                <div style="display: flex; align-items: flex-end; gap: 14px; margin-top: 9px; font-family: 'Space Grotesk'; font-size: 13px;">
+                                    <div><div style="font-size: 10px; color: #A7A49B; text-transform: uppercase; letter-spacing: .05em;">{{ $lab['corrCurrent'] }}</div><div style="color: #8A8880;">↓ {{ $c['origIn'] }} · ↑ {{ $c['origOut'] }}</div></div>
+                                    <div style="color: #C4C1B8; padding-bottom: 1px;">→</div>
+                                    <div><div style="font-size: 10px; color: #A7A49B; text-transform: uppercase; letter-spacing: .05em;">{{ $lab['corrRequested'] }}</div><div style="color: #1F9D6B; font-weight: 700;">↓ {{ $c['reqIn'] }} · ↑ {{ $c['reqOut'] }}</div></div>
+                                </div>
+                            @endif
+                            <div style="margin-top: 10px; font-size: 12.5px; color: #5A5D64; background: #F7F5F0; border-radius: 9px; padding: 9px 11px;"><span style="color: #A7A49B;">{{ $lab['corrReason'] }}:</span> {{ $c['reason'] }}</div>
+                            @if($c['canDecide'])
+                                @if(($act['rejectingId'] ?? null) === $c['id'])
+                                    <div style="margin-top: 10px;">
+                                        <input type="text" wire:model="rejectNote" placeholder="{{ $lab['corrRejectPh'] }}" style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;">
+                                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                            <button wire:click="cancelReject" style="flex: 1; padding: 8px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                                            <button wire:click="rejectCorrection({{ $c['id'] }})" style="flex: 1; padding: 8px; border: none; border-radius: 9px; background: #D9483B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['corrConfirmReject'] }}</button>
+                                        </div>
+                                    </div>
+                                @else
+                                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                        <button wire:click="approveCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['corrApprove'] }}</button>
+                                        <button wire:click="askRejectCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #D9483B; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $lab['corrReject'] }}</button>
+                                    </div>
+                                @endif
+                            @endif
+                        </div>
+                    @empty
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #B7B4AB; font-size: 13px;">{{ $act['corrEmpty'] }}</div>
+                    @endforelse
+                </div>
+            @else
             {{-- messages --}}
             <div class="wf-thread" x-data x-init="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
                  style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 3px; background: linear-gradient(180deg,#FBFAF7,#F6F5F0);">
@@ -132,6 +181,7 @@
                 <div style="padding: 15px 16px; border-top: 1px solid #F0EEE8; text-align: center; font-size: 12.5px; color: #A7A49B; background: #FBFAF7; display: flex; align-items: center; justify-content: center; gap: 7px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>{{ $act['readOnlyNote'] }}
                 </div>
+            @endif
             @endif
         @else
             <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #B7B4AB; font-size: 13.5px;">{{ $lab['empty'] }}</div>

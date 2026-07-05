@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\AttendanceCorrection;
 use App\Models\Channel;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Message;
 use App\Models\Team;
@@ -46,6 +48,7 @@ class CommsView
             $name = match ($ch->type) {
                 'announcement' => self::tl($lang, 'Announcements', 'Anuncios', '전체 공지'),
                 'dm' => $nameOf($partner),
+                'correction' => self::tl($lang, 'Attendance corrections', 'Correcciones de asistencia', '출퇴근 정정요청'),
                 default => $ch->name,
             };
             $preview = $last ? mb_strimwidth((string) $last->body, 0, 40, '…') : '';
@@ -71,6 +74,7 @@ class CommsView
 
         $groups = [
             'announcement' => $sortRooms($mapped->where('type', 'announcement')),
+            'correction' => $sortRooms($mapped->where('type', 'correction')),
             'company' => $sortRooms($mapped->where('type', 'company')),
             'team' => $sortRooms($mapped->where('type', 'team')),
             'dm' => $sortRooms($mapped->where('type', 'dm')),
@@ -101,17 +105,54 @@ class CommsView
                     ];
                 })->all();
 
+            // approver queue for the correction room (HR admin sees all; a lead sees their crew)
+            $corrections = [];
+            if ($activeCh->type === 'correction') {
+                // persona role wins over the roster access column so the demo admin (an
+                // employee with manager access) still sees every request
+                $isAdmin = (bool) ($s['actorIsAdmin'] ?? ($me->access === 'admin'));
+                $cq = AttendanceCorrection::where('status', 'pending')->orderBy('id');
+                if (! $isAdmin) {
+                    $cq->where('lead_id', $me->id);
+                }
+                $fmt = fn (?int $min) => $min === null ? '—' : Shift::fmtMin($min);
+                $corrections = $cq->get()->map(function (AttendanceCorrection $c) use ($me, $isAdmin, $lang, $nameOf, $emp, $fmt) {
+                    $worker = $emp((int) $c->employee_id);
+                    $lead = $c->lead_id ? $emp((int) $c->lead_id) : null;
+                    $company = $c->company_id ? Company::find($c->company_id) : null;
+                    $team = $c->team_id ? Team::find($c->team_id) : null;
+
+                    return [
+                        'id' => $c->id,
+                        'worker' => $nameOf($worker),
+                        'workerInitials' => $worker ? $worker->initials() : '—',
+                        'dateLabel' => Carbon::parse($c->work_date)->format('M j, Y (D)'),
+                        'company' => $company?->name ?? '—',
+                        'team' => $team?->name ?? '—',
+                        'lead' => $lead ? $lead->displayName($lang) : self::tl($lang, 'HR', 'RR. HH.', '인사팀'),
+                        'isDelete' => $c->type === 'delete',
+                        'origIn' => $fmt($c->orig_in_min), 'origOut' => $fmt($c->orig_out_min),
+                        'reqIn' => $fmt($c->req_in_min), 'reqOut' => $fmt($c->req_out_min),
+                        'reason' => $c->reason,
+                        'canDecide' => Corrections::canDecide($c, $me->id, $isAdmin),
+                    ];
+                })->all();
+            }
+
+            $corrCount = count($corrections);
             $titles = [
                 'announcement' => self::tl($lang, 'Announcements', 'Anuncios', '전체 공지'),
                 'company' => $activeCh->name,
                 'team' => $activeCh->name,
                 'dm' => $nameOf($partner),
+                'correction' => self::tl($lang, 'Attendance corrections', 'Correcciones de asistencia', '출퇴근 정정요청'),
             ];
             $subs = [
                 'announcement' => self::tl($lang, 'Company-wide notices', 'Avisos para toda la empresa', '회사 전체 공지'),
                 'company' => self::tl($lang, 'Company room', 'Sala de empresa', '회사 채팅방'),
                 'team' => self::tl($lang, 'Crew room', 'Sala de cuadrilla', '팀 채팅방'),
                 'dm' => self::tl($lang, 'Direct message', 'Mensaje directo', '1:1 대화'),
+                'correction' => self::tl($lang, "{$corrCount} pending", "{$corrCount} pendientes", "대기 {$corrCount}건"),
             ];
 
             $active = [
@@ -120,16 +161,20 @@ class CommsView
                 'title' => $titles[$activeCh->type] ?? $activeCh->name,
                 'sub' => $subs[$activeCh->type] ?? '',
                 'isDm' => $activeCh->type === 'dm',
+                'isCorrection' => $activeCh->type === 'correction',
                 'canPost' => Comms::canPost($activeCh, $me, $canManage),
                 'readOnlyNote' => self::tl($lang, 'Only admins & managers can post here.', 'Solo admins y gerentes pueden publicar.', '관리자·매니저만 공지를 올릴 수 있어요.'),
                 'messages' => $msgs,
+                'corrections' => $corrections,
+                'corrEmpty' => self::tl($lang, 'No pending corrections', 'Sin correcciones pendientes', '대기 중인 정정요청이 없어요'),
+                'rejectingId' => $s['rejectingId'] ?? null,
                 'partnerColor' => $partner ? $teamColor($partner->team_id) : '#16181D',
                 'partnerInitials' => $partner ? $partner->initials() : null,
             ];
         }
 
         // ---- bell: channels with unread, freshest first ----
-        $unreadRooms = collect(array_merge($groups['announcement'], $groups['company'], $groups['team'], $groups['dm']))
+        $unreadRooms = collect(array_merge($groups['announcement'], $groups['correction'], $groups['company'], $groups['team'], $groups['dm']))
             ->filter(fn ($r) => $r['unread'] > 0)
             ->sortBy([['sortKey', 'desc']])
             ->values();
@@ -186,7 +231,16 @@ class CommsView
                 'announcements' => self::tl($lang, 'Announcements', 'Anuncios', '공지'),
                 'companies' => self::tl($lang, 'Company rooms', 'Salas de empresa', '회사 채팅'),
                 'crews' => self::tl($lang, 'Crew rooms', 'Salas de cuadrilla', '팀 채팅'),
+                'corrections' => self::tl($lang, 'Corrections', 'Correcciones', '정정요청'),
                 'dms' => self::tl($lang, 'Direct messages', 'Mensajes directos', 'DM'),
+                'corrCurrent' => self::tl($lang, 'Current', 'Actual', '현재'),
+                'corrRequested' => self::tl($lang, 'Requested', 'Solicitado', '요청'),
+                'corrReason' => self::tl($lang, 'Reason', 'Motivo', '사유'),
+                'corrDelete' => self::tl($lang, 'Delete this day’s record', 'Eliminar el registro', '기록 삭제 요청'),
+                'corrApprove' => self::tl($lang, 'Approve', 'Aprobar', '승인'),
+                'corrReject' => self::tl($lang, 'Reject', 'Rechazar', '반려'),
+                'corrRejectPh' => self::tl($lang, 'Reason for rejection (optional)', 'Motivo del rechazo (opcional)', '반려 사유 (선택)'),
+                'corrConfirmReject' => self::tl($lang, 'Confirm reject', 'Confirmar rechazo', '반려 확정'),
                 'newDm' => self::tl($lang, 'New DM', 'Nuevo DM', '새 DM'),
                 'dmSearchPh' => self::tl($lang, 'Search a person…', 'Buscar persona…', '이름·역할 검색…'),
                 'compose' => self::tl($lang, 'Write a message…', 'Escribe un mensaje…', '메시지 입력…'),

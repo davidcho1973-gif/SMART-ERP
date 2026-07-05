@@ -174,6 +174,12 @@
                                         @else
                                             <button wire:click="toggleLunchRow('{{ $p['d'] }}', {{ $p['seedNoLunch'] ? 'true' : 'false' }})" style="{{ $Ui::lunchToggle($p['lunchIsNo']) }}">{{ $p['lunchToggleLabel'] }}</button>
                                         @endif
+                                        @if(!empty($p['corrChip']))
+                                            <span style="font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: {{ $p['corrChip']['bg'] }}; color: {{ $p['corrChip']['color'] }};">{{ $p['corrChip']['label'] }}</span>
+                                        @endif
+                                        @if(!empty($p['workDate']) && empty($p['corrPending']))
+                                            <button wire:click="openCorrection('{{ $p['workDate'] }}')" style="font-size: 10px; font-weight: 600; padding: 2px 9px; border-radius: 6px; background: #16181D; color: #fff; border: none; cursor: pointer;">{{ $L['w_fix'] }}</button>
+                                        @endif
                                     </div>
                                 </div>
                             @endforeach
@@ -217,6 +223,41 @@
                     </div>
                 @endif
             </div>
+            @php $cf = $worker['correctionForm'] ?? null; @endphp
+            @if($cf)
+                {{-- attendance-correction request sheet --}}
+                <div style="position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end;">
+                    <div style="width: 100%; background: #F4F3EF; border-radius: 24px 24px 34px 34px; padding: 20px 20px 26px; max-height: 94%; overflow-y: auto;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                            <div style="font-size: 16px; font-weight: 700;">{{ $L['w_fixTitle'] }}</div>
+                            <button wire:click="closeCorrection" style="border: none; background: transparent; font-size: 22px; line-height: 1; color: #8A8880; cursor: pointer;">×</button>
+                        </div>
+                        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 14px; padding: 14px 16px;">
+                            <div style="font-size: 13.5px; font-weight: 700;">{{ $cf['dateLabel'] }}</div>
+                            <div style="font-size: 12px; color: #8A8880; margin-top: 4px;">{{ $cf['company'] }} · {{ $cf['team'] }}</div>
+                            <div style="font-size: 12px; color: #8A8880; margin-top: 2px;">{{ $L['w_fixLead'] }}: {{ $cf['lead'] }}</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 14px;">
+                            <button wire:click="$set('correctionType','set')" style="flex: 1; padding: 10px; border-radius: 11px; border: 1.5px solid {{ $cf['type']==='set' ? '#16181D':'#E4E2DB' }}; background: {{ $cf['type']==='set' ? '#16181D':'#fff' }}; color: {{ $cf['type']==='set' ? '#fff':'#5A5D64' }}; font-size: 13px; font-weight: 600; cursor: pointer;">{{ $L['w_fixEdit'] }}</button>
+                            <button wire:click="$set('correctionType','delete')" style="flex: 1; padding: 10px; border-radius: 11px; border: 1.5px solid {{ $cf['type']==='delete' ? '#D9483B':'#E4E2DB' }}; background: {{ $cf['type']==='delete' ? '#FBEAEA':'#fff' }}; color: {{ $cf['type']==='delete' ? '#D9483B':'#5A5D64' }}; font-size: 13px; font-weight: 600; cursor: pointer;">{{ $L['w_fixDelete'] }}</button>
+                        </div>
+                        @if($cf['type'] !== 'delete')
+                            <div style="display: flex; gap: 10px; margin-top: 12px;">
+                                <label style="flex: 1;"><span style="display: block; font-size: 11.5px; color: #8A8880; margin-bottom: 4px;">{{ $L['w_clockin'] }}</span><input type="time" wire:model="correctionIn" style="width: 100%; padding: 10px; border: 1.5px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; background: #fff;"></label>
+                                <label style="flex: 1;"><span style="display: block; font-size: 11.5px; color: #8A8880; margin-bottom: 4px;">{{ $L['w_clockout'] }}</span><input type="time" wire:model="correctionOut" style="width: 100%; padding: 10px; border: 1.5px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; background: #fff;"></label>
+                            </div>
+                        @endif
+                        <div style="margin-top: 12px;">
+                            <span style="display: block; font-size: 11.5px; color: #8A8880; margin-bottom: 4px;">{{ $L['w_fixReason'] }}</span>
+                            <textarea wire:model="correctionReason" rows="3" placeholder="{{ $L['w_fixReasonPh'] }}" style="width: 100%; padding: 11px; border: 1.5px solid #E4E2DB; border-radius: 10px; font-size: 13.5px; font-family: inherit; outline: none; resize: none;"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 16px;">
+                            <button wire:click="closeCorrection" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['w_cancel'] }}</button>
+                            <button wire:click="submitCorrection" style="flex: 1; padding: 13px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['w_fixSend'] }}</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
             <div style="position: absolute; bottom: 0; left: 0; right: 0; display: flex; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-top: 1px solid #E4E2DB; padding: 8px 6px 22px;">
                 @foreach($mobileTabs as $tab)
                     <button wire:click="setMobileTab('{{ $tab['key'] }}')" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0;border:none;background:transparent;cursor:pointer;color:{{ $tab['active'] ? '#E85D2A' : '#9AA0A6' }};"><span>{!! $Icon::mobile($tab['key']) !!}</span><span style="font-size: 10.5px; margin-top: 2px;">{{ $tab['label'] }}</span></button>
