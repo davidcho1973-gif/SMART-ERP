@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Models\Assignment;
+use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Punch;
 use App\Models\Site;
@@ -530,11 +532,33 @@ class ViewModel
         }
 
         // ---- internal comms (announcements · company/crew chat · DM · bell) ----
+        // Built for the desktop bell/screen AND the worker home board (announcements
+        // feed + the rooms the worker belongs to).
         $comms = null;
-        if ($s['role'] !== 'worker' && $s['screen'] !== 'login') {
+        if ($s['screen'] !== 'login') {
             $actor = Employee::find($s['actorId'] ?? null);
             if ($actor) {
                 $comms = CommsView::build($actor, $s, $lang, (bool) ($s['canManage'] ?? false));
+
+                // announcement notice feed for the worker home board (newest first)
+                $annCh = Channel::where('type', 'announcement')->first();
+                $comms['annId'] = $annCh?->id;
+                $comms['annFeed'] = $annCh
+                    ? Message::where('channel_id', $annCh->id)->orderByDesc('id')->limit(6)->get()
+                        ->map(fn (Message $m) => [
+                            'body' => $m->body,
+                            'sender' => optional(Employee::find($m->sender_id))->displayName($lang) ?? '—',
+                            'time' => $m->created_at && $m->created_at->isToday()
+                                ? $m->created_at->format('g:i A')
+                                : optional($m->created_at)->format('M j'),
+                        ])->all()
+                    : [];
+                // the worker's rooms (company + crew + DM), announcements shown separately as the board
+                $comms['myRooms'] = array_merge(
+                    $comms['groups']['company'] ?? [],
+                    $comms['groups']['team'] ?? [],
+                    $comms['groups']['dm'] ?? [],
+                );
             }
         }
 

@@ -6,7 +6,9 @@ use App\Livewire\WorkforceApp;
 use App\Models\Channel;
 use App\Models\Employee;
 use App\Models\Message;
+use App\Models\User;
 use App\Support\Comms;
+use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -122,5 +124,64 @@ class CommsTest extends TestCase
 
         $this->assertTrue(Comms::canPost($ann, $manager, true));
         $this->assertFalse(Comms::canPost($ann, $worker, false));
+    }
+
+    public function test_worker_home_board_shows_announcements_and_rooms(): void
+    {
+        Comms::ensureRooms();
+        $ann = Channel::where('type', 'announcement')->first();
+        Message::create(['channel_id' => $ann->id, 'sender_id' => 101, 'body' => 'Site safety meeting at 7am tomorrow.']);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')                                 // employee 106 (Carlos)
+            ->assertSee('Site safety meeting at 7am tomorrow.')      // announcement content on the home board
+            ->assertSee('Electrical Crew A');                        // a room the worker belongs to (crew t1)
+    }
+
+    public function test_worker_can_open_a_room_and_post_from_home(): void
+    {
+        Comms::ensureRooms();
+        $co = Channel::where('type', 'company')->where('company_id', 'c2')->first(); // worker 106's company
+        $before = Message::count();
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')
+            ->call('selectChannel', $co->id)
+            ->assertSet('commsPane', 'thread')
+            ->set('commsCompose', 'On my way to the gate.')
+            ->call('sendMessage')
+            ->assertSet('commsCompose', '');
+
+        $this->assertSame($before + 1, Message::count());
+        $msg = Message::latest('id')->first();
+        $this->assertSame($co->id, $msg->channel_id);
+        $this->assertSame(106, $msg->sender_id);   // posted as the worker
+    }
+
+    public function test_worker_cannot_broadcast_announcements(): void
+    {
+        // real mode: a worker account's access is 'worker' (demo grants manage to all)
+        config(['workforce.demo' => false]);
+        $this->seed(UserSeeder::class);
+        $worker = User::where('email', 'cmartinez@nahshon.io')->first();
+        Comms::ensureRooms();
+        $ann = Channel::where('type', 'announcement')->first();
+        $before = Message::count();
+
+        Livewire::actingAs($worker)->test(WorkforceApp::class)
+            ->call('selectChannel', $ann->id)
+            ->set('commsCompose', 'worker trying to broadcast')
+            ->call('sendMessage');
+
+        $this->assertSame($before, Message::count());   // read-only for workers
+    }
+
+    public function test_badge_qr_moved_from_clock_tab_to_profile_tab(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')          // lands on the clock (home) tab
+            ->assertDontSee('Mi QR')          // QR no longer on the clock tab
+            ->call('setMobileTab', 'me')
+            ->assertSee('Mi QR');             // now on the profile tab
     }
 }

@@ -82,12 +82,68 @@
                                 </div>
                             </div>
                         @endif
-                        <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px; text-align: center;">
-                            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 12px;">{{ $L['w_myqr'] }}</div>
-                            <div style="width: 150px; height: 150px; margin: 0 auto; background: #fff; border: 1px solid #F0EEE8; border-radius: 12px; padding: 10px;">{!! $worker['qrSvg'] !!}</div>
-                            <div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 10px;">{{ $w['empId'] }}</div>
-                            <div style="font-size: 11.5px; color: #A7A49B; margin-top: 2px;">{{ $L['w_qrhint'] }}</div>
-                        </div>
+                        {{-- ===== internal comms: announcements board + my chat rooms ===== --}}
+                        @if($comms)
+                            @if($comms['mobilePane'] === 'thread' && $comms['active'])
+                                {{-- open conversation --}}
+                                <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; overflow: hidden;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #F0EEE8;">
+                                        <button wire:click="commsBack" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; cursor: pointer; font-size: 16px; line-height: 1; color: #5A5D64;">‹</button>
+                                        <div style="flex: 1; min-width: 0;"><div style="font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $comms['active']['title'] }}</div><div style="font-size: 11px; color: #A7A49B;">{{ $comms['active']['sub'] }}</div></div>
+                                    </div>
+                                    <div style="max-height: 300px; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px;">
+                                        @forelse($comms['active']['messages'] as $m)
+                                            <div style="align-self: {{ $m['mine'] ? 'flex-end' : 'flex-start' }}; max-width: 82%;">
+                                                @unless($m['mine'])<div style="font-size: 10.5px; color: #8A8880; margin: 0 0 2px 2px;">{{ $m['senderName'] }}</div>@endunless
+                                                <div style="background: {{ $m['mine'] ? '#16181D' : '#F4F3EF' }}; color: {{ $m['mine'] ? '#fff' : '#16181D' }}; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; word-break: break-word;">{{ $m['body'] }}</div>
+                                                <div style="font-size: 10px; color: #C7C4BB; margin-top: 2px; text-align: {{ $m['mine'] ? 'right' : 'left' }};">{{ $m['time'] }}</div>
+                                            </div>
+                                        @empty
+                                            <div style="text-align: center; color: #A7A49B; font-size: 12.5px; padding: 18px;">{{ $comms['labels']['empty'] }}</div>
+                                        @endforelse
+                                    </div>
+                                    @if($comms['active']['canPost'])
+                                        <div style="display: flex; gap: 8px; padding: 11px 12px; border-top: 1px solid #F0EEE8;">
+                                            <input wire:model="commsCompose" wire:keydown.enter="sendMessage" placeholder="{{ $comms['labels']['compose'] }}" style="flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13.5px; outline: none;"/>
+                                            <button wire:click="sendMessage" style="padding: 10px 15px; border: none; border-radius: 10px; background: #E85D2A; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">{{ $comms['labels']['send'] }}</button>
+                                        </div>
+                                    @else
+                                        <div style="padding: 12px 16px; border-top: 1px solid #F0EEE8; font-size: 11.5px; color: #A7A49B; text-align: center;">{{ $comms['active']['readOnlyNote'] }}</div>
+                                    @endif
+                                </div>
+                            @else
+                                {{-- announcements board --}}
+                                <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 16px 18px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg>
+                                        <span style="font-size: 13.5px; font-weight: 700;">{{ $L['w_announce'] }}</span>
+                                        @if($comms['annId'])<button wire:click="selectChannel({{ $comms['annId'] }})" style="margin-left: auto; font-size: 11.5px; color: #E85D2A; background: none; border: none; cursor: pointer; font-weight: 600;">{{ $L['w_viewAll'] }}</button>@endif
+                                    </div>
+                                    @forelse(array_slice($comms['annFeed'], 0, 3) as $a)
+                                        <div style="padding: 9px 0; border-top: 1px solid #F4F3EF;">
+                                            <div style="font-size: 13px; line-height: 1.5; color: #16181D; word-break: break-word;">{{ $a['body'] }}</div>
+                                            <div style="font-size: 10.5px; color: #A7A49B; margin-top: 3px;">{{ $a['sender'] }} · {{ $a['time'] }}</div>
+                                        </div>
+                                    @empty
+                                        <div style="font-size: 12.5px; color: #A7A49B; padding: 6px 0;">{{ $L['w_noAnnounce'] }}</div>
+                                    @endforelse
+                                </div>
+
+                                {{-- my chat rooms --}}
+                                <div style="margin-top: 14px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 8px 6px;">
+                                    <div style="font-size: 13.5px; font-weight: 700; padding: 10px 12px 4px;">{{ $L['w_myChats'] }}</div>
+                                    @forelse($comms['myRooms'] as $r)
+                                        <button wire:click="selectChannel({{ $r['id'] }})" style="width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: none; background: none; cursor: pointer; text-align: left;">
+                                            <span style="width: 38px; height: 38px; border-radius: {{ $r['type']==='dm' ? '50%' : '11px' }}; background: {{ $r['color'] }}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; font-family: 'Space Grotesk'; flex-shrink: 0;">{{ $r['initials'] ?? mb_strtoupper(mb_substr($r['name'], 0, 1)) }}</span>
+                                            <span style="flex: 1; min-width: 0;"><span style="display: block; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $r['name'] }}</span><span style="display: block; font-size: 12px; color: #A7A49B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $r['preview'] ?: '—' }}</span></span>
+                                            <span style="text-align: right; flex-shrink: 0;"><span style="display: block; font-size: 10.5px; color: #C7C4BB;">{{ $r['time'] }}</span>@if($r['unread'] > 0)<span style="display: inline-block; margin-top: 3px; min-width: 18px; padding: 1px 6px; border-radius: 9px; background: #E85D2A; color: #fff; font-size: 10.5px; font-weight: 700; text-align: center;">{{ $r['unread'] }}</span>@endif</span>
+                                        </button>
+                                    @empty
+                                        <div style="font-size: 12.5px; color: #A7A49B; padding: 8px 12px 14px;">{{ $L['w_noChats'] }}</div>
+                                    @endforelse
+                                </div>
+                            @endif
+                        @endif
                     </div>
                 @elseif($mobileTab === 'work')
                     <div style="padding: 12px 20px 20px;">
@@ -149,6 +205,13 @@
                             <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">{{ $L['e_access'] }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ $w['access'] }}</span></div>
                             <div style="display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid #F2F0EA;"><span style="font-size: 13px; color: #8A8880;">{{ $L['b_phone'] }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ $w['phone'] }}</span></div>
                             <div style="display: flex; justify-content: space-between; padding: 13px 0;"><span style="font-size: 13px; color: #8A8880;">{{ $L['b_issued'] }}</span><span style="font-size: 13.5px; font-weight: 500;">{{ $w['issued'] }}</span></div>
+                        </div>
+                        {{-- my badge QR (moved here from the clock tab) --}}
+                        <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px; text-align: center;">
+                            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 12px;">{{ $L['w_myqr'] }}</div>
+                            <div style="width: 150px; height: 150px; margin: 0 auto; background: #fff; border: 1px solid #F0EEE8; border-radius: 12px; padding: 10px;">{!! $worker['qrSvg'] !!}</div>
+                            <div style="font-family: 'Space Grotesk'; font-size: 12px; color: #E85D2A; margin-top: 10px;">{{ $w['empId'] }}</div>
+                            <div style="font-size: 11.5px; color: #A7A49B; margin-top: 2px;">{{ $L['w_qrhint'] }}</div>
                         </div>
                         <button wire:click="logout" style="width: 100%; margin-top: 16px; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; color: #D9483B; cursor: pointer;">Logout</button>
                     </div>

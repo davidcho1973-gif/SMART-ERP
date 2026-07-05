@@ -443,6 +443,7 @@ class WorkforceApp extends Component
             $this->mobileTab = 'home';
             $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
             $this->lang = $emp->lang ?? 'es';
+            Comms::ensureRooms();   // worker home board reads announcements + their rooms
             // restore today's clock state from the punch record (out · in · done)
             $p = $this->todayPunch($this->meEmployeeId());
             $this->clock = $this->clockStateFor($p);
@@ -1635,6 +1636,7 @@ class WorkforceApp extends Component
     /** Point the worker-mobile clock button at the real punch state (out · in · done). */
     protected function syncWorkerClock(): void
     {
+        Comms::ensureRooms();   // worker home board reads announcements + their rooms
         $p = $this->todayPunch($this->meEmployeeId());
         $this->clock = $this->clockStateFor($p);
         if ($this->clock === 'in') {
