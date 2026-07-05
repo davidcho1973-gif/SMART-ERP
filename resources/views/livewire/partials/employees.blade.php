@@ -61,6 +61,7 @@
                     <div><div style="font-size: 22px; font-weight: 700;">{{ $sel['name'] }}</div><div style="font-size: 13px; opacity: 0.85; font-family: 'Space Grotesk';">{{ $sel['empId'] }}</div></div>
                 </div>
                 <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,0.28); padding: 5px 12px; border-radius: 8px;">{{ $emp['operator'] }} {{ $L['e_belongs'] }}</span>
                     <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 8px;">{{ $sel['companyName'] }} · {{ $sel['teamName'] }}</span>
                     <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 8px;">{{ $sel['typeLabel'] }}</span>
                 </div>
@@ -101,6 +102,33 @@
                         <button wire:click="setFormAccess('admin')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='admin', $acc['admin']) }}">{{ $L['access_admin'] }}</button>
                         <button wire:click="setFormAccess('manager')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='manager', $acc['manager']) }}">{{ $L['access_manager'] }}</button>
                         <button wire:click="setFormAccess('worker')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='worker', $acc['worker']) }}">{{ $L['access_worker'] }}</button>
+                    </div>
+                </div>
+
+                {{-- company involvement (NAHSHON staffing several clients) --}}
+                <div style="margin-top: 22px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
+                    <div style="font-size: 12px; font-weight: 700; color: #8A8880; margin-bottom: 12px;">{{ $L['e_involveNote'] }}</div>
+                    @forelse($emp['assignments'] as $a)
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: #fff; border: 1px solid #F0EEE8; border-radius: 10px; margin-bottom: 8px;">
+                            <span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $a['teamColor'] }}; flex-shrink: 0;"></span>
+                            <span style="flex: 1; font-size: 13px;"><span style="font-weight: 600;">{{ $a['company'] }}</span>@if($a['team'])<span style="color: #8A8880;"> · {{ $a['team'] }}</span>@endif</span>
+                            <span style="font-size: 11.5px; font-weight: 600; color: #C0641F; background: #FDF0EA; padding: 3px 9px; border-radius: 7px;">{{ $a['relation'] }}</span>
+                            <button wire:click="removeAssignment({{ $a['id'] }})" title="{{ $L['pj_delete'] }}" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: #F4F3EF; color: #D9483B; font-size: 14px; cursor: pointer;">×</button>
+                        </div>
+                    @empty
+                        <div style="font-size: 12px; color: #A7A49B; margin-bottom: 8px;">{{ $L['e_involveEmpty'] }}</div>
+                    @endforelse
+                    <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 1fr auto; gap: 8px; margin-top: 4px; align-items: end;">
+                        <select wire:model.live="newAssignCompany" style="padding: 9px 10px; border: 1px solid #E4E2DB; border-radius: 9px; font-size: 12.5px; background: #fff; cursor: pointer;">
+                            <option value="">{{ $L['e_involveCompany'] }}</option>
+                            @foreach($emp['companyOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach
+                        </select>
+                        <select wire:model="newAssignTeam" style="padding: 9px 10px; border: 1px solid #E4E2DB; border-radius: 9px; font-size: 12.5px; background: #fff; cursor: pointer;">
+                            <option value="">{{ $L['e_involveTeam'] }}</option>
+                            @foreach($emp['assignTeamOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach
+                        </select>
+                        <input wire:model="newAssignRelation" placeholder="{{ $L['e_involveRelation'] }}" style="padding: 9px 10px; border: 1px solid #E4E2DB; border-radius: 9px; font-size: 12.5px; outline: none;"/>
+                        <button wire:click="addAssignment" style="padding: 9px 14px; border: none; border-radius: 9px; background: #16181D; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['e_involveAdd'] }}</button>
                     </div>
                 </div>
                 @if($sel['isTerminated'])

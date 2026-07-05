@@ -112,6 +112,38 @@ class WorkforceAppTest extends TestCase
         $this->assertSame($firstTeam->company_id, $emp->company_id);
     }
 
+    public function test_add_and_remove_company_involvement(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('selectEmp', 106)
+            ->set('newAssignCompany', 'c1')
+            ->set('newAssignTeam', 't1')
+            ->set('newAssignRelation', '파견')
+            ->call('addAssignment');
+
+        $a = \App\Models\Assignment::where('employee_id', 106)->first();
+        $this->assertNotNull($a);
+        $this->assertSame('c1', $a->company_id);
+        $this->assertSame('t1', $a->team_id);
+        $this->assertSame('파견', $a->relation);
+
+        // a custom "기타" relation is accepted as free text
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('selectEmp', 106)
+            ->set('newAssignCompany', 'c2')
+            ->set('newAssignRelation', '기타: 감리 지원')
+            ->call('addAssignment');
+        $this->assertSame('기타: 감리 지원', \App\Models\Assignment::where('employee_id', 106)->where('company_id', 'c2')->first()->relation);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('selectEmp', 106)
+            ->call('removeAssignment', $a->id);
+        $this->assertNull(\App\Models\Assignment::find($a->id));
+    }
+
     public function test_changes_a_crew_lead(): void
     {
         Livewire::test(WorkforceApp::class)->call('changeLead', 't1', '103');

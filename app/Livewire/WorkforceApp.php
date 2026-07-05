@@ -39,6 +39,10 @@ class WorkforceApp extends Component
     public string $search = '';
     public ?int $deleteId = null;
     public ?int $terminateId = null;
+    // ---- company-involvement assignments (add form) ----
+    public string $newAssignCompany = '';
+    public string $newAssignTeam = '';
+    public string $newAssignRelation = '파견';
     /** working copy of the selected employee's editable fields */
     public array $editForm = [];
 
@@ -498,6 +502,8 @@ class WorkforceApp extends Component
             return;
         }
         $this->selectedEmp = $id;
+        $this->reset(['newAssignCompany', 'newAssignTeam']);
+        $this->newAssignRelation = '파견';
         // repair a stale/invalid team (e.g. left over from cleared demo ids) so the
         // drawer shows a real selection and a plain Save persists it
         $teamId = $e->team_id;
@@ -540,6 +546,31 @@ class WorkforceApp extends Component
         $data = (string) ob_get_clean();
         imagedestroy($rot);
         $e->update(['badge_photo' => 'data:image/jpeg;base64,' . base64_encode($data)]);
+    }
+
+    /** Add a company-involvement assignment to the selected employee. */
+    public function addAssignment(): void
+    {
+        if (! $this->canManage() || ! $this->selectedEmp || $this->newAssignCompany === '') {
+            return;
+        }
+        \App\Models\Assignment::create([
+            'employee_id' => $this->selectedEmp,
+            'company_id' => $this->newAssignCompany,
+            'team_id' => $this->newAssignTeam !== '' ? $this->newAssignTeam : null,
+            'relation' => trim($this->newAssignRelation) !== '' ? trim($this->newAssignRelation) : '파견',
+        ]);
+        $this->reset(['newAssignCompany', 'newAssignTeam']);
+        $this->newAssignRelation = '파견';
+    }
+
+    public function removeAssignment(int $id): void
+    {
+        if (! $this->canManage()) {
+            return;
+        }
+        \App\Models\Assignment::where('id', $id)
+            ->where('employee_id', $this->selectedEmp)->delete();
     }
 
     public function closeDetail(): void
@@ -1304,6 +1335,7 @@ class WorkforceApp extends Component
             'teamFilter' => $this->teamFilter, 'search' => $this->search,
             'deleteId' => $this->deleteId, 'terminateId' => $this->terminateId,
             'editForm' => $this->editForm,
+            'newAssignCompany' => $this->newAssignCompany, 'newAssignTeam' => $this->newAssignTeam, 'newAssignRelation' => $this->newAssignRelation,
             'bstep' => $this->bstep, 'scanF' => $this->scanF, 'scanB' => $this->scanB, 'scanN' => $this->scanN,
             'facePhotoData' => $this->facePhotoData, 'faceBox' => $this->faceBox,
             'regTeam' => $this->regTeam, 'regType' => $this->regType, 'regAccess' => $this->regAccess,

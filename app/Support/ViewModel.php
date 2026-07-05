@@ -182,6 +182,23 @@ class ViewModel
         $managerOptions = $managers->map(fn ($m) => ['id' => $m->id, 'label' => $empName($m)])->all();
         $companyOptions = $companies->map(fn ($c) => ['id' => $c->id, 'label' => $c->name])->all();
         $teamOptionsAll = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name . ' · ' . $companyName($t->company_id)])->all();
+
+        // company-involvement assignments for the open employee (NAHSHON staffing many clients)
+        $empAssignments = [];
+        if ($selRaw) {
+            $empAssignments = \App\Models\Assignment::where('employee_id', $selRaw->id)->get()->map(fn ($a) => [
+                'id' => $a->id,
+                'company' => $companyName($a->company_id),
+                'team' => $a->team_id ? $teamName($a->team_id) : null,
+                'teamColor' => $a->team_id ? $teamColor($a->team_id) : '#9AA0A6',
+                'relation' => $a->relation,
+            ])->all();
+        }
+        // crews available for the currently-picked company in the add-assignment form
+        $assignTeamOptions = ($s['newAssignCompany'] ?? '') !== ''
+            ? $teams->filter(fn ($t) => $t->company_id === $s['newAssignCompany'])
+                ->map(fn ($t) => ['id' => $t->id, 'label' => $t->name])->values()->all()
+            : [];
         $typeOptions = [
             ['id' => 'worker_local', 'label' => $L['b_tWorkerLocal']],
             ['id' => 'worker_ko', 'label' => $L['b_tWorkerKo']],
@@ -498,6 +515,8 @@ class ViewModel
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
                 'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions,
                 'accColor' => $accColor,
+                'assignments' => $empAssignments, 'assignTeamOptions' => $assignTeamOptions,
+                'operator' => 'NAHSHON',
             ],
             // projects
             'projects' => [

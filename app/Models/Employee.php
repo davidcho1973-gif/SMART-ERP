@@ -27,6 +27,11 @@ class Employee extends Model
         return $this->belongsTo(Company::class, 'company_id');
     }
 
+    public function assignments()
+    {
+        return $this->hasMany(Assignment::class);
+    }
+
     public function isManager(): bool
     {
         return $this->type === 'manager';
