@@ -106,6 +106,25 @@ input, button, select { font-family: inherit; }
     .wf-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
     .wf-2col { grid-template-columns: 1fr !important; }
 
+    /* --- internal comms: single-pane master-detail (list ↔ conversation) --- */
+    /* on the chat screen, drop header controls that don't help while messaging */
+    .wf-header--comms { padding: 10px 16px !important; }
+    .wf-header--comms .wf-hdr-ctl { display: none !important; }
+
+    .wf-comms {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+    .wf-comms-list,
+    .wf-comms-thread {
+        height: calc(100dvh - 300px) !important;
+        min-height: 360px !important;
+    }
+    .wf-comms.show-list .wf-comms-thread { display: none !important; }
+    .wf-comms.show-thread .wf-comms-list { display: none !important; }
+    .wf-comms-back { display: inline-flex !important; }
+
     /* --- badge registration: stack photo/scan over the extracted form --- */
     .wf-badge-cols { grid-template-columns: 1fr !important; }
     .wf-badge-fields { grid-template-columns: 1fr !important; }

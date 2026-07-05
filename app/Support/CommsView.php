@@ -179,6 +179,7 @@ class CommsView
             'newDm' => ! empty($s['commsNewDm']),
             'dmSearch' => $s['commsDmSearch'] ?? '',
             'dmCandidates' => $dmCandidates,
+            'mobilePane' => (($s['commsPane'] ?? 'list') === 'thread') ? 'thread' : 'list',
             'labels' => [
                 'title' => self::tl($lang, 'Internal Comms', 'Comunicación', '내부 소통방'),
                 'sub' => self::tl($lang, 'Announcements · company & crew chat · DM', 'Anuncios · chat de empresa y cuadrilla · DM', '공지 · 회사·팀 채팅 · DM'),
@@ -196,6 +197,7 @@ class CommsView
                 'bellTitle' => self::tl($lang, 'Notifications', 'Notificaciones', '알림'),
                 'openComms' => self::tl($lang, 'Open comms', 'Abrir', '소통방 열기'),
                 'cancel' => self::tl($lang, 'Cancel', 'Cancelar', '취소'),
+                'back' => self::tl($lang, 'Rooms', 'Salas', '목록'),
             ],
         ];
     }

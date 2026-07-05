@@ -191,6 +191,9 @@ class WorkforceApp extends Component
 
     public bool $bellOpen = false;
 
+    /** mobile master-detail pane: 'list' (channel list) or 'thread' (open conversation) */
+    public string $commsPane = 'list';
+
     // ---- toast ----
     public ?string $toast = null;
 
@@ -521,6 +524,7 @@ class WorkforceApp extends Component
         }
         if ($screen === 'comms') {
             $this->bellOpen = false;
+            $this->commsPane = 'list'; // on mobile, land on the channel list
             $this->enterComms();
         }
     }
@@ -578,7 +582,14 @@ class WorkforceApp extends Component
         $this->commsCompose = '';
         $this->commsNewDm = false;
         $this->bellOpen = false;
+        $this->commsPane = 'thread'; // mobile: reveal the conversation
         Comms::markRead($ch, $me);
+    }
+
+    /** Mobile: step back from an open conversation to the channel list. */
+    public function commsBack(): void
+    {
+        $this->commsPane = 'list';
     }
 
     public function sendMessage(): void
@@ -626,6 +637,7 @@ class WorkforceApp extends Component
         $this->commsNewDm = false;
         $this->commsDmSearch = '';
         $this->commsCompose = '';
+        $this->commsPane = 'thread'; // mobile: reveal the conversation
         Comms::markRead($ch, $me);
     }
 
@@ -641,7 +653,7 @@ class WorkforceApp extends Component
             return;
         }
         $this->screen = 'comms';
-        $this->selectChannel($channelId);
+        $this->selectChannel($channelId); // also flips the mobile pane to the thread
     }
 
     public function setDash(string $l): void
@@ -1585,6 +1597,7 @@ class WorkforceApp extends Component
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
             'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
             'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
+            'commsPane' => $this->commsPane,
             'bellOpen' => $this->bellOpen,
             'actorId' => $this->actorId(),
             'canManage' => $this->canManage(),

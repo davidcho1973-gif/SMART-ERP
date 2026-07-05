@@ -2,20 +2,14 @@
     $C = $comms;
     $lab = $C['labels'];
     $act = $C['active'];
-    // small helper: a single channel row in the left list
-    $roomRow = function ($r, $activeId) {
-        $isActive = $activeId === $r['id'];
-        $bg = $isActive ? '#FDF0EA' : 'transparent';
-        $bd = $isActive ? '#F1C9B4' : 'transparent';
-        return compact('isActive', 'bg', 'bd');
-    };
 @endphp
 
 {{-- ============ INTERNAL COMMS ============ --}}
-<div class="wf-comms" style="display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: calc(100vh - 44px - 71px - 52px); min-height: 460px;">
+{{-- desktop: list + thread side by side · mobile: one pane at a time (master-detail) --}}
+<div class="wf-comms {{ $C['mobilePane'] === 'thread' ? 'show-thread' : 'show-list' }}" style="display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: calc(100vh - 44px - 71px - 52px); min-height: 460px;">
 
     {{-- ---------- channel list ---------- --}}
-    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+    <div class="wf-comms-list" style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
         <div style="padding: 16px 16px 12px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px;">{{ $lab['title'] }}</div>
             <button wire:click="toggleNewDm" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: none; border-radius: 9px; background: #16181D; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">
@@ -77,9 +71,14 @@
     </div>
 
     {{-- ---------- thread ---------- --}}
-    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+    <div class="wf-comms-thread" style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
         @if($act)
             <div style="padding: 15px 20px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: center; gap: 12px;">
+                {{-- mobile-only: back to the channel list --}}
+                <button type="button" wire:click="commsBack" class="wf-comms-back" aria-label="{{ $lab['back'] }}"
+                    style="display: none; align-items: center; justify-content: center; width: 34px; height: 34px; margin: -3px -2px -3px -6px; border: none; border-radius: 9px; background: #F4F3EF; color: #16181D; cursor: pointer; flex-shrink: 0;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
                 @if($act['type'] === 'dm')
                     <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 50%; background: {{ $act['partnerColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">{{ $act['partnerInitials'] }}</span>
                 @elseif($act['type'] === 'announcement')

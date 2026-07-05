@@ -24,10 +24,10 @@
     </aside>
 
     <main class="wf-main" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
-        <div class="wf-header" style="display: flex; align-items: center; gap: 16px; padding: 14px 30px; border-bottom: 1px solid #E1DFD8; background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); position: sticky; top: 44px; z-index: 20;">
+        <div class="wf-header {{ $screen === 'comms' ? 'wf-header--comms' : '' }}" style="display: flex; align-items: center; gap: 16px; padding: 14px 30px; border-bottom: 1px solid #E1DFD8; background: rgba(255,255,255,0.7); backdrop-filter: blur(6px); position: sticky; top: 44px; z-index: 20;">
             <div><h1 class="wf-title" style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700;">{{ $pageTitle }}</h1><div style="font-size: 12.5px; color: #8A8880;">{{ $pageSub }}</div></div>
             <div style="flex: 1;"></div>
-            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
+            <div class="wf-hdr-ctl" style="display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8880" stroke-width="2"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
                 <select wire:model.live="site" style="border: none; outline: none; background: transparent; font-size: 13px; font-weight: 600; color: #16181D; cursor: pointer;">
                     @foreach($siteOptions as $o)
@@ -36,7 +36,7 @@
                 </select>
             </div>
             @if(($deskClock['show'] ?? false))
-                <div style="display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
+                <div class="wf-hdr-ctl" style="display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px;">
                     <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: {{ $deskClock['isIn'] ? '#1F9D6B' : '#8A8880' }};">
                         <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ $deskClock['isIn'] ? '#1F9D6B' : '#C4C1B8' }};"></span>{{ $deskClock['statusLabel'] }}@if($deskClock['since']) · {{ $deskClock['sinceWord'] }} {{ $deskClock['since'] }}@endif
                     </span>
@@ -80,7 +80,7 @@
                     @endif
                 </div>
             @endif
-            <div style="display: flex; align-items: center; gap: 8px; padding: 7px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #1F9D6B;"></span>{{ $today }}</div>
+            <div class="wf-hdr-ctl" style="display: flex; align-items: center; gap: 8px; padding: 7px 13px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 13px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #1F9D6B;"></span>{{ $today }}</div>
         </div>
 
         <div class="wf-content" style="flex: 1; padding: 26px 30px; overflow: auto;">
