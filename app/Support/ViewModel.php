@@ -247,6 +247,20 @@ class ViewModel
             ];
         })->values()->all();
 
+        // ---- site geofences (location + radius) ----
+        $scopedSites = $s['site'] === 'all' ? $sites : $sites->filter(fn ($st) => $st->id === $s['site'])->values();
+        $siteCards = $scopedSites->map(fn ($st) => [
+            'id' => $st->id, 'name' => $st->name, 'city' => $st->city, 'gc' => $st->gc,
+            'hasGeo' => $st->lat !== null && $st->lng !== null,
+            'lat' => $st->lat, 'lng' => $st->lng,
+            'radius' => (int) ($st->radius_m ?: Geo::DEFAULT_RADIUS_M),
+            'coords' => $st->lat !== null && $st->lng !== null
+                ? number_format((float) $st->lat, 5).', '.number_format((float) $st->lng, 5)
+                : null,
+        ])->all();
+        $siteModalId = $s['siteModal'] ?? null;
+        $siteModal = $siteModalId ? ($siteById->get($siteModalId)) : null;
+
         // ---- badge wizard ----
         $ext = ['gc' => 'HOFFMAN', 'company' => 'Sonoran MEP', 'last' => 'MARTÍNEZ', 'first' => 'CARLOS', 'role' => 'ELECTRICIAN', 'issued' => '03/14/2026'];
         $nfcUid = $s['nfcUid'];
@@ -563,6 +577,12 @@ class ViewModel
                 'editingTeam' => (bool) ($s['editTeamId'] ?? null),
                 'delCompanyName' => ($s['deleteCompanyId'] ?? null) ? $companyName($s['deleteCompanyId']) : null,
                 'delTeamName' => ($s['deleteTeamId'] ?? null) ? (optional($teamById->get($s['deleteTeamId']))->name ?? '—') : null,
+                'sites' => $siteCards,
+                'siteModal' => $siteModal ? [
+                    'id' => $siteModal->id,
+                    'name' => trim($siteModal->name.($siteModal->city ? ' · '.$siteModal->city : '')),
+                ] : null,
+                'siteLat' => $s['siteLat'] ?? '', 'siteLng' => $s['siteLng'] ?? '', 'siteRadius' => $s['siteRadius'] ?? '',
             ],
             // badge
             'badge' => [

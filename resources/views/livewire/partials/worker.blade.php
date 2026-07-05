@@ -44,7 +44,19 @@
                                 @if($clockDone)
                                     <button type="button" disabled style="{{ $clockBtnStyle }}">{{ $L['w_workDone'] }}</button>
                                 @else
-                                    <button wire:click="doClock" style="{{ $clockBtnStyle }}">{{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}</button>
+                                    {{-- capture GPS on tap; clock proceeds even if permission is denied (coords → null) --}}
+                                    <button type="button" x-data
+                                        @click="
+                                            const go = (la, ln, ac) => $wire.doClock(la, ln, ac);
+                                            if (navigator.geolocation) {
+                                                navigator.geolocation.getCurrentPosition(
+                                                    p => go(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+                                                    () => go(null, null, null),
+                                                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                                                );
+                                            } else { go(null, null, null); }
+                                        "
+                                        style="{{ $clockBtnStyle }}">{{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}</button>
                                 @endif
                             </div>
                             @if($clockedIn)

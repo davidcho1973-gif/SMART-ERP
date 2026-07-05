@@ -13,6 +13,7 @@ use App\Models\Site;
 use App\Models\Team;
 use App\Services\BadgeAnalyzer;
 use App\Support\Comms;
+use App\Support\Geo;
 use App\Support\Payroll;
 use App\Support\Qr;
 use App\Support\Shift;
@@ -143,6 +144,15 @@ class WorkforceApp extends Component
     public ?string $deleteCompanyId = null;  // pending company deletion
 
     public ?string $deleteTeamId = null;     // pending team deletion
+
+    // ---- site geofence (location + radius) editor ----
+    public ?string $siteModal = null;  // site id being edited
+
+    public string $siteLat = '';
+
+    public string $siteLng = '';
+
+    public string $siteRadius = '';
 
     // ---- attendance ----
     public string $attView = 'records';   // records | qr
@@ -1098,6 +1108,58 @@ class WorkforceApp extends Component
         Team::where('id', $teamId)->update(['lead' => (int) $leadId]);
     }
 
+    // =================== site geofence ===================
+
+    public function openSiteModal(string $id): void
+    {
+        $site = Site::find($id);
+        if (! $site) {
+            return;
+        }
+        $this->siteModal = $id;
+        $this->siteLat = $site->lat !== null ? (string) $site->lat : '';
+        $this->siteLng = $site->lng !== null ? (string) $site->lng : '';
+        $this->siteRadius = (string) ($site->radius_m ?: Geo::DEFAULT_RADIUS_M);
+    }
+
+    public function cancelSiteModal(): void
+    {
+        $this->siteModal = null;
+    }
+
+    /** Fill the lat/lng fields from the admin's current position ("현재 위치로 설정"). */
+    public function setSiteCurrentLocation(float|string|null $lat, float|string|null $lng): void
+    {
+        if ($lat !== null && $lat !== '') {
+            $this->siteLat = (string) round((float) $lat, 7);
+        }
+        if ($lng !== null && $lng !== '') {
+            $this->siteLng = (string) round((float) $lng, 7);
+        }
+        $this->showToast($this->dict()['pj_geoCaptured']);
+    }
+
+    public function saveSiteGeo(): void
+    {
+        if (! $this->canManage() || ! $this->siteModal) {
+            return;
+        }
+        $site = Site::find($this->siteModal);
+        if (! $site) {
+            return;
+        }
+        $lat = trim($this->siteLat);
+        $lng = trim($this->siteLng);
+        $radius = (int) $this->siteRadius;
+        $site->update([
+            'lat' => $lat !== '' ? (float) $lat : null,
+            'lng' => $lng !== '' ? (float) $lng : null,
+            'radius_m' => $radius > 0 ? $radius : Geo::DEFAULT_RADIUS_M,
+        ]);
+        $this->siteModal = null;
+        $this->showToast($this->dict()['pj_saved'].' ✓');
+    }
+
     // =================== badge wizard ===================
 
     public function startScanF(): void
@@ -1500,7 +1562,12 @@ class WorkforceApp extends Component
         }
     }
 
-    public function doClock(): void
+    /**
+     * Worker-mobile clock. GPS lat/lng/accuracy are captured by the browser when the
+     * button is tapped and passed in — null when permission is denied or unavailable.
+     * The punch is recorded regardless; out-of-radius fixes are flagged, not blocked.
+     */
+    public function doClock(float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
     {
         $eid = $this->meEmployeeId();
         $me = Employee::find($eid);
@@ -1515,6 +1582,11 @@ class WorkforceApp extends Component
             return;
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        $site = $me && $me->site_id ? Site::find($me->site_id) : null;
+        [, $geoOk] = Geo::verifySite($site, $lat, $lng);
+        $coords = $lat !== null && $lng !== null && $lat !== '' && $lng !== ''
+            ? ['lat' => (float) $lat, 'lng' => (float) $lng, 'acc' => $acc !== null && $acc !== '' ? (float) $acc : null]
+            : null;
         if ($p->in_min === null) {
             // first clock-in of the day
             $this->clock = 'in';
@@ -1523,6 +1595,10 @@ class WorkforceApp extends Component
             $p->out_min = null;
             $p->no_lunch = $this->noLunchToday;
             $p->source = 'worker';
+            $p->in_lat = $coords['lat'] ?? null;
+            $p->in_lng = $coords['lng'] ?? null;
+            $p->in_acc = $coords['acc'] ?? null;
+            $p->in_geo_ok = $geoOk;
             $p->save();
             $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_in']);
@@ -1531,6 +1607,10 @@ class WorkforceApp extends Component
             $this->clock = 'done';
             $p->out_min = $nowMin;
             $p->source = 'worker';
+            $p->out_lat = $coords['lat'] ?? null;
+            $p->out_lng = $coords['lng'] ?? null;
+            $p->out_acc = $coords['acc'] ?? null;
+            $p->out_geo_ok = $geoOk;
             $p->save();
             $me?->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_out']);
@@ -1642,6 +1722,7 @@ class WorkforceApp extends Component
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
             'editCompanyId' => $this->editCompanyId, 'editTeamId' => $this->editTeamId,
             'deleteCompanyId' => $this->deleteCompanyId, 'deleteTeamId' => $this->deleteTeamId,
+            'siteModal' => $this->siteModal, 'siteLat' => $this->siteLat, 'siteLng' => $this->siteLng, 'siteRadius' => $this->siteRadius,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,
             'attView' => $this->attView, 'attDate' => $this->attDate ?: now()->format('Y-m-d'),

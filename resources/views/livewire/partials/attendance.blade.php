@@ -46,7 +46,15 @@
                     <tr style="border-top: 1px solid #F2F0EA;">
                         <td style="padding: 11px 14px; color: #5A5D64;">{{ $r['company'] }}</td>
                         <td style="padding: 11px 14px;"><span style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $r['teamColor'] }};"></span>{{ $r['team'] }}</span></td>
-                        <td style="padding: 11px 14px; font-weight: 600;">{{ $r['name'] }}</td>
+                        <td style="padding: 11px 14px; font-weight: 600;">
+                            {{ $r['name'] }}
+                            @if(!empty($r['geoOff']))
+                                <span title="{{ $L['ts_offsiteHint'] }}" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #FBE9E7; color: #C0522B; vertical-align: middle;">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2"/></svg>
+                                    {{ $L['ts_offsite'] }}@if($r['geoDist'] !== null) ({{ $r['geoDist'] }}m)@endif
+                                </span>
+                            @endif
+                        </td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk';">{{ $r['actIn'] }}</td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk';">@if($r['onDuty'])<span style="color: #1F9D6B; font-weight: 600;">{{ $L['ts_onduty'] }}</span>@else{{ $r['actOut'] }}@endif</td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidIn'] }}</td>

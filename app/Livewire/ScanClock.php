@@ -5,7 +5,9 @@ namespace App\Livewire;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Punch;
+use App\Models\Site;
 use App\Models\Team;
+use App\Support\Geo;
 use App\Support\Shift;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -91,7 +93,22 @@ class ScanClock extends Component
         $this->toast = null;
     }
 
-    public function doClock(): void
+    /** The site behind the scanned crew's QR (crew → company → site). */
+    protected function scannedSite(): ?Site
+    {
+        $team = Team::find($this->teamId);
+        $company = $team ? Company::find($team->company_id) : null;
+
+        return $company ? $company->site : null;
+    }
+
+    /**
+     * Record a clock punch. GPS coordinates (lat/lng/accuracy) are captured by the
+     * browser when the button is pressed and passed straight in — null when the
+     * worker denied permission or the device has no fix. Attendance is never blocked;
+     * out-of-radius punches are still recorded, just flagged geo_ok = false.
+     */
+    public function doClock(float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
     {
         $emp = $this->me();
         if (! $emp) {
@@ -108,12 +125,20 @@ class ScanClock extends Component
             return;
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        [, $geoOk] = Geo::verifySite($this->scannedSite(), $lat, $lng);
+        $coords = $lat !== null && $lng !== null && $lat !== '' && $lng !== ''
+            ? ['lat' => (float) $lat, 'lng' => (float) $lng, 'acc' => $acc !== null && $acc !== '' ? (float) $acc : null]
+            : null;
         if ($p->in_min === null) {
             $this->clock = 'in';
             $this->clockInTime = Shift::fmtMin($nowMin);
             $p->in_min = $nowMin;
             $p->out_min = null;
             $p->source = 'qr';
+            $p->in_lat = $coords['lat'] ?? null;
+            $p->in_lng = $coords['lng'] ?? null;
+            $p->in_acc = $coords['acc'] ?? null;
+            $p->in_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->toast = $d['w_done_in'];
@@ -121,6 +146,10 @@ class ScanClock extends Component
             $this->clock = 'done';
             $p->out_min = $nowMin;
             $p->source = 'qr';
+            $p->out_lat = $coords['lat'] ?? null;
+            $p->out_lng = $coords['lng'] ?? null;
+            $p->out_acc = $coords['acc'] ?? null;
+            $p->out_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
             $this->toast = $d['w_done_out'];

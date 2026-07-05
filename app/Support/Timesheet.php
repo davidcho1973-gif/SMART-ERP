@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Punch;
+use App\Models\Site;
 use App\Models\Team;
 use Illuminate\Support\Carbon;
 
@@ -22,6 +23,7 @@ class Timesheet
     {
         $teams = Team::all()->keyBy('id');
         $companies = Company::all()->keyBy('id');
+        $sites = Site::all()->keyBy('id');
         $teamName = fn ($tid) => optional($teams->get($tid))->name ?? '—';
         $companyName = fn ($cid) => optional($companies->get($cid))->name ?? '—';
         $teamColor = fn ($tid) => optional($teams->get($tid))->color ?? '#9AA0A6';
@@ -69,12 +71,16 @@ class Timesheet
                 $otNum = max(0, $paid - 8);
                 $regTotal += $regNum;
                 $otTotal += $otNum;
-                $regStr = number_format($regNum, 1) . 'h';
-                $otStr = $otNum > 0.05 ? number_format($otNum, 1) . 'h' : '—';
+                $regStr = number_format($regNum, 1).'h';
+                $otStr = $otNum > 0.05 ? number_format($otNum, 1).'h' : '—';
             }
             if ($inMin !== null) {
                 $present++;
             }
+
+            // off-site flag: any punch leg recorded outside the site geofence.
+            // Distance is recomputed from stored coords for the reviewer badge.
+            [$geoOff, $geoDist] = self::geoReview($p, $sites->get($e->site_id));
 
             $rows[] = [
                 'company' => $companyName($e->company_id),
@@ -86,17 +92,49 @@ class Timesheet
                 'reg' => $regStr, 'ot' => $otStr,
                 'regNum' => round($regNum, 2), 'otNum' => round($otNum, 2),
                 'onDuty' => $inMin !== null && $outMin === null,
+                'geoOff' => $geoOff, 'geoDist' => $geoDist,
             ];
         }
 
+        return self::totals($date, $rows, $regTotal, $otTotal, $present);
+    }
+
+    /**
+     * Off-site review for a punch: was any leg recorded outside the site geofence?
+     *
+     * @return array{0: bool, 1: int|null} [off-site flag, worst distance in metres]
+     */
+    protected static function geoReview(?Punch $p, ?Site $site): array
+    {
+        if (! $p) {
+            return [false, null];
+        }
+        $off = false;
+        $dist = null;
+        foreach ([['in_geo_ok', 'in_lat', 'in_lng'], ['out_geo_ok', 'out_lat', 'out_lng']] as [$okC, $latC, $lngC]) {
+            if ($p->$okC === false) {
+                $off = true;
+                if ($site && $site->lat !== null && $p->$latC !== null && $p->$lngC !== null) {
+                    $d = Geo::distanceMeters((float) $site->lat, (float) $site->lng, (float) $p->$latC, (float) $p->$lngC);
+                    $dist = $dist === null ? $d : max($dist, $d);
+                }
+            }
+        }
+
+        return [$off, $dist !== null ? (int) round($dist) : null];
+    }
+
+    /** Assemble the timesheet return payload. */
+    protected static function totals(string $date, array $rows, float $regTotal, float $otTotal, int $present): array
+    {
         return [
             'date' => $date,
             'dateLabel' => Carbon::parse($date)->format('D · M j, Y'),
             'rows' => $rows,
             'count' => count($rows),
             'present' => $present,
-            'regTotal' => number_format($regTotal, 1) . 'h',
-            'otTotal' => number_format($otTotal, 1) . 'h',
+            'regTotal' => number_format($regTotal, 1).'h',
+            'otTotal' => number_format($otTotal, 1).'h',
             'regNum' => round($regTotal, 2),
             'otNum' => round($otTotal, 2),
         ];

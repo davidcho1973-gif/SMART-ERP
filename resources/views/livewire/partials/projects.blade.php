@@ -1,5 +1,32 @@
 {{-- ============ PROJECTS / SITES & COMPANIES ============ --}}
 <div>
+    {{-- site geofences: location + radius used to verify on-site clock-ins --}}
+    @if(!empty($projects['sites']))
+        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px 20px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                <span style="font-size: 15px; font-weight: 700;">{{ $L['pj_siteGeo'] }}</span>
+            </div>
+            <div style="font-size: 12px; color: #8A8880; margin-bottom: 14px; line-height: 1.4;">{{ $L['pj_siteGeoHint'] }}</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;">
+                @foreach($projects['sites'] as $st)
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 14px; font-weight: 600;">{{ $st['name'] }}</div>
+                            <div style="font-size: 12px; color: #8A8880; margin-top: 2px;">{{ $st['city'] }}</div>
+                            @if($st['hasGeo'])
+                                <div style="font-size: 11.5px; color: #1F9D6B; margin-top: 4px; font-family: 'Space Grotesk';">{{ $st['coords'] }} · {{ $L['pj_radius'] }} {{ $st['radius'] }}m</div>
+                            @else
+                                <div style="font-size: 11.5px; color: #C0522B; margin-top: 4px;">{{ $L['pj_noGeo'] }}</div>
+                            @endif
+                        </div>
+                        <button wire:click="openSiteModal('{{ $st['id'] }}')" style="padding: 8px 13px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_setLocation'] }}</button>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div style="display: flex; align-items: center; margin-bottom: 18px;">
         <div style="flex: 1;"></div>
         <button wire:click="openCompanyModal" style="padding: 11px 18px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_create'] }}</button>
@@ -86,6 +113,42 @@
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelDeleteCompany" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
                 <button wire:click="confirmDeleteCompany" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #D9483B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_confirmDelete'] }}</button>
+            </div>
+        </div>
+    </div>
+@endif
+
+{{-- site geofence (location + radius) modal --}}
+@if($projects['siteModal'])
+    <div style="position: fixed; inset: 0; z-index: 72; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div style="width: 420px; max-width: 100%; background: #fff; border-radius: 18px; padding: 26px;">
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['pj_siteLocT'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 18px;">{{ $projects['siteModal']['name'] }}</div>
+
+            {{-- use my current position ("현재 위치로 설정") --}}
+            <button type="button" x-data
+                @click="
+                    if (!navigator.geolocation) return;
+                    $el.disabled = true;
+                    navigator.geolocation.getCurrentPosition(
+                        p => { $wire.setSiteCurrentLocation(p.coords.latitude, p.coords.longitude); $el.disabled = false; },
+                        () => { $el.disabled = false; },
+                        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                    );
+                "
+                style="width: 100%; padding: 12px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>{{ $L['pj_useCurrent'] }}
+            </button>
+
+            <div style="display: flex; gap: 10px;">
+                <label style="flex: 1;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_lat'] }}</span><input wire:model="siteLat" placeholder="33.78380" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                <label style="flex: 1;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_lng'] }}</span><input wire:model="siteLng" placeholder="-112.15000" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+            </div>
+            <label style="display: block; margin-top: 14px;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_radiusM'] }}</span><input wire:model="siteRadius" type="number" min="10" placeholder="150" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+
+            <div style="display: flex; gap: 10px; margin-top: 22px;">
+                <button wire:click="cancelSiteModal" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
+                <button wire:click="saveSiteGeo" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_saveEdit'] }}</button>
             </div>
         </div>
     </div>

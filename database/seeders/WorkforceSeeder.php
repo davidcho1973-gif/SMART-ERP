@@ -19,7 +19,7 @@ class WorkforceSeeder extends Seeder
         }
 
         foreach ([
-            ['id' => 's1', 'name' => 'TSMC Fab 21', 'city' => 'Phoenix, AZ', 'gc' => 'Hoffman', 'code' => 'AZ-P21'],
+            ['id' => 's1', 'name' => 'TSMC Fab 21', 'city' => 'Phoenix, AZ', 'gc' => 'Hoffman', 'code' => 'AZ-P21', 'lat' => 33.7838000, 'lng' => -112.1500000, 'radius_m' => 150],
             ['id' => 's2', 'name' => 'Intel Ocotillo', 'city' => 'Chandler, AZ', 'gc' => 'Hoffman', 'code' => 'AZ-OCO'],
             ['id' => 's3', 'name' => 'Samsung Taylor', 'city' => 'Taylor, TX', 'gc' => 'Hoffman', 'code' => 'TX-TAY'],
         ] as $row) {
