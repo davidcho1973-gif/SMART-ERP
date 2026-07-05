@@ -11,6 +11,7 @@ use App\Models\User;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -133,6 +134,43 @@ class GpsAttendanceTest extends TestCase
         $this->assertSame(33.3, (float) $s->lat);
         $this->assertSame(-111.9, (float) $s->lng);
         $this->assertSame(200, $s->radius_m);
+    }
+
+    public function test_admin_can_geocode_a_site_address(): void
+    {
+        Http::fake([
+            'nominatim.openstreetmap.org/*' => Http::response([
+                ['lat' => '33.3528264', 'lon' => '-111.7890239', 'display_name' => 'Gilbert, AZ'],
+            ]),
+        ]);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('openSiteModal', 's2')
+            ->set('siteAddress', '123 Main St, Gilbert, AZ')
+            ->call('geocodeSiteAddress')
+            ->assertSet('siteLat', '33.3528264')
+            ->assertSet('siteLng', '-111.7890239')
+            ->set('siteRadius', '120')
+            ->call('saveSiteGeo');
+
+        $s = Site::find('s2');
+        $this->assertSame(33.3528264, (float) $s->lat);
+        $this->assertSame(-111.7890239, (float) $s->lng);
+        $this->assertSame(120, $s->radius_m);
+    }
+
+    public function test_geocode_miss_leaves_coords_untouched(): void
+    {
+        Http::fake(['nominatim.openstreetmap.org/*' => Http::response([])]); // no match
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('openSiteModal', 's2')
+            ->set('siteAddress', 'nowhere at all zzz')
+            ->call('geocodeSiteAddress')
+            ->assertSet('siteLat', '')   // unchanged — manual entry still possible
+            ->assertSet('siteLng', '');
     }
 
     public function test_open_site_modal_defaults_radius_when_unset(): void

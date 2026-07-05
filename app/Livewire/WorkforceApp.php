@@ -19,6 +19,7 @@ use App\Support\Qr;
 use App\Support\Shift;
 use App\Support\ViewModel;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -153,6 +154,8 @@ class WorkforceApp extends Component
     public string $siteLng = '';
 
     public string $siteRadius = '';
+
+    public string $siteAddress = '';
 
     // ---- attendance ----
     public string $attView = 'records';   // records | qr
@@ -1120,6 +1123,7 @@ class WorkforceApp extends Component
         $this->siteLat = $site->lat !== null ? (string) $site->lat : '';
         $this->siteLng = $site->lng !== null ? (string) $site->lng : '';
         $this->siteRadius = (string) ($site->radius_m ?: Geo::DEFAULT_RADIUS_M);
+        $this->siteAddress = '';
     }
 
     public function cancelSiteModal(): void
@@ -1137,6 +1141,41 @@ class WorkforceApp extends Component
             $this->siteLng = (string) round((float) $lng, 7);
         }
         $this->showToast($this->dict()['pj_geoCaptured']);
+    }
+
+    /**
+     * Geocode the typed address to lat/lng via OpenStreetMap Nominatim (keyless).
+     * The admin can then adjust the radius and save. Failures just toast — the
+     * manual lat/lng fields remain available as a fallback.
+     */
+    public function geocodeSiteAddress(): void
+    {
+        if (! $this->canManage()) {
+            return;
+        }
+        $q = trim($this->siteAddress);
+        if ($q === '') {
+            return;
+        }
+        $hit = null;
+        try {
+            $res = Http::withHeaders(['User-Agent' => 'SMART-ERP/1.0 (site attendance geofence)'])
+                ->timeout(8)
+                ->get('https://nominatim.openstreetmap.org/search', [
+                    'q' => $q, 'format' => 'jsonv2', 'limit' => 1,
+                ]);
+            $hit = $res->successful() ? ($res->json()[0] ?? null) : null;
+        } catch (\Throwable) {
+            $hit = null;
+        }
+        if (! $hit || ! isset($hit['lat'], $hit['lon'])) {
+            $this->showToast($this->dict()['pj_geoNotFound']);
+
+            return;
+        }
+        $this->siteLat = (string) round((float) $hit['lat'], 7);
+        $this->siteLng = (string) round((float) $hit['lon'], 7);
+        $this->showToast($this->dict()['pj_geoFound']);
     }
 
     public function saveSiteGeo(): void

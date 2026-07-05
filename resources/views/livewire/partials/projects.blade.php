@@ -136,9 +136,26 @@
                         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
                     );
                 "
-                style="width: 100%; padding: 12px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">
+                style="width: 100%; padding: 12px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>{{ $L['pj_useCurrent'] }}
             </button>
+
+            {{-- or: look up an address (geocoded to lat/lng) --}}
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <span style="flex: 1; height: 1px; background: #EDEBE4;"></span>
+                <span style="font-size: 11px; color: #A7A49B; text-transform: uppercase; letter-spacing: 0.04em;">{{ $L['pj_or'] }}</span>
+                <span style="flex: 1; height: 1px; background: #EDEBE4;"></span>
+            </div>
+            <label style="display: block; margin-bottom: 16px;">
+                <span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_address'] }}</span>
+                <div style="display: flex; gap: 8px; margin-top: 5px;">
+                    <input wire:model="siteAddress" wire:keydown.enter.prevent="geocodeSiteAddress" placeholder="{{ $L['pj_addressPh'] }}" style="flex: 1; min-width: 0; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/>
+                    <button wire:click="geocodeSiteAddress" wire:loading.attr="disabled" wire:target="geocodeSiteAddress" style="padding: 11px 16px; border: 1px solid #E4E2DB; border-radius: 10px; background: #FAFAF8; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                        <span wire:loading.remove wire:target="geocodeSiteAddress">{{ $L['pj_lookup'] }}</span>
+                        <span wire:loading wire:target="geocodeSiteAddress">…</span>
+                    </button>
+                </div>
+            </label>
 
             <div style="display: flex; gap: 10px;">
                 <label style="flex: 1;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_lat'] }}</span><input wire:model="siteLat" placeholder="33.78380" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
