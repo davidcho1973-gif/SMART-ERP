@@ -551,17 +551,27 @@ class WorkforceApp extends Component
     /** Add a company-involvement assignment to the selected employee. */
     public function addAssignment(): void
     {
-        if (! $this->canManage() || ! $this->selectedEmp || $this->newAssignCompany === '') {
+        if (! $this->canManage() || ! $this->selectedEmp) {
             return;
         }
-        \App\Models\Assignment::create([
-            'employee_id' => $this->selectedEmp,
-            'company_id' => $this->newAssignCompany,
-            'team_id' => $this->newAssignTeam !== '' ? $this->newAssignTeam : null,
-            'relation' => trim($this->newAssignRelation) !== '' ? trim($this->newAssignRelation) : '파견',
-        ]);
+        if ($this->newAssignCompany === '') {
+            $this->showToast($this->dict()['e_involveNeedCompany']);
+            return;
+        }
+        try {
+            \App\Models\Assignment::create([
+                'employee_id' => $this->selectedEmp,
+                'company_id' => $this->newAssignCompany,
+                'team_id' => $this->newAssignTeam !== '' ? $this->newAssignTeam : null,
+                'relation' => trim($this->newAssignRelation) !== '' ? trim($this->newAssignRelation) : '파견',
+            ]);
+        } catch (\Throwable) {
+            $this->showToast($this->dict()['e_involveSaveFail']);
+            return;
+        }
         $this->reset(['newAssignCompany', 'newAssignTeam']);
         $this->newAssignRelation = '파견';
+        $this->showToast($this->dict()['e_involveAdded']);
     }
 
     public function removeAssignment(int $id): void
