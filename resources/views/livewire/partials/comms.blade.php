@@ -256,14 +256,25 @@
         <div x-data="{
                 raw: '',
                 listening: false,
+                wantListen: false,   {{-- true from tap-start until tap-stop: silence never ends the session --}}
                 rec: null,
                 micLang: '{{ $C['speechLang'] }}',
                 supported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
-                setLang(l) { this.micLang = l; if (this.listening) this.rec?.stop(); },
+                setLang(l) {
+                    this.micLang = l;
+                    // switching language mid-dictation: stop the current recognizer;
+                    // wantListen stays true so onend restarts it in the new language
+                    if (this.listening) { try { this.rec?.stop(); } catch (e) {} }
+                },
+                stopMic() { this.wantListen = false; this.listening = false; try { this.rec?.stop(); } catch (e) {} },
                 toggle() {
-                    if (this.listening) { this.rec?.stop(); return; }
+                    if (this.listening) { this.stopMic(); return; }
+                    this.wantListen = true;
+                    this.startRec();
+                },
+                startRec() {
                     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                    if (!SR) return;
+                    if (!SR) { this.wantListen = false; return; }
                     this.rec = new SR();
                     this.rec.lang = this.micLang;
                     this.rec.continuous = true;
@@ -276,17 +287,31 @@
                             }
                         }
                     };
-                    this.rec.onend = () => { this.listening = false; };
-                    this.rec.onerror = () => { this.listening = false; };
-                    this.rec.start();
-                    this.listening = true;
+                    this.rec.onerror = (e) => {
+                        // mic permission problems end the session for real; silence does not
+                        if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
+                            this.wantListen = false;
+                        }
+                    };
+                    this.rec.onend = () => {
+                        // the browser auto-stops after a pause — restart (fresh recognizer, current
+                        // language) until the reporter taps stop, so thinking time mid-report
+                        // never kills the dictation
+                        if (this.wantListen) {
+                            setTimeout(() => { if (this.wantListen) this.startRec(); }, 150);
+                        } else {
+                            this.listening = false;
+                        }
+                    };
+                    try { this.rec.start(); this.listening = true; }
+                    catch (e) { this.listening = false; this.wantListen = false; }
                 }
             }"
             style="width: 500px; max-width: 100%; max-height: 92vh; overflow-y: auto; background: #fff; border-radius: 18px; padding: 24px;">
 
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
                 <div style="font-size: 17px; font-weight: 700;">{{ $lab['reportTitle'] }}</div>
-                <button wire:click="closeReport" x-on:click="rec?.stop()" style="border: none; background: transparent; font-size: 22px; line-height: 1; color: #8A8880; cursor: pointer;">×</button>
+                <button wire:click="closeReport" x-on:click="stopMic()" style="border: none; background: transparent; font-size: 22px; line-height: 1; color: #8A8880; cursor: pointer;">×</button>
             </div>
             <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 16px;">{{ $lab['reportHint'] }}</div>
 
@@ -315,8 +340,8 @@
                     style="width: 100%; margin-top: 12px; padding: 12px 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6; outline: none; background: #FAFAF8; resize: vertical;"></textarea>
 
                 <div style="display: flex; gap: 10px; margin-top: 14px;">
-                    <button wire:click="closeReport" x-on:click="rec?.stop()" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
-                    <button x-on:click="rec?.stop(); $wire.generateReport(raw)" wire:loading.attr="disabled" wire:target="generateReport"
+                    <button wire:click="closeReport" x-on:click="stopMic()" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                    <button x-on:click="stopMic(); $wire.generateReport(raw)" wire:loading.attr="disabled" wire:target="generateReport"
                         style="flex: 1.5; padding: 12px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">
                         <span wire:loading.remove wire:target="generateReport">✨ {{ $lab['reportGen'] }}</span>
                         <span wire:loading wire:target="generateReport">{{ $lab['reportGenBusy'] }}</span>
