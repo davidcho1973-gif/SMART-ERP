@@ -11,9 +11,19 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Production seeds ONLY the admin account — never the demo workforce
+     * (fake employees, punches, chat history). Staging/local/demo get the
+     * full demo dataset as before.
      */
     public function run(): void
     {
+        if (app()->environment('production') && ! config('workforce.demo')) {
+            $this->call(UserSeeder::class);
+
+            return;
+        }
+
         $this->call(WorkforceSeeder::class);
         $this->call(UserSeeder::class);
         $this->call(AttendanceHistorySeeder::class);
