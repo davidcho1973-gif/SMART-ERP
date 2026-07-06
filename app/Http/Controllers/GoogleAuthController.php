@@ -16,7 +16,9 @@ class GoogleAuthController extends Controller
             return redirect('/?auth=unconfigured');
         }
 
-        return Socialite::driver('google')->redirect();
+        // always show Google's account chooser — otherwise Google silently reuses
+        // the last-used account, which strands people who have several accounts
+        return Socialite::driver('google')->with(['prompt' => 'select_account'])->redirect();
     }
 
     public function callback()
