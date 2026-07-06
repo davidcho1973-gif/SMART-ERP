@@ -162,6 +162,85 @@ class ViewModel
             ];
         }
 
+        // ---- dashboard: GPS off-site · pending corrections · per-site cards ----
+        $today = now()->format('Y-m-d');
+        $fmtDist = fn (?float $m) => $m === null ? null : ($m >= 1000 ? number_format($m / 1000, 1).'km' : ((int) round($m)).'m');
+
+        // today's off-site clock-ins (a punch leg recorded outside the site geofence)
+        $offList = [];
+        foreach (Punch::where('work_date', $today)->get() as $pn) {
+            $e = $activeAll->firstWhere('id', $pn->employee_id);
+            if (! $e || ($s['site'] !== 'all' && $e->site_id !== $s['site'])) {
+                continue;
+            }
+            $legs = [];
+            if ($pn->in_geo_ok === false) {
+                $legs[] = [$pn->in_lat, $pn->in_lng];
+            }
+            if ($pn->out_geo_ok === false) {
+                $legs[] = [$pn->out_lat, $pn->out_lng];
+            }
+            if (! $legs) {
+                continue;
+            }
+            $site = $siteById->get($e->site_id);
+            $dist = null;
+            foreach ($legs as [$la, $ln]) {
+                if ($site && $site->lat !== null && $la !== null && $ln !== null) {
+                    $dd = Geo::distanceMeters((float) $site->lat, (float) $site->lng, (float) $la, (float) $ln);
+                    $dist = $dist === null ? $dd : max($dist, $dd);
+                }
+            }
+            $offList[] = [
+                'name' => $empName($e), 'team' => $teamName($e->team_id),
+                'siteId' => $e->site_id, 'site' => $site->name ?? '—',
+                'dist' => $fmtDist($dist),
+                'time' => $pn->in_min !== null ? Shift::fmtMin($pn->in_min) : '—',
+            ];
+        }
+        $offCount = count($offList);
+
+        // pending correction requests awaiting a decision
+        $pendCorr = AttendanceCorrection::where('status', 'pending')->orderBy('created_at')->get()
+            ->map(function ($c) use ($employees, $empName, $teamName) {
+                $e = $employees->firstWhere('id', $c->employee_id);
+
+                return [
+                    'name' => $e ? $empName($e) : '#'.$c->employee_id,
+                    'siteId' => $e->site_id ?? null,
+                    'team' => $e ? $teamName($e->team_id) : '—',
+                    'date' => Carbon::parse($c->work_date)->format('M j'),
+                    'isDelete' => $c->type === 'delete',
+                    'reqIn' => $c->req_in_min !== null ? Shift::fmtMin($c->req_in_min) : '—',
+                    'reqOut' => $c->req_out_min !== null ? Shift::fmtMin($c->req_out_min) : '—',
+                ];
+            });
+        if ($s['site'] !== 'all') {
+            $pendCorr = $pendCorr->filter(fn ($c) => $c['siteId'] === $s['site'])->values();
+        }
+        $pendCount = $pendCorr->count();
+
+        // per-site summary cards (site-centric roll-up)
+        $offBySite = collect($offList)->groupBy('siteId')->map->count();
+        $cardSites = $s['site'] === 'all' ? $visibleSites : $visibleSites->where('id', $s['site']);
+        $dashSiteCards = $cardSites->map(function ($st) use ($activeAll, $offBySite, $pendCorr, $hoursFor) {
+            $emps = $activeAll->filter(fn ($e) => $e->site_id === $st->id);
+            $onsite = $emps->filter(fn ($e) => in_array($e->status, ['present', 'late'], true))->count();
+            $total = $emps->count();
+            $pay = $emps->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate));
+
+            return [
+                'name' => $st->name, 'city' => $st->city,
+                'onsite' => $onsite, 'total' => $total,
+                'pct' => $total ? (int) round($onsite / $total * 100) : 0,
+                'crews' => $emps->pluck('team_id')->filter()->unique()->count(),
+                'off' => (int) ($offBySite[$st->id] ?? 0),
+                'fixes' => $pendCorr->where('siteId', $st->id)->count(),
+                'pay' => Money::usd($pay),
+                'hasGeo' => $st->lat !== null,
+            ];
+        })->values()->all();
+
         // ---- employees ----
         $q = strtolower(trim($s['search']));
         $pool = $siteScope($employees);
@@ -632,6 +711,9 @@ class ViewModel
                 'periodPay' => Money::usd($periodPayNum), 'payPeriod' => $periodLabel, 'avgH' => $avgH,
                 'ringDash' => (int) round(2 * M_PI * 52 * (1 - $rate / 100)),
                 'teamStats' => $teamStats, 'companyStats' => $companyStats, 'recent' => $recent,
+                'offCount' => $offCount, 'offList' => array_slice($offList, 0, 5),
+                'pendCount' => $pendCount, 'pendList' => $pendCorr->take(4)->all(),
+                'siteCards' => $dashSiteCards,
             ],
             // employees
             'emp' => [
