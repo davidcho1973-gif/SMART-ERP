@@ -92,6 +92,55 @@ class WorkforceAppTest extends TestCase
         $this->assertNotNull(Company::find($e->company_id)); // and it's a real company
     }
 
+    public function test_registration_stores_the_selected_app_language(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Ana')
+            ->set('regLast', 'Lingua')
+            ->set('regTeam', 't1')
+            ->set('nfcUidManual', 'AA:BB:CC:44:55:66')
+            ->call('setRegType', 'worker_local')   // suggests es…
+            ->set('regLang', 'en')                 // …but the picker wins
+            ->call('finishBadge');
+
+        $this->assertSame('en', Employee::where('first', 'Ana')->first()->lang);
+    }
+
+    public function test_set_reg_type_suggests_a_language_default(): void
+    {
+        $c = Livewire::test(WorkforceApp::class);
+        $c->call('setRegType', 'worker_ko')->assertSet('regLang', 'ko');
+        $c->call('setRegType', 'worker_local')->assertSet('regLang', 'es');
+        $c->call('setRegType', 'manager')->assertSet('regLang', 'ko');
+    }
+
+    public function test_edit_drawer_saves_the_selected_language(): void
+    {
+        // Carlos (106) is seeded es; switch him to English via the drawer
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('selectEmp', 106)
+            ->assertSet('editForm.lang', 'es')
+            ->set('editForm.lang', 'en')
+            ->call('saveEmp');
+
+        $this->assertSame('en', Employee::find(106)->lang);
+    }
+
+    public function test_login_lands_in_the_employee_registered_language(): void
+    {
+        $this->seed(UserSeeder::class);
+        // Minjun (101) is a site manager whose role-based default would be ko;
+        // his registered language must win over that guess
+        Employee::whereKey(101)->update(['lang' => 'es']);
+        $manager = User::where('email', 'mkim@nahshon.io')->first();
+
+        Livewire::actingAs($manager)
+            ->test(WorkforceApp::class)
+            ->assertSet('lang', 'es');
+    }
+
     public function test_employee_with_stale_crew_is_repaired_on_edit(): void
     {
         $emp = Employee::create([

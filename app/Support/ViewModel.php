@@ -320,6 +320,12 @@ class ViewModel
             ['id' => 'hourly', 'label' => $L['b_ptHourly']],
             ['id' => 'both', 'label' => $L['b_ptBoth']],
         ];
+        // app language for the employee — labels are self-describing, no translation
+        $langOptions = [
+            ['id' => 'es', 'label' => 'Español'],
+            ['id' => 'en', 'label' => 'English'],
+            ['id' => 'ko', 'label' => '한국어'],
+        ];
 
         // ---- projects hub ----
         $scopedCompanies = $s['site'] === 'all' ? $companies : $companies->filter(fn ($c) => $c->site_id === $s['site'])->values();
@@ -742,7 +748,7 @@ class ViewModel
                 'delName' => $delRaw ? $empName($delRaw) : null, 'termName' => $termRaw ? $empName($termRaw) : null,
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
                 'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions,
-                'payTypeOptions' => $payTypeOptions,
+                'payTypeOptions' => $payTypeOptions, 'langOptions' => $langOptions,
                 'accColor' => $accColor,
                 'assignments' => $empAssignments, 'assignTeamOptions' => $assignTeamOptions,
                 'operator' => 'NAHSHON',
@@ -769,7 +775,7 @@ class ViewModel
             'badge' => [
                 'ext' => $ext, 'nfcUid' => $nfcUid, 'nfcId' => $nfcId, 'regEmpId' => $regEmpId, 'faceCrop' => $faceCrop,
                 'regTeamOptions' => $regTeamOptions, 'typeOptions' => $typeOptions,
-                'payTypeOptions' => $payTypeOptions, 'accColor' => $accColor,
+                'payTypeOptions' => $payTypeOptions, 'langOptions' => $langOptions, 'accColor' => $accColor,
             ],
             // attendance
             'att' => [

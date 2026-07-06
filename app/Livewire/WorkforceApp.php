@@ -93,6 +93,8 @@ class WorkforceApp extends Component
 
     public string $regPayType = 'hourly';   // salary | hourly | both
 
+    public string $regLang = 'es';          // app language for the new employee (en | es | ko)
+
     public string $regAccess = 'worker';
 
     // real registration inputs (prefilled by the demo OCR, always editable)
@@ -661,7 +663,7 @@ class WorkforceApp extends Component
             $this->screen = 'worker';
             $this->mobileTab = 'home';
             $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
-            $this->lang = $emp->lang ?? 'es';
+            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true) ? $emp->lang : 'es';
             Comms::ensureRooms();   // worker home board reads announcements + their rooms
             // restore today's clock state from the punch record (out · in · done)
             $p = $this->todayPunch($this->meEmployeeId());
@@ -673,7 +675,12 @@ class WorkforceApp extends Component
         } else {
             $this->role = $this->access;
             $this->screen = 'dashboard';
-            $this->lang = $canon === 'site_manager' ? 'ko' : 'en';
+            // the linked employee's registered language is the app default;
+            // fall back to the old role-based guess when there is no record
+            $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
+            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true)
+                ? $emp->lang
+                : ($canon === 'site_manager' ? 'ko' : 'en');
             $this->pinSiteToScope();
         }
     }
@@ -1218,6 +1225,7 @@ class WorkforceApp extends Component
             'team' => $teamId, 'role' => $e->role, 'rate' => $e->rate,
             'type' => $e->type === 'manager' ? 'manager' : ($e->lang === 'ko' ? 'worker_ko' : 'worker_local'),
             'pay_type' => in_array($e->pay_type, ['salary', 'hourly', 'both'], true) ? $e->pay_type : 'hourly',
+            'lang' => in_array($e->lang, ['en', 'es', 'ko'], true) ? $e->lang : 'es',
             'issued' => $e->issued, 'phone' => $e->phone, 'email' => $e->email,
             'nat' => $e->nat, 'access' => $e->access,
         ];
@@ -1329,7 +1337,9 @@ class WorkforceApp extends Component
                 'pay_type' => in_array($this->editForm['pay_type'] ?? '', ['salary', 'hourly', 'both'], true)
                     ? $this->editForm['pay_type']
                     : $e->pay_type,
-                'lang' => $type === 'worker_local' ? 'es' : 'ko',
+                'lang' => in_array($this->editForm['lang'] ?? '', ['en', 'es', 'ko'], true)
+                    ? $this->editForm['lang']
+                    : $e->lang,
                 'issued' => $this->editForm['issued'] ?? $e->issued,
                 'phone' => $this->editForm['phone'] ?? $e->phone,
                 'email' => $this->editForm['email'] ?? $e->email,
@@ -1926,6 +1936,8 @@ class WorkforceApp extends Component
         $this->regAccess = $v === 'manager' ? 'manager' : 'worker';
         // sensible default: managers & Korean staff are salaried, local workers hourly
         $this->regPayType = ($v === 'manager' || $v === 'worker_ko') ? 'salary' : 'hourly';
+        // suggested app language — still freely changeable in the language select
+        $this->regLang = $v === 'worker_local' ? 'es' : 'ko';
     }
 
     public function setRegAccess(string $lvl): void
@@ -1969,7 +1981,7 @@ class WorkforceApp extends Component
             'role' => trim($this->regRoleTitle),
             'type' => $this->regType === 'manager' ? 'manager' : 'worker',
             'pay_type' => in_array($this->regPayType, ['salary', 'hourly', 'both'], true) ? $this->regPayType : 'hourly',
-            'lang' => $this->regType === 'worker_local' ? 'es' : 'ko',
+            'lang' => in_array($this->regLang, ['en', 'es', 'ko'], true) ? $this->regLang : 'es',
             'access' => $this->grantableAccess(null, $this->regAccess),
             'rate' => (float) ($this->regRate ?: 0),
             'issued' => trim($this->regIssued),
