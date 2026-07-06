@@ -11,8 +11,13 @@ use ZipArchive;
 class Xlsx
 {
     /**
-     * @param  array<int,array{name:string,rows:array<int,array<int,string|int|float>>}>  $sheets
+     * @param  array<int,array{name:string,rows:array<int,array<int,mixed>>}>  $sheets
      * @return string binary .xlsx contents
+     *
+     * A cell value may be:
+     *   - string            → inline text
+     *   - int|float         → numeric cell
+     *   - ['f'=>'SUM(...)'] → formula cell (optional 'v' cached value)
      */
     public static function build(array $sheets): string
     {
@@ -87,7 +92,7 @@ class Xlsx
             $body .= '<row r="' . $rowNum . '">';
             foreach (array_values($cells) as $c => $val) {
                 $ref = self::colLetter($c) . $rowNum;
-                $body .= '<c r="' . $ref . '" t="inlineStr"><is><t xml:space="preserve">' . self::esc((string) $val) . '</t></is></c>';
+                $body .= self::cell($ref, $val);
             }
             $body .= '</row>';
         }
@@ -97,7 +102,23 @@ class Xlsx
             .'<sheetData>' . $body . '</sheetData></worksheet>';
     }
 
-    protected static function colLetter(int $i): string
+    /** Render a single cell, choosing the type from the PHP value. */
+    protected static function cell(string $ref, mixed $val): string
+    {
+        if (is_array($val) && isset($val['f'])) {
+            $cached = isset($val['v']) ? '<v>' . self::esc((string) $val['v']) . '</v>' : '';
+
+            return '<c r="' . $ref . '"><f>' . self::esc((string) $val['f']) . '</f>' . $cached . '</c>';
+        }
+
+        if (is_int($val) || is_float($val)) {
+            return '<c r="' . $ref . '" t="n"><v>' . self::esc((string) $val) . '</v></c>';
+        }
+
+        return '<c r="' . $ref . '" t="inlineStr"><is><t xml:space="preserve">' . self::esc((string) $val) . '</t></is></c>';
+    }
+
+    public static function colLetter(int $i): string
     {
         $s = '';
         $i++;

@@ -15,7 +15,17 @@
             </div>
             <button type="submit" style="padding: 11px 16px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>{{ $L['p_badgeFind'] }}</button>
         </form>
-        <button wire:click="exportPayroll" style="padding: 11px 18px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>{{ $L['p_export'] }}</button>
+        {{-- payroll register export: pick the settlement period + recipients, then download the .xlsx --}}
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #fff; border: 1px solid #E4E2DB; border-radius: 11px; padding: 6px 9px;">
+            <input type="date" wire:model.live="payStart" style="border: none; outline: none; background: #F7F6F2; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-family: 'Space Grotesk'; color: #16181D;">
+            <span style="color: #A7A49B;">–</span>
+            <input type="date" wire:model.live="payEnd" style="border: none; outline: none; background: #F7F6F2; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-family: 'Space Grotesk'; color: #16181D;">
+            <select wire:model.live="payRecipient" title="{{ $L['p_exRecipient'] }}" style="border: 1px solid #E4E2DB; outline: none; background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; color: #16181D; cursor: pointer; max-width: 200px;">
+                @foreach($pay['recipientOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach
+            </select>
+            <a href="/export/payroll?start={{ $payStart }}&end={{ $payEnd }}&recipient={{ urlencode($payRecipient) }}&lang={{ $lang }}"
+               style="padding: 9px 16px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; text-decoration: none;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>{{ $L['p_export'] }}</a>
+        </div>
     </div>
     <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: auto;">
         <div style="display: grid; grid-template-columns: 1.8fr 1.1fr 0.9fr 0.9fr 1.2fr 1.2fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880; min-width: 760px;">

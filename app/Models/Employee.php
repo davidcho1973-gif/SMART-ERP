@@ -8,7 +8,7 @@ class Employee extends Model
 {
     protected $fillable = [
         'emp_id', 'badge_qr', 'badge_photo', 'first', 'last', 'ko', 'nat', 'code',
-        'team_id', 'company_id', 'site_id', 'role', 'type', 'lang', 'access',
+        'team_id', 'company_id', 'site_id', 'role', 'type', 'pay_type', 'lang', 'access',
         'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term',
     ];
 
@@ -35,6 +35,12 @@ class Employee extends Model
     public function isManager(): bool
     {
         return $this->type === 'manager';
+    }
+
+    /** Hourly or salary+hourly workers have their bi-weekly pay calculated; pure salary does not. */
+    public function isHourlyPaid(): bool
+    {
+        return in_array($this->pay_type, ['hourly', 'both'], true);
     }
 
     public function isActive(): bool

@@ -273,6 +273,8 @@ class ViewModel
                 'role' => $e->role, 'rate' => $e->rate,
                 'statusLabel' => $L['st_'.$e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
                 'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
+                'payTypeLabel' => $L['b_pt'.ucfirst($e->pay_type ?? 'hourly')] ?? '',
+                'payTypeCalc' => in_array($e->pay_type, ['hourly', 'both'], true),
                 'access' => $e->access, 'accessLabel' => $L['access_'.$e->access] ?? $e->access, 'accessColor' => $accColor[$e->access] ?? '#6B6E76',
                 'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
                 'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
@@ -312,6 +314,11 @@ class ViewModel
             ['id' => 'worker_local', 'label' => $L['b_tWorkerLocal']],
             ['id' => 'worker_ko', 'label' => $L['b_tWorkerKo']],
             ['id' => 'manager', 'label' => $L['b_tManager']],
+        ];
+        $payTypeOptions = [
+            ['id' => 'salary', 'label' => $L['b_ptSalary']],
+            ['id' => 'hourly', 'label' => $L['b_ptHourly']],
+            ['id' => 'both', 'label' => $L['b_ptBoth']],
         ];
 
         // ---- projects hub ----
@@ -439,6 +446,20 @@ class ViewModel
             }
         }
         $totalPayout = Money::usd($scopedActive->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate)));
+
+        // recipient dropdown for the payroll-register export: quick pay-type buckets,
+        // then drill down to a specific company or crew (site-scoped)
+        $payRecipientOptions = [
+            ['id' => 'hourly', 'label' => $L['p_exHourly']],
+            ['id' => 'all', 'label' => $L['p_exAll']],
+            ['id' => 'salary', 'label' => $L['p_exSalary']],
+        ];
+        foreach ($scopedCompanies as $c) {
+            $payRecipientOptions[] = ['id' => 'co:'.$c->id, 'label' => '🏢 '.$c->name];
+            foreach ($teams->where('company_id', $c->id) as $t) {
+                $payRecipientOptions[] = ['id' => 'tm:'.$t->id, 'label' => '   · '.$t->name];
+            }
+        }
 
         // ---- attendance / qr ----
         $qrManualRows = collect($empRows)->filter(fn ($e) => ! $e['isTerminated'])->take(8)->values()->all();
@@ -721,6 +742,7 @@ class ViewModel
                 'delName' => $delRaw ? $empName($delRaw) : null, 'termName' => $termRaw ? $empName($termRaw) : null,
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
                 'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions,
+                'payTypeOptions' => $payTypeOptions,
                 'accColor' => $accColor,
                 'assignments' => $empAssignments, 'assignTeamOptions' => $assignTeamOptions,
                 'operator' => 'NAHSHON',
@@ -746,7 +768,8 @@ class ViewModel
             // badge
             'badge' => [
                 'ext' => $ext, 'nfcUid' => $nfcUid, 'nfcId' => $nfcId, 'regEmpId' => $regEmpId, 'faceCrop' => $faceCrop,
-                'regTeamOptions' => $regTeamOptions, 'typeOptions' => $typeOptions, 'accColor' => $accColor,
+                'regTeamOptions' => $regTeamOptions, 'typeOptions' => $typeOptions,
+                'payTypeOptions' => $payTypeOptions, 'accColor' => $accColor,
             ],
             // attendance
             'att' => [
@@ -759,6 +782,7 @@ class ViewModel
             'pay' => [
                 'rows' => $payRows, 'totalPayout' => $totalPayout, 'detail' => $payDetailData, 'voucher' => $voucher,
                 'companyName' => 'NAHSHON MEP', 'periodLabel' => $periodLabel,
+                'recipientOptions' => $payRecipientOptions,
                 'pdHistory' => $tl('Attendance history', 'Historial de asistencia', '출퇴근 이력'),
                 'pdPeriod' => $tl('This pay period', 'Este periodo', '이번 정산기간').' · '.$periodLabel,
                 'ruleNote' => $ruleNote,

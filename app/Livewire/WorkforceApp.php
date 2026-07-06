@@ -91,6 +91,8 @@ class WorkforceApp extends Component
 
     public string $regType = 'worker_local';
 
+    public string $regPayType = 'hourly';   // salary | hourly | both
+
     public string $regAccess = 'worker';
 
     // real registration inputs (prefilled by the demo OCR, always editable)
@@ -189,6 +191,13 @@ class WorkforceApp extends Component
     public string $checkNo = '';
 
     public string $payDate = 'Jul 1, 2026';
+
+    // ---- payroll export (settlement period + recipient dropdown) ----
+    public string $payStart = '';
+
+    public string $payEnd = '';
+
+    public string $payRecipient = 'hourly';   // hourly | all | salary | co:<id> | tm:<id>
 
     // ---- worker mobile ----
     public string $mobileTab = 'home';
@@ -620,6 +629,7 @@ class WorkforceApp extends Component
     public function mount(): void
     {
         $this->attDate = now()->format('Y-m-d');
+        [$this->payStart, $this->payEnd] = Payroll::currentPeriod();
         if (Auth::check()) {
             $this->applyUser();
         }
@@ -1205,6 +1215,7 @@ class WorkforceApp extends Component
             'first' => $e->first, 'last' => $e->last, 'company' => $companyId,
             'team' => $teamId, 'role' => $e->role, 'rate' => $e->rate,
             'type' => $e->type === 'manager' ? 'manager' : ($e->lang === 'ko' ? 'worker_ko' : 'worker_local'),
+            'pay_type' => in_array($e->pay_type, ['salary', 'hourly', 'both'], true) ? $e->pay_type : 'hourly',
             'issued' => $e->issued, 'phone' => $e->phone, 'email' => $e->email,
             'nat' => $e->nat, 'access' => $e->access,
         ];
@@ -1313,6 +1324,9 @@ class WorkforceApp extends Component
                 'role' => $this->editForm['role'] ?? $e->role,
                 'rate' => (float) ($this->editForm['rate'] ?? $e->rate),
                 'type' => $type === 'manager' ? 'manager' : 'worker',
+                'pay_type' => in_array($this->editForm['pay_type'] ?? '', ['salary', 'hourly', 'both'], true)
+                    ? $this->editForm['pay_type']
+                    : $e->pay_type,
                 'lang' => $type === 'worker_local' ? 'es' : 'ko',
                 'issued' => $this->editForm['issued'] ?? $e->issued,
                 'phone' => $this->editForm['phone'] ?? $e->phone,
@@ -1908,6 +1922,8 @@ class WorkforceApp extends Component
     {
         $this->regType = $v;
         $this->regAccess = $v === 'manager' ? 'manager' : 'worker';
+        // sensible default: managers & Korean staff are salaried, local workers hourly
+        $this->regPayType = ($v === 'manager' || $v === 'worker_ko') ? 'salary' : 'hourly';
     }
 
     public function setRegAccess(string $lvl): void
@@ -1950,6 +1966,7 @@ class WorkforceApp extends Component
             'team_id' => $team?->id, 'company_id' => $companyId, 'site_id' => $siteId,
             'role' => trim($this->regRoleTitle),
             'type' => $this->regType === 'manager' ? 'manager' : 'worker',
+            'pay_type' => in_array($this->regPayType, ['salary', 'hourly', 'both'], true) ? $this->regPayType : 'hourly',
             'lang' => $this->regType === 'worker_local' ? 'es' : 'ko',
             'access' => $this->grantableAccess(null, $this->regAccess),
             'rate' => (float) ($this->regRate ?: 0),

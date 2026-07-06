@@ -70,6 +70,8 @@ class WorkforceSeeder extends Seeder
                 'emp_id' => $r[1], 'first' => $r[2], 'last' => $r[3], 'ko' => $r[4],
                 'nat' => $r[5], 'code' => $r[6], 'team_id' => $r[7], 'company_id' => $r[8], 'site_id' => $r[9],
                 'role' => $r[10], 'type' => $r[11], 'lang' => $r[12], 'access' => $r[13], 'rate' => $r[14],
+                // Koreans & managers are salaried; local hourly workers get payroll calculated
+                'pay_type' => ($r[11] === 'manager' || $r[12] === 'ko') ? 'salary' : 'hourly',
                 'issued' => $r[15], 'phone' => $r[16], 'email' => $r[17], 'status' => $r[18],
                 'in_t' => $r[19], 'out_t' => $r[20], 'wh' => $r[21], 'emp' => $r[22], 'term' => $r[23],
             ]);
