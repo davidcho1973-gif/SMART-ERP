@@ -257,13 +257,15 @@
                 raw: '',
                 listening: false,
                 rec: null,
+                micLang: '{{ $C['speechLang'] }}',
                 supported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+                setLang(l) { this.micLang = l; if (this.listening) this.rec?.stop(); },
                 toggle() {
                     if (this.listening) { this.rec?.stop(); return; }
                     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                     if (!SR) return;
                     this.rec = new SR();
-                    this.rec.lang = '{{ $C['speechLang'] }}';
+                    this.rec.lang = this.micLang;
                     this.rec.continuous = true;
                     this.rec.interimResults = false;
                     this.rec.onresult = (e) => {
@@ -289,7 +291,16 @@
             <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 16px;">{{ $lab['reportHint'] }}</div>
 
             @if($C['reportDraft'] === '')
-                {{-- step 1: dictate / type --}}
+                {{-- step 1: pick the speaking language, then dictate / type --}}
+                <div x-show="supported" style="display: flex; gap: 6px; margin-bottom: 10px;">
+                    <span style="font-size: 12px; color: #8A8880; align-self: center; margin-right: 2px;">🎙</span>
+                    <template x-for="opt in [['ko-KR','한국어'],['es-MX','Español'],['en-US','English']]" :key="opt[0]">
+                        <button type="button" x-on:click="setLang(opt[0])" x-text="opt[1]"
+                            x-bind:style="micLang === opt[0]
+                                ? 'flex:1;padding:8px;border:1.5px solid #16181D;border-radius:9px;background:#16181D;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;'
+                                : 'flex:1;padding:8px;border:1.5px solid #E4E2DB;border-radius:9px;background:#fff;color:#5A5D64;font-size:12.5px;font-weight:600;cursor:pointer;'"></button>
+                    </template>
+                </div>
                 <button type="button" x-on:click="toggle" x-show="supported"
                     x-bind:style="listening
                         ? 'width:100%;padding:14px;border:none;border-radius:13px;background:#D9483B;color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;'

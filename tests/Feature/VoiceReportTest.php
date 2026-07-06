@@ -38,12 +38,16 @@ class VoiceReportTest extends TestCase
         ]);
     }
 
-    public function test_dictated_text_becomes_a_structured_report_draft(): void
+    public function test_english_dictation_gets_a_korean_translation_attached(): void
     {
         $this->fakeGemini([
+            'lang' => 'en',
             'done' => "- Installed 3 electrical panels (Bldg B, 2F)\n- Checked material delivery",
             'issues' => '- Work-area overlap with the piping crew',
             'plan' => '- Start wiring on B 3F',
+            'done_ko' => "- 전기 패널 3개 설치 (B동 2층)\n- 자재 입고 검수",
+            'issues_ko' => '- 배관팀과 작업구역 겹침',
+            'plan_ko' => '- B동 3층 배선 시작',
         ]);
         $room = Comms::createRoom('일일업무보고', 103, [106]);
 
@@ -56,11 +60,39 @@ class VoiceReportTest extends TestCase
             ->call('generateReport', 'so today we put in three panels on building B second floor and checked the material delivery, piping crew was in our area again, tomorrow we start wiring third floor');
 
         $draft = $c->get('reportDraft');
-        $this->assertStringContainsString('Daily work report', $draft);        // header (en)
-        $this->assertStringContainsString('Dohyun Lee', $draft);              // author
+        $this->assertStringContainsString('Daily work report', $draft);        // header in the spoken language
         $this->assertStringContainsString('Installed 3 electrical panels', $draft);
-        $this->assertStringContainsString('Work-area overlap', $draft);
-        $this->assertStringContainsString('Start wiring on B 3F', $draft);
+        // Korean translation block attached below the original
+        $this->assertStringContainsString('한국어 번역', $draft);
+        $this->assertStringContainsString('오늘 수행 업무', $draft);            // Korean section labels
+        $this->assertStringContainsString('전기 패널 3개 설치', $draft);
+        $this->assertStringContainsString('B동 3층 배선 시작', $draft);
+    }
+
+    public function test_korean_dictation_stays_korean_without_translation_block(): void
+    {
+        $this->fakeGemini([
+            'lang' => 'ko',
+            'done' => '- 전기 패널 3개 설치 완료 (B동 2층)',
+            'issues' => '',
+            'plan' => '- 내일 3층 배선 시작',
+            'done_ko' => '', 'issues_ko' => '', 'plan_ko' => '',
+        ]);
+        $room = Comms::createRoom('일일업무보고', 103, [106]);
+
+        $c = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')                    // UI is English, but speech is Korean
+            ->call('go', 'comms')
+            ->call('selectChannel', $room->id)
+            ->call('openReport')
+            ->call('generateReport', '오늘 B동 2층에 전기 패널 세 개 설치 끝냈고 내일은 3층 배선 시작합니다');
+
+        $draft = $c->get('reportDraft');
+        $this->assertStringContainsString('일일업무보고', $draft);              // Korean header despite EN UI
+        $this->assertStringContainsString('오늘 수행 업무', $draft);
+        $this->assertStringContainsString('전기 패널 3개 설치 완료', $draft);
+        $this->assertStringNotContainsString('한국어 번역', $draft);            // no duplicate translation
+        $this->assertStringNotContainsString('Daily work report', $draft);
     }
 
     public function test_posting_the_draft_sends_it_to_the_room(): void
@@ -140,9 +172,14 @@ class VoiceReportTest extends TestCase
             ->assertSet('reportOpen', false);   // announcements are not a report room
     }
 
-    public function test_worker_member_can_file_a_voice_report(): void
+    public function test_spanish_worker_report_carries_korean_translation(): void
     {
-        $this->fakeGemini(['done' => '- Pulled cable on 2F', 'issues' => '', 'plan' => '']);
+        $this->fakeGemini([
+            'lang' => 'es',
+            'done' => '- Se jaló cable en el 2º piso',
+            'issues' => '', 'plan' => '',
+            'done_ko' => '- 2층 케이블 포설', 'issues_ko' => '', 'plan_ko' => '',
+        ]);
         $room = Comms::createRoom('일일업무보고', 103, [106]);
 
         $c = Livewire::test(WorkforceApp::class)
@@ -152,8 +189,11 @@ class VoiceReportTest extends TestCase
             ->assertSet('reportOpen', true)
             ->call('generateReport', 'hoy jalamos cable en el segundo piso');
 
-        $this->assertStringContainsString('Reporte diario', $c->get('reportDraft'));   // es header
-        $this->assertStringContainsString('Pulled cable on 2F', $c->get('reportDraft'));
+        $draft = $c->get('reportDraft');
+        $this->assertStringContainsString('Reporte diario', $draft);          // es header
+        $this->assertStringContainsString('Se jaló cable', $draft);           // original Spanish
+        $this->assertStringContainsString('한국어 번역', $draft);              // Korean attached
+        $this->assertStringContainsString('2층 케이블 포설', $draft);
 
         $c->call('postReport');
         $this->assertSame(106, Message::latest('id')->first()->sender_id);

@@ -1052,23 +1052,36 @@ class WorkforceApp extends Component
             return;
         }
 
+        // the report body is written in the language the speaker used — labels follow it.
+        // Korean speech stays Korean-only; en/es reports get a Korean translation block.
+        $repLang = $sections['lang'];
+        $Lr = (array) trans('app', [], $repLang);
         $team = $me->team_id ? Team::find($me->team_id) : null;
+        $section = function (array $L, string $label, string $body): array {
+            return $body === '' ? [] : ['', '▪ '.$L[$label], $body];
+        };
         $lines = [
-            '📋 '.$d['r_title'].' · '.now()->format('Y-m-d (D)'),
-            $d['r_by'].': '.$me->displayName($this->lang).($team ? ' · '.$team->name : ''),
+            '📋 '.$Lr['r_title'].' · '.now()->format('Y-m-d (D)'),
+            $Lr['r_by'].': '.$me->displayName($repLang).($team ? ' · '.$team->name : ''),
             '',
-            '▪ '.$d['r_done'],
+            '▪ '.$Lr['r_done'],
             $sections['done'],
+            ...$section($Lr, 'r_issues', $sections['issues']),
+            ...$section($Lr, 'r_plan', $sections['plan']),
         ];
-        if ($sections['issues'] !== '') {
-            $lines[] = '';
-            $lines[] = '▪ '.$d['r_issues'];
-            $lines[] = $sections['issues'];
-        }
-        if ($sections['plan'] !== '') {
-            $lines[] = '';
-            $lines[] = '▪ '.$d['r_plan'];
-            $lines[] = $sections['plan'];
+        if ($repLang !== 'ko' && $sections['done_ko'] !== '') {
+            $Lko = (array) trans('app', [], 'ko');
+            $lines = [
+                ...$lines,
+                '',
+                '────────────────',
+                '🇰🇷 한국어 번역',
+                '',
+                '▪ '.$Lko['r_done'],
+                $sections['done_ko'],
+                ...$section($Lko, 'r_issues', $sections['issues_ko']),
+                ...$section($Lko, 'r_plan', $sections['plan_ko']),
+            ];
         }
         $this->reportDraft = implode("\n", $lines);
         $this->showToast($d['r_ready']);

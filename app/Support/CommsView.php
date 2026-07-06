@@ -256,7 +256,7 @@ class CommsView
                 'newChat' => self::tl($lang, 'New chat', 'Nuevo chat', '새 채팅'),
                 'report' => self::tl($lang, 'Daily report', 'Reporte del día', '업무보고'),
                 'reportTitle' => self::tl($lang, 'Voice daily report', 'Reporte diario por voz', '음성 업무보고'),
-                'reportHint' => self::tl($lang, 'Tap the mic and just talk about your day — AI turns it into a report.', 'Toca el micrófono y cuenta tu día — la IA lo convierte en reporte.', '마이크를 누르고 오늘 한 일을 말하면 AI가 보고서로 정리합니다.'),
+                'reportHint' => self::tl($lang, 'Pick your language, tap the mic and just talk — English & Spanish reports get a Korean translation attached.', 'Elige tu idioma, toca el micrófono y habla — los reportes en español llevan traducción al coreano.', '언어를 고르고 마이크를 눌러 말하면 AI가 보고서로 정리합니다. 영어·스페인어 보고에는 한국어 번역이 함께 붙습니다.'),
                 'micStart' => self::tl($lang, 'Start talking', 'Hablar', '말하기 시작'),
                 'micStop' => self::tl($lang, 'Stop', 'Detener', '멈추기'),
                 'micListening' => self::tl($lang, 'Listening…', 'Escuchando…', '듣는 중…'),
