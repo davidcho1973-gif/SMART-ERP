@@ -178,6 +178,9 @@ class WorkforceApp extends Component
     // ---- payroll ----
     public ?int $payDetail = null;
 
+    /** payroll: badge NFC tag / QR-code lookup box */
+    public string $badgeLookup = '';
+
     public bool $payVoucher = false;
 
     public string $checkNo = '';
@@ -1607,6 +1610,36 @@ class WorkforceApp extends Component
     }
 
     // =================== payroll ===================
+
+    /**
+     * Find a worker by their badge NFC tag or QR-code number and pop open their
+     * attendance-history drawer. Accepts an employee id (N-… or HOF-…), a badge QR
+     * value, or a raw NFC UID (converted to the N-… employee id).
+     */
+    public function findByBadge(): void
+    {
+        if (! $this->canManage()) {
+            return;
+        }
+        $q = trim($this->badgeLookup);
+        if ($q === '') {
+            return;
+        }
+        $upper = mb_strtoupper($q);
+        $emp = Employee::where(function ($w) use ($upper, $q) {
+            $w->whereRaw('UPPER(emp_id) = ?', [$upper])
+                ->orWhereRaw('UPPER(badge_qr) = ?', [$upper])
+                ->orWhere('emp_id', $this->nfcId($q));   // raw NFC UID → N-######### id
+        })->first();
+
+        if (! $emp) {
+            $this->showToast($this->tl('No worker for that badge / QR', 'Sin trabajador para ese código', '해당 베지·QR의 작업자를 찾을 수 없어요'));
+
+            return;
+        }
+        $this->badgeLookup = '';
+        $this->payDetail = $emp->id;   // opens the attendance-history drawer
+    }
 
     public function openPayDetail(int $id): void
     {

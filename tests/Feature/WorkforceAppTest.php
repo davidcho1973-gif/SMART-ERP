@@ -680,6 +680,57 @@ class WorkforceAppTest extends TestCase
         $this->assertGreaterThan(0, $pay->amount);
     }
 
+    public function test_payroll_badge_lookup_by_employee_id_opens_history(): void
+    {
+        // employee 106 (Carlos) is seeded with emp_id HOF-AZ-100402
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->set('badgeLookup', 'hof-az-100402')   // case-insensitive
+            ->call('findByBadge')
+            ->assertSet('payDetail', 106)            // attendance-history drawer opens
+            ->assertSet('badgeLookup', '');          // box clears
+    }
+
+    public function test_payroll_badge_lookup_by_qr_number_opens_history(): void
+    {
+        Employee::where('id', 106)->update(['badge_qr' => 'CS-00102810']);
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->set('badgeLookup', 'CS-00102810')
+            ->call('findByBadge')
+            ->assertSet('payDetail', 106);
+    }
+
+    public function test_payroll_badge_lookup_by_raw_nfc_uid_opens_history(): void
+    {
+        // register a worker via badge (emp_id derived from the NFC UID)
+        Livewire::test(WorkforceApp::class)
+            ->call('addWorker')
+            ->set('regFirst', 'Nfc')->set('regLast', 'Tag')
+            ->set('regTeam', 't2')
+            ->set('nfcUidManual', 'AB:12:CD:34:EF:56:78')
+            ->call('finishBadge');
+        $e = Employee::where('first', 'Nfc')->where('last', 'Tag')->first();
+        $this->assertSame('N-D34EF5678', $e->emp_id);
+
+        // scanning the raw UID resolves to the same employee id
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->set('badgeLookup', 'AB:12:CD:34:EF:56:78')
+            ->call('findByBadge')
+            ->assertSet('payDetail', $e->id);
+    }
+
+    public function test_payroll_badge_lookup_unknown_is_a_noop(): void
+    {
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->set('badgeLookup', 'NOPE-999')
+            ->call('findByBadge')
+            ->assertSet('payDetail', null);
+    }
+
     public function test_badge_wizard_uses_typed_values_and_manual_uid(): void
     {
         Livewire::test(WorkforceApp::class)

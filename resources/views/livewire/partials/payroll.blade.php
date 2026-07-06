@@ -7,6 +7,14 @@
             <div><div style="font-size: 12px; color: rgba(255,255,255,0.55);">{{ $L['p_total'] }}</div><div style="font-family: 'Space Grotesk'; font-size: 22px; font-weight: 700; margin-top: 2px; color: #E85D2A;">{{ $pay['totalPayout'] }}</div></div>
         </div>
         <div style="flex: 1;"></div>
+        {{-- find a worker by badge NFC tag or QR-code number → open their attendance history --}}
+        <form wire:submit.prevent="findByBadge" style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 0 12px; background: #fff; border: 1px solid #E4E2DB; border-radius: 11px; height: 42px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8880" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7V5a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v2M19 15v2a2 2 0 0 1-2 2h-2M9 19H7a2 2 0 0 1-2-2v-2"/><path d="M8 12h8"/></svg>
+                <input wire:model="badgeLookup" placeholder="{{ $L['p_badgePh'] }}" style="border: none; outline: none; background: transparent; font-size: 13.5px; width: 190px; color: #16181D;">
+            </div>
+            <button type="submit" style="padding: 11px 16px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>{{ $L['p_badgeFind'] }}</button>
+        </form>
         <button wire:click="exportPayroll" style="padding: 11px 18px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>{{ $L['p_export'] }}</button>
     </div>
     <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: auto;">
