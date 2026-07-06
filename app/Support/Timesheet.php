@@ -83,6 +83,8 @@ class Timesheet
             [$geoOff, $geoDist] = self::geoReview($p, $sites->get($e->site_id));
 
             $rows[] = [
+                'id' => $e->id,
+                'hasPunch' => $p !== null && $p->in_min !== null,   // a real punch record that can be voided
                 'company' => $companyName($e->company_id),
                 'team' => $teamName($e->team_id),
                 'teamColor' => $teamColor($e->team_id),

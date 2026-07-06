@@ -39,6 +39,7 @@
                         <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_paidOut'] }}</th>
                         <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_reg'] }}</th>
                         <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_ot'] }}</th>
+                        @if($can['punchManual'] ?? false)<th style="padding: 12px 14px;"></th>@endif
                     </tr>
                 </thead>
                 <tbody>
@@ -61,14 +62,44 @@
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidOut'] }}</td>
                         <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600;">{{ $r['reg'] }}</td>
                         <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600; color: {{ $r['ot'] !== '—' ? '#C05621' : '#C7C4BB' }};">{{ $r['ot'] }}</td>
+                        @if($can['punchManual'] ?? false)
+                            <td style="padding: 11px 14px; text-align: right;">
+                                @if(!empty($r['hasPunch']))
+                                    {{-- void a mistaken clock: deletes the day's record so the worker can clock in again --}}
+                                    <button wire:click="askVoidPunch({{ $r['id'] }})" title="{{ $L['ts_voidTitle'] }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #C0522B; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>{{ $L['ts_void'] }}
+                                    </button>
+                                @endif
+                            </td>
+                        @endif
                     </tr>
                 @empty
-                    <tr><td colspan="9" style="padding: 34px; text-align: center; color: #A7A49B; font-size: 13.5px;">{{ $L['ts_none'] }}</td></tr>
+                    <tr><td colspan="10" style="padding: 34px; text-align: center; color: #A7A49B; font-size: 13.5px;">{{ $L['ts_none'] }}</td></tr>
                 @endforelse
                 </tbody>
             </table>
         </div>
         <div style="font-size: 11.5px; color: #A7A49B; margin-top: 12px; line-height: 1.5;">{{ $L['ts_note'] }}</div>
+
+        {{-- void-punch confirm --}}
+        @if($voidPunchId)
+            @php $voidRow = collect($ts['rows'])->firstWhere('id', $voidPunchId); @endphp
+            <div style="position: fixed; inset: 0; z-index: 80; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+                <div style="width: 400px; background: #fff; border-radius: 18px; padding: 28px; text-align: center;">
+                    <div style="width: 52px; height: 52px; border-radius: 50%; background: #FBE9E7; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C0522B" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></div>
+                    <div style="font-size: 16px; font-weight: 700;">{{ $L['ts_voidTitle'] }}</div>
+                    @if($voidRow)
+                        <div style="font-size: 14px; font-weight: 600; margin-top: 8px;">{{ $voidRow['name'] }} · {{ $ts['date'] }}</div>
+                        <div style="font-size: 13px; color: #8A8880; margin-top: 3px; font-family: 'Space Grotesk';">{{ $voidRow['actIn'] }} → {{ $voidRow['onDuty'] ? $L['ts_onduty'] : $voidRow['actOut'] }}</div>
+                    @endif
+                    <div style="font-size: 13px; color: #8A8880; margin-top: 10px; line-height: 1.55;">{{ $L['ts_voidMsg'] }}</div>
+                    <div style="display: flex; gap: 10px; margin-top: 22px;">
+                        <button wire:click="cancelVoidPunch" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_cancel'] }}</button>
+                        <button wire:click="confirmVoidPunch" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #C0522B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['ts_voidConfirm'] }}</button>
+                    </div>
+                </div>
+            </div>
+        @endif
 
     @else
     <div style="display: flex; gap: 14px; margin-bottom: 20px;">

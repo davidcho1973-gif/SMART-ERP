@@ -176,6 +176,8 @@ class WorkforceApp extends Component
 
     public string $attDate = '';          // Y-m-d for the daily timesheet (set in mount)
 
+    public ?int $voidPunchId = null;      // employee whose punch (on attDate) is being voided
+
     public string $qrMode = 'reader';
 
     public string $qrTeam = 't1';
@@ -2040,6 +2042,54 @@ class WorkforceApp extends Component
         $this->showToast($this->dict()['p_export'].' ✓');
     }
 
+    // =================== punch void (admin redo of a mistaken clock) ===================
+
+    /** Ask to void a worker's punch record for the date shown on the attendance screen. */
+    public function askVoidPunch(int $employeeId): void
+    {
+        if (! $this->can('punch.manual', Employee::find($employeeId))) {
+            return;
+        }
+        $has = Punch::where('employee_id', $employeeId)
+            ->where('work_date', $this->attDate)
+            ->whereNotNull('in_min')->exists();
+        if ($has) {
+            $this->voidPunchId = $employeeId;
+        }
+    }
+
+    public function cancelVoidPunch(): void
+    {
+        $this->voidPunchId = null;
+    }
+
+    /**
+     * Void the punch: the day's record is deleted so the worker can clock in
+     * fresh (the day is no longer locked). Status resets when it's today.
+     * Audited with the old times so nothing disappears silently.
+     */
+    public function confirmVoidPunch(): void
+    {
+        $id = $this->voidPunchId;
+        $this->voidPunchId = null;
+        if ($id === null || ! $this->can('punch.manual', Employee::find($id))) {
+            return;
+        }
+        $e = Employee::find($id);
+        $p = Punch::where('employee_id', $id)->where('work_date', $this->attDate)->first();
+        if (! $e || ! $p) {
+            return;
+        }
+        $was = ($p->in_min !== null ? Shift::fmtMin($p->in_min) : '—')
+            .' → '.($p->out_min !== null ? Shift::fmtMin($p->out_min) : '—');
+        $p->delete();
+        if ($this->attDate === now()->format('Y-m-d')) {
+            $e->update(['status' => 'off', 'in_t' => '—', 'out_t' => '—']);
+        }
+        $this->audit('punch.void', $e->first.' '.$e->last.' (#'.$e->id.')', $this->attDate.' · '.$was);
+        $this->showToast($this->dict()['ts_voided']);
+    }
+
     // =================== payroll ===================
 
     /**
@@ -2569,6 +2619,7 @@ class WorkforceApp extends Component
                 'companiesDelete' => $this->can('companies.delete'),
                 'employeesDelete' => $this->can('employees.delete'),
                 'employeesTerminate' => Access::allows($this->actorRoles(), 'employees.terminate'),
+                'punchManual' => Access::allows($this->actorRoles(), 'punch.manual'),
                 'rolesAssign' => $this->can('roles.assign'),
                 'auditView' => $this->correctionsGlobal(),
                 'assignableRoles' => Access::assignable($this->primaryRole()),

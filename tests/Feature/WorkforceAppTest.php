@@ -438,6 +438,50 @@ class WorkforceAppTest extends TestCase
         $this->assertSame('present', Employee::find(106)->status);
     }
 
+    public function test_admin_can_void_a_punch_so_the_worker_can_clock_in_again(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // worker completes the day — record is locked
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+        $this->passClockGuard();
+        Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');
+        $this->assertNotNull(Punch::where('employee_id', 106)->where('work_date', $today)->first()->out_min);
+
+        // admin voids the mistaken record
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('askVoidPunch', 106)
+            ->assertSet('voidPunchId', 106)
+            ->call('confirmVoidPunch')
+            ->assertSet('voidPunchId', null);
+
+        $this->assertNull(Punch::where('employee_id', 106)->where('work_date', $today)->first());
+        $this->assertSame('off', Employee::find(106)->status);
+
+        // the worker can now clock in fresh — the day is no longer locked
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock')->assertSet('clock', 'in');
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $this->assertNotNull($p->in_min);
+        $this->assertNull($p->out_min);
+        $this->assertSame('present', Employee::find(106)->status);
+    }
+
+    public function test_worker_cannot_void_a_punch(): void
+    {
+        $today = now()->format('Y-m-d');
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')
+            ->call('askVoidPunch', 106)
+            ->assertSet('voidPunchId', null)   // gate refused
+            ->set('voidPunchId', 106)          // even a forged id is re-checked on confirm
+            ->call('confirmVoidPunch');
+
+        $this->assertNotNull(Punch::where('employee_id', 106)->where('work_date', $today)->first());
+    }
+
     public function test_early_leave_does_not_reopen_a_locked_day(): void
     {
         $today = now()->format('Y-m-d');
