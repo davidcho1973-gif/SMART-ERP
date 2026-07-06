@@ -319,6 +319,12 @@ class WorkforceAppTest extends TestCase
         $this->assertSame('off', Employee::find(112)->status);
     }
 
+    /** Advance the mocked clock past the immediate clock-out guard window. */
+    private function passClockGuard(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(now()->addMinutes(\App\Support\Shift::MIN_OUT_GAP_MIN + 1));
+    }
+
     public function test_worker_clock_persists_status(): void
     {
         Livewire::test(WorkforceApp::class)
@@ -327,6 +333,7 @@ class WorkforceAppTest extends TestCase
             ->assertSet('clock', 'in');
         $this->assertSame('present', Employee::find(106)->status);
 
+        $this->passClockGuard();
         Livewire::test(WorkforceApp::class)
             ->set('clock', 'in')
             ->call('doClock')            // in -> done (clocked out, day locked)
@@ -340,6 +347,7 @@ class WorkforceAppTest extends TestCase
 
         // clock in then out — the day is now complete
         Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+        $this->passClockGuard();
         Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');
 
         $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
@@ -366,11 +374,10 @@ class WorkforceAppTest extends TestCase
         $worker = User::where('email', 'cmartinez@nahshon.io')->first();
         $today = now()->format('Y-m-d');
 
-        Livewire::actingAs($worker)->test(ScanClock::class, ['team' => 't1'])
-            ->call('doClock')                      // in
-            ->assertSet('clock', 'in')
-            ->call('doClock')                      // out -> done
-            ->assertSet('clock', 'done');
+        $c = Livewire::actingAs($worker)->test(ScanClock::class, ['team' => 't1']);
+        $c->call('doClock')->assertSet('clock', 'in');          // in
+        $this->passClockGuard();
+        $c->call('doClock')->assertSet('clock', 'done');        // out -> done
 
         $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
         $in = $p->in_min;
@@ -417,6 +424,7 @@ class WorkforceAppTest extends TestCase
 
         // worker completes the day (locked for the worker/QR/desk paths)
         Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock');
+        $this->passClockGuard();
         Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');
 
         $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
@@ -435,6 +443,7 @@ class WorkforceAppTest extends TestCase
         $today = now()->format('Y-m-d');
 
         Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock'); // in
+        $this->passClockGuard();
         Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock');     // out -> locked
 
         $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
@@ -545,6 +554,7 @@ class WorkforceAppTest extends TestCase
         $this->assertNotNull($p->in_min);
         $this->assertNull($p->out_min);
 
+        $this->passClockGuard();
         Livewire::test(WorkforceApp::class)
             ->set('clock', 'in')
             ->call('doClock');   // out

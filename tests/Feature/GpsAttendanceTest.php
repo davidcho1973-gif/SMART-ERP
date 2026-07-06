@@ -76,15 +76,64 @@ class GpsAttendanceTest extends TestCase
 
     public function test_worker_clock_out_records_geo_on_the_out_leg(): void
     {
+        \Illuminate\Support\Carbon::setTestNow(now()->setTime(9, 0));   // fixed mid-day baseline
         $today = now()->format('Y-m-d');
 
         Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock', 33.7838, -112.15, 8.0);
+        // move past the immediate clock-out guard window
+        \Illuminate\Support\Carbon::setTestNow(now()->addMinutes(\App\Support\Shift::MIN_OUT_GAP_MIN + 1));
         Livewire::test(WorkforceApp::class)->set('clock', 'in')->call('doClock', 33.7963, -112.15, 9.0); // out, off-site
+        \Illuminate\Support\Carbon::setTestNow();
 
         $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
         $this->assertTrue($p->in_geo_ok);
         $this->assertFalse($p->out_geo_ok);
         $this->assertSame(33.7963, (float) $p->out_lat);
+    }
+
+    public function test_immediate_clock_out_after_clock_in_is_blocked(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(now()->setTime(9, 0));
+        $today = now()->format('Y-m-d');
+
+        // clock in, then a duplicate/immediate tap tries to clock out right away
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'worker')
+            ->call('doClock', 33.7838, -112.15, 8.0)
+            ->assertSet('clock', 'in')
+            ->call('doClock', 33.7838, -112.15, 8.0)   // fired again seconds later
+            ->assertSet('clock', 'in');                 // still clocked IN — out was refused
+
+        $p = Punch::where('employee_id', 106)->where('work_date', $today)->first();
+        $this->assertNotNull($p->in_min);
+        $this->assertNull($p->out_min);                 // no clock-out recorded
+        $this->assertSame('present', Employee::find(106)->status);
+
+        // after the guard window a real clock-out goes through
+        \Illuminate\Support\Carbon::setTestNow(now()->addMinutes(\App\Support\Shift::MIN_OUT_GAP_MIN + 1));
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock', 33.7838, -112.15, 8.0);
+        \Illuminate\Support\Carbon::setTestNow();
+
+        $this->assertNotNull($p->fresh()->out_min);
+        $this->assertSame('off', Employee::find(106)->status);
+    }
+
+    public function test_scan_clock_blocks_immediate_clock_out_too(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(now()->setTime(9, 0));
+        $this->seed(UserSeeder::class);
+        $worker = User::where('email', 'cmartinez@nahshon.io')->first();
+
+        Livewire::actingAs($worker)
+            ->test(ScanClock::class, ['team' => 't1'])
+            ->call('doClock', 33.7838, -112.15, 6.0)
+            ->assertSet('clock', 'in')
+            ->call('doClock', 33.7838, -112.15, 6.0)
+            ->assertSet('clock', 'in');   // duplicate tap refused
+
+        $p = Punch::where('employee_id', 106)->where('work_date', now()->format('Y-m-d'))->first();
+        $this->assertNull($p->out_min);
+        \Illuminate\Support\Carbon::setTestNow();
     }
 
     public function test_scan_clock_records_geo_verification(): void

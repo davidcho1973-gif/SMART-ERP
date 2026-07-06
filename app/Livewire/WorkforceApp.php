@@ -2184,6 +2184,16 @@ class WorkforceApp extends Component
             $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_in']);
         } else {
+            // guard: no clock-out within minutes of clocking in — this soaks up
+            // duplicate taps / double-fired GPS callbacks (which would otherwise
+            // clock the worker straight back out) and accidental immediate outs
+            if ($nowMin - $p->in_min < Shift::MIN_OUT_GAP_MIN) {
+                $this->clock = 'in';
+                $this->clockInTime = Shift::fmtMin($p->in_min);
+                $this->showToast($d['w_tooSoonOut']);
+
+                return;
+            }
             // clock-out completes and locks the day
             $this->clock = 'done';
             $p->out_min = $nowMin;

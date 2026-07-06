@@ -45,11 +45,13 @@
                     @if($clockDone)
                         <button type="button" disabled style="{{ $clockBtnStyle }}">{{ $clockLabel }}</button>
                     @else
-                        {{-- capture GPS when tapped; clock in/out proceeds even if permission is denied (coords → null) --}}
-                        <button type="button" x-data
+                        {{-- capture GPS when tapped; clock in/out proceeds even if permission is denied (coords → null).
+                             busy latch: repeat taps are ignored until the GPS lookup + server call finish --}}
+                        <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? 'opacity:0.6;' : ''"
                             @click="
-                                $el.disabled = true;
-                                const go = (la, ln, ac) => $wire.doClock(la, ln, ac);
+                                if (busy) return;
+                                busy = true;
+                                const go = (la, ln, ac) => $wire.doClock(la, ln, ac).finally(() => busy = false);
                                 if (navigator.geolocation) {
                                     navigator.geolocation.getCurrentPosition(
                                         p => go(p.coords.latitude, p.coords.longitude, p.coords.accuracy),

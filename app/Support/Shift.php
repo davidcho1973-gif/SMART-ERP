@@ -10,6 +10,12 @@ namespace App\Support;
  */
 class Shift
 {
+    /**
+     * A worker cannot clock out within this many minutes of clocking in — soaks up
+     * double-taps / duplicate GPS callbacks and accidental immediate clock-outs.
+     */
+    public const MIN_OUT_GAP_MIN = 5;
+
     /** Parse "6:52 AM" → minutes since midnight. */
     public static function minOf(string $str): int
     {

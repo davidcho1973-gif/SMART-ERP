@@ -143,6 +143,15 @@ class ScanClock extends Component
             $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->toast = $d['w_done_in'];
         } else {
+            // guard: no clock-out within minutes of clocking in (duplicate taps /
+            // double-fired GPS callbacks / accidental immediate outs)
+            if ($nowMin - $p->in_min < Shift::MIN_OUT_GAP_MIN) {
+                $this->clock = 'in';
+                $this->clockInTime = Shift::fmtMin($p->in_min);
+                $this->toast = $d['w_tooSoonOut'];
+
+                return;
+            }
             $this->clock = 'done';
             $p->out_min = $nowMin;
             $p->source = 'qr';
