@@ -14,6 +14,7 @@ use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
 use App\Services\BadgeAnalyzer;
+use App\Services\ReportFormatter;
 use App\Support\Access;
 use App\Support\Comms;
 use App\Support\Corrections;
@@ -252,6 +253,12 @@ class WorkforceApp extends Component
 
     /** last unread total seen by the poller — drives the "new message" chime */
     public ?int $lastPing = null;
+
+    /** voice/daily report composer open for the active group room */
+    public bool $reportOpen = false;
+
+    /** AI-formatted report draft, editable before posting */
+    public string $reportDraft = '';
 
     public bool $bellOpen = false;
 
@@ -991,6 +998,103 @@ class WorkforceApp extends Component
             $this->dispatch('comms-ping');   // Alpine plays the notification sound
         }
         $this->lastPing = $total;
+    }
+
+    // =================== voice daily report (dictate → AI-format → post) ===================
+
+    /** Open the report composer for the active group room. */
+    public function openReport(): void
+    {
+        $me = $this->actorEmployee();
+        $ch = $this->commsChannel ? Channel::find($this->commsChannel) : null;
+        if (! $me || ! $ch || $ch->type !== 'group' || ! Comms::canPost($ch, $me, $this->can('comms.announce'))) {
+            return;
+        }
+        $this->reportOpen = true;
+        $this->reportDraft = '';
+    }
+
+    public function closeReport(): void
+    {
+        $this->reportOpen = false;
+        $this->reportDraft = '';
+    }
+
+    /**
+     * Turn the dictated/typed raw update into a structured report draft.
+     * The raw text comes straight from the browser (speech recognition or typing).
+     * If the AI is unconfigured/unreachable the raw text becomes the draft so the
+     * report can still be finished by hand — dictation never blocks posting.
+     */
+    public function generateReport(string $raw): void
+    {
+        if (! $this->reportOpen) {
+            return;
+        }
+        $raw = trim($raw);
+        $d = $this->dict();
+        if ($raw === '') {
+            $this->showToast($d['r_needText']);
+
+            return;
+        }
+        $me = $this->actorEmployee();
+        if (! $me) {
+            return;
+        }
+
+        $formatter = app(ReportFormatter::class);
+        $sections = $formatter->isConfigured() ? $formatter->format(mb_substr($raw, 0, 4000), $this->lang) : null;
+        if ($sections === null) {
+            $this->reportDraft = $raw;   // manual fallback — keep what was said
+            $this->showToast($formatter->isConfigured() ? $d['r_aiFail'] : $d['b_aiOff']);
+
+            return;
+        }
+
+        $team = $me->team_id ? Team::find($me->team_id) : null;
+        $lines = [
+            '📋 '.$d['r_title'].' · '.now()->format('Y-m-d (D)'),
+            $d['r_by'].': '.$me->displayName($this->lang).($team ? ' · '.$team->name : ''),
+            '',
+            '▪ '.$d['r_done'],
+            $sections['done'],
+        ];
+        if ($sections['issues'] !== '') {
+            $lines[] = '';
+            $lines[] = '▪ '.$d['r_issues'];
+            $lines[] = $sections['issues'];
+        }
+        if ($sections['plan'] !== '') {
+            $lines[] = '';
+            $lines[] = '▪ '.$d['r_plan'];
+            $lines[] = $sections['plan'];
+        }
+        $this->reportDraft = implode("\n", $lines);
+        $this->showToast($d['r_ready']);
+    }
+
+    /** Post the (possibly hand-edited) report draft into the active group room. */
+    public function postReport(): void
+    {
+        $body = trim($this->reportDraft);
+        if ($body === '' || ! $this->reportOpen) {
+            return;
+        }
+        $me = $this->actorEmployee();
+        $ch = $this->commsChannel ? Channel::find($this->commsChannel) : null;
+        if (! $me || ! $ch || ! Comms::canPost($ch, $me, $this->can('comms.announce'))) {
+            return;
+        }
+        Message::create([
+            'channel_id' => $ch->id,
+            'sender_id' => $me->id,
+            'body' => mb_substr($body, 0, 4000),
+        ]);
+        Comms::markRead($ch, $me);
+        $this->reportOpen = false;
+        $this->reportDraft = '';
+        $this->showToast($this->dict()['r_posted']);
     }
 
     public function toggleBell(): void
@@ -2434,6 +2538,7 @@ class WorkforceApp extends Component
             'commsPicked' => $this->commsPicked, 'commsRoomName' => $this->commsRoomName,
             'commsInviteOpen' => $this->commsInviteOpen,
             'commsPane' => $this->commsPane,
+            'reportOpen' => $this->reportOpen, 'reportDraft' => $this->reportDraft,
             'bellOpen' => $this->bellOpen,
             'actorId' => $this->actorId(),
             'canManage' => $this->can('comms.announce'),

@@ -222,6 +222,13 @@
             {{-- composer --}}
             @if($act['canPost'])
                 <form wire:submit.prevent="sendMessage" style="padding: 12px 16px; border-top: 1px solid #F0EEE8; display: flex; align-items: flex-end; gap: 10px; background: #fff;">
+                    @if($act['isGroup'] ?? false)
+                        {{-- voice daily report: dictate → AI-format → post --}}
+                        <button type="button" wire:click="openReport" title="{{ $lab['reportTitle'] }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 13px; border: 1.5px solid #E4E2DB; border-radius: 12px; background: #FAFAF8; color: #16181D; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg>
+                            <span class="wf-report-label">{{ $lab['report'] }}</span>
+                        </button>
+                    @endif
                     <textarea wire:model="commsCompose" rows="1" placeholder="{{ $act['type'] === 'announcement' ? $lab['announce'] : $lab['compose'] }}"
                         x-data x-init="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
                         x-on:input="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
@@ -242,3 +249,79 @@
         @endif
     </div>
 </div>
+
+{{-- ===== voice daily-report composer (dictate → AI report → post) ===== --}}
+@if($C['reportOpen'] ?? false)
+    <div style="position: fixed; inset: 0; z-index: 80; background: rgba(22,24,29,0.55); display: flex; align-items: center; justify-content: center; padding: 16px;">
+        <div x-data="{
+                raw: '',
+                listening: false,
+                rec: null,
+                supported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+                toggle() {
+                    if (this.listening) { this.rec?.stop(); return; }
+                    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    if (!SR) return;
+                    this.rec = new SR();
+                    this.rec.lang = '{{ $C['speechLang'] }}';
+                    this.rec.continuous = true;
+                    this.rec.interimResults = false;
+                    this.rec.onresult = (e) => {
+                        for (let i = e.resultIndex; i < e.results.length; i++) {
+                            if (e.results[i].isFinal) {
+                                const t = e.results[i][0].transcript.trim();
+                                if (t) this.raw = (this.raw ? this.raw + ' ' : '') + t;
+                            }
+                        }
+                    };
+                    this.rec.onend = () => { this.listening = false; };
+                    this.rec.onerror = () => { this.listening = false; };
+                    this.rec.start();
+                    this.listening = true;
+                }
+            }"
+            style="width: 500px; max-width: 100%; max-height: 92vh; overflow-y: auto; background: #fff; border-radius: 18px; padding: 24px;">
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <div style="font-size: 17px; font-weight: 700;">{{ $lab['reportTitle'] }}</div>
+                <button wire:click="closeReport" x-on:click="rec?.stop()" style="border: none; background: transparent; font-size: 22px; line-height: 1; color: #8A8880; cursor: pointer;">×</button>
+            </div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 16px;">{{ $lab['reportHint'] }}</div>
+
+            @if($C['reportDraft'] === '')
+                {{-- step 1: dictate / type --}}
+                <button type="button" x-on:click="toggle" x-show="supported"
+                    x-bind:style="listening
+                        ? 'width:100%;padding:14px;border:none;border-radius:13px;background:#D9483B;color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;'
+                        : 'width:100%;padding:14px;border:none;border-radius:13px;background:#16181D;color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;'">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg>
+                    <span x-show="!listening">{{ $lab['micStart'] }}</span>
+                    <span x-show="listening" style="display: inline-flex; align-items: center; gap: 8px;"><span style="width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: wfPulse 1s infinite;"></span>{{ $lab['micStop'] }} · {{ $lab['micListening'] }}</span>
+                </button>
+                <div x-show="!supported" style="padding: 11px 13px; border-radius: 11px; background: #FBF1DF; color: #8A6A2E; font-size: 12.5px; line-height: 1.5;">{{ $lab['micUnsupported'] }}</div>
+
+                <textarea x-model="raw" rows="6" placeholder="{{ $lab['reportRawPh'] }}"
+                    style="width: 100%; margin-top: 12px; padding: 12px 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.6; outline: none; background: #FAFAF8; resize: vertical;"></textarea>
+
+                <div style="display: flex; gap: 10px; margin-top: 14px;">
+                    <button wire:click="closeReport" x-on:click="rec?.stop()" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                    <button x-on:click="rec?.stop(); $wire.generateReport(raw)" wire:loading.attr="disabled" wire:target="generateReport"
+                        style="flex: 1.5; padding: 12px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">
+                        <span wire:loading.remove wire:target="generateReport">✨ {{ $lab['reportGen'] }}</span>
+                        <span wire:loading wire:target="generateReport">{{ $lab['reportGenBusy'] }}</span>
+                    </button>
+                </div>
+            @else
+                {{-- step 2: review the AI draft, edit freely, post --}}
+                <div style="font-size: 12px; font-weight: 700; color: #1F9D6B; margin-bottom: 7px;">{{ $lab['reportDraftLabel'] }}</div>
+                <textarea wire:model="reportDraft" rows="14"
+                    style="width: 100%; padding: 13px 15px; border: 1.5px solid #CBE7DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; line-height: 1.65; outline: none; background: #F6FBF8; resize: vertical;"></textarea>
+                <div style="display: flex; gap: 10px; margin-top: 14px;">
+                    <button wire:click="$set('reportDraft', '')" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; color: #5A5D64; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $lab['reportRedo'] }}</button>
+                    <button wire:click="postReport" style="flex: 1.5; padding: 12px; border: none; border-radius: 12px; background: #1F9D6B; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $lab['reportPost'] }}</button>
+                </div>
+            @endif
+        </div>
+    </div>
+    <style>@keyframes wfPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }</style>
+@endif
