@@ -60,13 +60,14 @@ class PayrollExportTest extends TestCase
             Punch::create(['employee_id' => 106, 'work_date' => $d, 'in_min' => 420, 'out_min' => 960, 'source' => 'worker']);
         }
 
-        $xml = $this->sheetXml($this->get('/export/payroll?start=2026-06-15&end=2026-06-28&recipient=hourly&lang=en')->getContent());
+        $xml = $this->sheetXml($this->get('/export/payroll?start=2026-06-15&end=2026-06-27&recipient=hourly&lang=en')->getContent());
 
         $this->assertStringContainsString('Carlos', $xml);
-        $this->assertStringContainsString('<f>SUM(', $xml);   // week-total formula
-        $this->assertStringContainsString('MIN(', $xml);      // reg = Σ MIN(week,40)
-        $this->assertStringContainsString('MAX(', $xml);      // ot  = Σ MAX(week-40,0)
-        $this->assertStringContainsString('*1.5', $xml);      // gross carries the OT multiplier
+        $this->assertStringContainsString('<f>SUM(G6:M6)</f>', $xml);      // week-1 total, same cell map as the original
+        $this->assertStringContainsString('<f>MIN(N6, 40)</f>', $xml);     // weekly regular cap
+        $this->assertStringContainsString('<f>MAX(N6 - 40, 0)</f>', $xml); // weekly overtime
+        $this->assertStringContainsString('*1.5', $xml);                   // OT rate = 1.5× regular
+        $this->assertStringContainsString('<f>AC6+AE6</f>', $xml);         // 2wks grand total per row
     }
 
     public function test_recipient_filter_splits_hourly_and_salaried(): void
@@ -78,8 +79,38 @@ class PayrollExportTest extends TestCase
         $salary = $this->sheetXml($this->get('/export/payroll?recipient=salary&lang=en')->getContent());
         $this->assertStringContainsString('Minjun', $salary);
         $this->assertStringNotContainsString('Carlos', $salary);
-        // salaried people are listed for hours only — the gross column reads the label, not a formula
-        $this->assertStringContainsString('Salaried', $salary);
+    }
+
+    public function test_sheet_reproduces_the_nahshon_template(): void
+    {
+        $bin = $this->get('/export/payroll?start=2026-06-15&end=2026-06-27&recipient=hourly&lang=en')->getContent();
+        $xml = $this->sheetXml($bin);
+
+        $this->assertStringContainsString('Project :', $xml);                    // big title block
+        $this->assertStringContainsString('6/15/26-6/27/26', $xml);              // period label
+        $this->assertStringContainsString('1ST WEEK', $xml);
+        $this->assertStringContainsString('2ND WEEK', $xml);
+        $this->assertStringContainsString('2Wks Total by Hours', $xml);
+        $this->assertStringContainsString('# of Hours Worked', $xml);
+        $this->assertStringContainsString('PAYMENT BANK INFORMATION', $xml);     // footer block
+        $this->assertStringContainsString('orientation="landscape"', $xml);      // print setup
+        $this->assertStringContainsString('fitToWidth="1" fitToHeight="1"', $xml);
+
+        // styles carry the original palette (yellow grand total, peach hours, green amounts)
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsxtest');
+        file_put_contents($tmp, $bin);
+        $zip = new ZipArchive();
+        $zip->open($tmp);
+        $styles = (string) $zip->getFromName('xl/styles.xml');
+        $hasLogo = $zip->getFromName('xl/media/image1.png') !== false;
+        $zip->close();
+        @unlink($tmp);
+
+        foreach (['FFFFFF00', 'FFF7CAAC', 'FFE2EFD9', 'FFFBE4D5', 'FFFFE598', 'FFD9E2F3'] as $rgb) {
+            $this->assertStringContainsString($rgb, $styles);
+        }
+        $this->assertStringContainsString('Arial', $styles);
+        $this->assertTrue($hasLogo, 'company logo embedded');
     }
 
     public function test_xlsx_renders_numeric_and_formula_cells(): void

@@ -23,7 +23,7 @@
             <select wire:model.live="payRecipient" title="{{ $L['p_exRecipient'] }}" style="border: 1px solid #E4E2DB; outline: none; background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; color: #16181D; cursor: pointer; max-width: 200px;">
                 @foreach($pay['recipientOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach
             </select>
-            <a href="/export/payroll?start={{ $payStart }}&end={{ $payEnd }}&recipient={{ urlencode($payRecipient) }}&lang={{ $lang }}"
+            <a href="/export/payroll?start={{ $payStart }}&end={{ $payEnd }}&recipient={{ urlencode($payRecipient) }}&site={{ $siteVal }}&lang={{ $lang }}"
                style="padding: 9px 16px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; text-decoration: none;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>{{ $L['p_export'] }}</a>
         </div>
     </div>
