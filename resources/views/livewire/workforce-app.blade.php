@@ -4,8 +4,10 @@
 @endphp
 <div style="min-height: 100vh; background: linear-gradient(180deg,#EDECE7,#E6E4DD); color: #16181D;">
 
-    {{-- unread poller + KakaoTalk-style "new message" chime (Web Audio, no asset) --}}
-    @if(! $isLogin)
+    {{-- unread poller + KakaoTalk-style "new message" chime (Web Audio, no asset).
+         Paused while the voice-report composer is open so the 7s re-render never
+         disturbs the live mic (which would replay the browser's listening tone) or chimes. --}}
+    @if(! $isLogin && ! $reportOpen)
         <div wire:poll.7s="pollComms" x-data="{
             ctx: null,
             ping() {

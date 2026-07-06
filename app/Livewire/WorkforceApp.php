@@ -994,7 +994,8 @@ class WorkforceApp extends Component
             return;
         }
         $total = Comms::totalUnread($me);
-        if ($this->lastPing !== null && $total > $this->lastPing) {
+        // never chime while the voice-report composer is open (mic is live)
+        if (! $this->reportOpen && $this->lastPing !== null && $total > $this->lastPing) {
             $this->dispatch('comms-ping');   // Alpine plays the notification sound
         }
         $this->lastPing = $total;

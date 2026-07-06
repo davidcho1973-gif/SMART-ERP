@@ -613,6 +613,7 @@ class ViewModel
             'L' => $L,
             'role' => $s['role'], 'lang' => $lang, 'screen' => $s['screen'],
             'isLogin' => $s['screen'] === 'login',
+            'reportOpen' => (bool) ($s['reportOpen'] ?? false),
             'isWorker' => $s['role'] === 'worker',
             'isDesktopApp' => $s['role'] !== 'worker' && $s['screen'] !== 'login',
             'stat_workers' => $activeAll->filter(fn ($e) => $e->type === 'worker')->count(),
