@@ -13,31 +13,36 @@
         <div style="padding: 16px 16px 12px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px;">{{ $lab['title'] }}</div>
             <button wire:click="toggleNewDm" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: none; border-radius: 9px; background: #16181D; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>{{ $lab['newDm'] }}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>{{ $lab['newChat'] }}
             </button>
         </div>
 
         <div style="flex: 1; overflow-y: auto; padding: 8px;">
             @if($C['newDm'])
-                {{-- new DM: person picker --}}
+                {{-- new chat: multi-select — pick one → DM, several → a group room (KakaoTalk-style) --}}
                 <div style="padding: 6px 6px 10px;">
-                    <input type="text" wire:model.live.debounce.250ms="commsDmSearch" placeholder="{{ $lab['dmSearchPh'] }}" autofocus
+                    <input type="text" wire:model="commsRoomName" placeholder="{{ $lab['roomNamePh'] }}"
+                        style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8; margin-bottom: 6px;">
+                    <input type="text" wire:model.live.debounce.250ms="commsDmSearch" placeholder="{{ $lab['dmSearchPh'] }}"
                         style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;">
                     <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 2px;">
                         @forelse($C['dmCandidates'] as $p)
-                            <button wire:click="startDm({{ $p['id'] }})" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border: none; border-radius: 10px; background: transparent; cursor: pointer;"
-                                onmouseover="this.style.background='#F5F3EE'" onmouseout="this.style.background='transparent'">
+                            <button wire:click="togglePick({{ $p['id'] }})" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border: none; border-radius: 10px; background: {{ $p['picked'] ? '#EAF7F5' : 'transparent' }}; cursor: pointer;">
                                 <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: {{ $p['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0;">{{ $p['initials'] }}</span>
-                                <span style="min-width: 0;"><span style="display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $p['name'] }}</span><span style="font-size: 11.5px; color: #A7A49B;">{{ $p['role'] }}</span></span>
+                                <span style="flex: 1; min-width: 0;"><span style="display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $p['name'] }}</span><span style="font-size: 11.5px; color: #A7A49B;">{{ $p['role'] }}</span></span>
+                                <span style="flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid {{ $p['picked'] ? '#0EA5A0' : '#D6D3CB' }}; background: {{ $p['picked'] ? '#0EA5A0' : 'transparent' }}; display: inline-flex; align-items: center; justify-content: center; color: #fff;">@if($p['picked'])<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>@endif</span>
                             </button>
                         @empty
                             <div style="padding: 18px 8px; text-align: center; color: #A7A49B; font-size: 12.5px;">—</div>
                         @endforelse
                     </div>
-                    <button wire:click="toggleNewDm" style="margin-top: 8px; width: 100%; padding: 7px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button wire:click="toggleNewDm" style="flex: 1; padding: 8px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                        <button wire:click="createChat" @disabled($C['pickedCount'] === 0) style="flex: 1.4; padding: 8px; border: none; border-radius: 9px; background: {{ $C['pickedCount'] ? '#16181D' : '#C4C1B8' }}; color: #fff; font-size: 12px; font-weight: 700; cursor: {{ $C['pickedCount'] ? 'pointer' : 'not-allowed' }};">{{ $lab['createChat'] }}@if($C['pickedCount']) · {{ $C['pickedCount'] }}@endif</button>
+                    </div>
                 </div>
             @else
-                @foreach(['announcement' => $lab['announcements'], 'correction' => $lab['corrections'], 'company' => $lab['companies'], 'team' => $lab['crews'], 'dm' => $lab['dms']] as $gkey => $glabel)
+                @foreach(['announcement' => $lab['announcements'], 'correction' => $lab['corrections'], 'group' => $lab['rooms'], 'dm' => $lab['dms']] as $gkey => $glabel)
                     @if(count($C['groups'][$gkey]))
                         <div style="padding: 12px 8px 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A7A49B;">{{ $glabel }}</div>
                         @foreach($C['groups'][$gkey] as $r)
@@ -87,12 +92,45 @@
                     <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #16181D; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg></span>
                 @elseif($act['type'] === 'correction')
                     <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #E8A33D; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                @elseif($act['type'] === 'group')
+                    <span style="display: inline-flex; width: 38px; height: 38px; border-radius: 11px; background: #0EA5A0; color: #fff; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 @endif
                 <div style="flex: 1; min-width: 0;">
                     <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 16px;">{{ $act['title'] }}</div>
                     <div style="font-size: 12px; color: #8A8880;">{{ $act['sub'] }}</div>
                 </div>
+                @if($act['isGroup'] ?? false)
+                    <button wire:click="openInvite" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #16181D; font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M20 8v6M23 11h-6"/></svg>{{ $lab['invite'] }}
+                    </button>
+                    <button wire:click="leaveActiveRoom" title="{{ $lab['leaveRoom'] }}" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #F3D9CB; border-radius: 9px; background: #fff; color: #D9483B; cursor: pointer; flex-shrink: 0;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                    </button>
+                @endif
             </div>
+
+            {{-- invite people to this group room --}}
+            @if(($C['inviteOpen'] ?? false) && ($act['isGroup'] ?? false))
+                <div style="padding: 12px 20px; border-bottom: 1px solid #F0EEE8; background: #FBFAF7;">
+                    <input type="text" wire:model.live.debounce.250ms="commsDmSearch" placeholder="{{ $lab['dmSearchPh'] }}"
+                        style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #fff;">
+                    <div style="max-height: 200px; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 2px;">
+                        @forelse($C['dmCandidates'] as $p)
+                            <button wire:click="togglePick({{ $p['id'] }})" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 7px; border: none; border-radius: 10px; background: {{ $p['picked'] ? '#EAF7F5' : 'transparent' }}; cursor: pointer;">
+                                <span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ $p['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 600; flex-shrink: 0;">{{ $p['initials'] }}</span>
+                                <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $p['name'] }}</span>
+                                <span style="flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid {{ $p['picked'] ? '#0EA5A0' : '#D6D3CB' }}; background: {{ $p['picked'] ? '#0EA5A0' : 'transparent' }}; display: inline-flex; align-items: center; justify-content: center; color: #fff;">@if($p['picked'])<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>@endif</span>
+                            </button>
+                        @empty
+                            <div style="padding: 14px 8px; text-align: center; color: #A7A49B; font-size: 12.5px;">—</div>
+                        @endforelse
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button wire:click="$set('commsInviteOpen', false)" style="flex: 1; padding: 8px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12px; font-weight: 600; cursor: pointer;">{{ $lab['cancel'] }}</button>
+                        <button wire:click="inviteMembers" @disabled($C['pickedCount'] === 0) style="flex: 1.4; padding: 8px; border: none; border-radius: 9px; background: {{ $C['pickedCount'] ? '#0EA5A0' : '#C4C1B8' }}; color: #fff; font-size: 12px; font-weight: 700; cursor: {{ $C['pickedCount'] ? 'pointer' : 'not-allowed' }};">{{ $lab['inviteAdd'] }}@if($C['pickedCount']) · {{ $C['pickedCount'] }}@endif</button>
+                    </div>
+                </div>
+            @endif
 
             @if($act['isCorrection'] ?? false)
                 {{-- attendance-correction approval queue --}}

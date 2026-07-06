@@ -66,8 +66,12 @@ class ViewModel
         $navKeys = $s['role'] === 'manager'
             ? ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance']
             : ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance', 'payroll'];
+        // unread badge for the Internal Comms nav item (computed once, reused below)
+        $navActor = Employee::find($s['actorId'] ?? null);
+        $commsUnread = $navActor ? Comms::totalUnread($navActor) : 0;
         $nav = array_map(fn ($k) => [
             'key' => $k, 'label' => $L['nav_'.$k], 'active' => $s['screen'] === $k,
+            'unread' => $k === 'comms' ? $commsUnread : 0,
         ], $navKeys);
 
         $mKeys = ['home', 'work', 'pay', 'me'];
@@ -592,10 +596,9 @@ class ViewModel
                                 : optional($m->created_at)->format('M j'),
                         ])->all()
                     : [];
-                // the worker's rooms (company + crew + DM), announcements shown separately as the board
+                // the worker's rooms (group rooms + DMs); announcements shown separately as the board
                 $comms['myRooms'] = array_merge(
-                    $comms['groups']['company'] ?? [],
-                    $comms['groups']['team'] ?? [],
+                    $comms['groups']['group'] ?? [],
                     $comms['groups']['dm'] ?? [],
                 );
             }

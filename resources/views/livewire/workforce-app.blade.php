@@ -4,6 +4,29 @@
 @endphp
 <div style="min-height: 100vh; background: linear-gradient(180deg,#EDECE7,#E6E4DD); color: #16181D;">
 
+    {{-- unread poller + KakaoTalk-style "new message" chime (Web Audio, no asset) --}}
+    @if(! $isLogin)
+        <div wire:poll.7s="pollComms" x-data="{
+            ctx: null,
+            ping() {
+                try {
+                    this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
+                    if (this.ctx.state === 'suspended') this.ctx.resume();
+                    const t0 = this.ctx.currentTime;
+                    [[988, 0], [1319, 0.12]].forEach(([f, dt]) => {
+                        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                        o.type = 'sine'; o.frequency.value = f;
+                        o.connect(g); g.connect(this.ctx.destination);
+                        g.gain.setValueAtTime(0.0001, t0 + dt);
+                        g.gain.exponentialRampToValueAtTime(0.3, t0 + dt + 0.02);
+                        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.2);
+                        o.start(t0 + dt); o.stop(t0 + dt + 0.22);
+                    });
+                } catch (e) {}
+            }
+        }" x-on:comms-ping.window="ping()" style="position: absolute; width: 0; height: 0; overflow: hidden;"></div>
+    @endif
+
     {{-- ===== DEMO CONTROL BAR ===== --}}
     <div class="wf-topbar" style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: rgba(22,24,29,0.96); color: #fff; backdrop-filter: blur(8px); flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: 0.02em;">

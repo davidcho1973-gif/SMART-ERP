@@ -60,7 +60,7 @@ class CommsView
                 'id' => $ch->id,
                 'type' => $ch->type,
                 'name' => $name,
-                'color' => $ch->type === 'team' ? $teamColor($ch->team_id) : ($partner ? $teamColor($partner->team_id) : '#16181D'),
+                'color' => $ch->type === 'group' ? '#0EA5A0' : ($partner ? $teamColor($partner->team_id) : '#16181D'),
                 'initials' => $ch->type === 'dm' && $partner ? $partner->initials() : null,
                 'preview' => $preview,
                 'time' => $last ? self::shortTime($last->created_at) : '',
@@ -75,8 +75,7 @@ class CommsView
         $groups = [
             'announcement' => $sortRooms($mapped->where('type', 'announcement')),
             'correction' => $sortRooms($mapped->where('type', 'correction')),
-            'company' => $sortRooms($mapped->where('type', 'company')),
-            'team' => $sortRooms($mapped->where('type', 'team')),
+            'group' => $sortRooms($mapped->where('type', 'group')),
             'dm' => $sortRooms($mapped->where('type', 'dm')),
         ];
 
@@ -140,17 +139,16 @@ class CommsView
             }
 
             $corrCount = count($corrections);
+            $memberCount = in_array($activeCh->type, ['group', 'dm'], true) ? count(Comms::memberIds($activeCh)) : 0;
             $titles = [
                 'announcement' => self::tl($lang, 'Announcements', 'Anuncios', '전체 공지'),
-                'company' => $activeCh->name,
-                'team' => $activeCh->name,
+                'group' => $activeCh->name,
                 'dm' => $nameOf($partner),
                 'correction' => self::tl($lang, 'Attendance corrections', 'Correcciones de asistencia', '출퇴근 정정요청'),
             ];
             $subs = [
                 'announcement' => self::tl($lang, 'Company-wide notices', 'Avisos para toda la empresa', '회사 전체 공지'),
-                'company' => self::tl($lang, 'Company room', 'Sala de empresa', '회사 채팅방'),
-                'team' => self::tl($lang, 'Crew room', 'Sala de cuadrilla', '팀 채팅방'),
+                'group' => self::tl($lang, "{$memberCount} members", "{$memberCount} miembros", "멤버 {$memberCount}명"),
                 'dm' => self::tl($lang, 'Direct message', 'Mensaje directo', '1:1 대화'),
                 'correction' => self::tl($lang, "{$corrCount} pending", "{$corrCount} pendientes", "대기 {$corrCount}건"),
             ];
@@ -161,6 +159,7 @@ class CommsView
                 'title' => $titles[$activeCh->type] ?? $activeCh->name,
                 'sub' => $subs[$activeCh->type] ?? '',
                 'isDm' => $activeCh->type === 'dm',
+                'isGroup' => $activeCh->type === 'group',
                 'isCorrection' => $activeCh->type === 'correction',
                 'canPost' => Comms::canPost($activeCh, $me, $canManage),
                 'readOnlyNote' => self::tl($lang, 'Only admins & managers can post here.', 'Solo admins y gerentes pueden publicar.', '관리자·매니저만 공지를 올릴 수 있어요.'),
@@ -169,13 +168,13 @@ class CommsView
                 'corrEmpty' => self::tl($lang, 'No pending corrections', 'Sin correcciones pendientes', '대기 중인 정정요청이 없어요'),
                 'rejectingId' => $s['rejectingId'] ?? null,
                 'adjustingId' => $s['adjustingId'] ?? null,
-                'partnerColor' => $partner ? $teamColor($partner->team_id) : '#16181D',
+                'partnerColor' => $partner ? $teamColor($partner->team_id) : '#0EA5A0',
                 'partnerInitials' => $partner ? $partner->initials() : null,
             ];
         }
 
         // ---- bell: channels with unread, freshest first ----
-        $unreadRooms = collect(array_merge($groups['announcement'], $groups['correction'], $groups['company'], $groups['team'], $groups['dm']))
+        $unreadRooms = collect(array_merge($groups['announcement'], $groups['correction'], $groups['group'], $groups['dm']))
             ->filter(fn ($r) => $r['unread'] > 0)
             ->sortBy([['sortKey', 'desc']])
             ->values();
@@ -192,11 +191,17 @@ class CommsView
             ])->all(),
         ];
 
-        // ---- new-DM candidates (active roster except me) ----
+        // ---- new-chat picker: pick one (→ DM) or several (→ group room) ----
+        $pickerOpen = ! empty($s['commsNewDm']) || ! empty($s['commsInviteOpen']);
+        $inviteOpen = ! empty($s['commsInviteOpen']);
+        $picked = array_map('intval', $s['commsPicked'] ?? []);
         $dmCandidates = [];
-        if (! empty($s['commsNewDm'])) {
+        if ($pickerOpen) {
             $q = trim((string) ($s['commsDmSearch'] ?? ''));
+            // when inviting, hide people already in the active room
+            $already = ($inviteOpen && $active) ? Comms::memberIds(Channel::find($active['id'])) : [];
             $dmCandidates = Employee::where('emp', 'active')->where('id', '!=', $me->id)
+                ->whereNotIn('id', $already)
                 ->get()
                 ->filter(function (Employee $e) use ($q, $lang) {
                     if ($q === '') {
@@ -214,6 +219,7 @@ class CommsView
                     'initials' => $e->initials(),
                     'color' => $teamColor($e->team_id),
                     'role' => $e->role,
+                    'picked' => in_array($e->id, $picked, true),
                 ])->values()->all();
         }
 
@@ -223,17 +229,26 @@ class CommsView
             'active' => $active,
             'bell' => $bell,
             'newDm' => ! empty($s['commsNewDm']),
+            'inviteOpen' => $inviteOpen,
+            'pickedCount' => count($picked),
+            'roomName' => $s['commsRoomName'] ?? '',
             'dmSearch' => $s['commsDmSearch'] ?? '',
             'dmCandidates' => $dmCandidates,
             'mobilePane' => (($s['commsPane'] ?? 'list') === 'thread') ? 'thread' : 'list',
             'labels' => [
                 'title' => self::tl($lang, 'Internal Comms', 'Comunicación', '내부 소통방'),
-                'sub' => self::tl($lang, 'Announcements · company & crew chat · DM', 'Anuncios · chat de empresa y cuadrilla · DM', '공지 · 회사·팀 채팅 · DM'),
+                'sub' => self::tl($lang, 'Announcements · rooms · DM', 'Anuncios · salas · DM', '공지 · 채팅방 · DM'),
                 'announcements' => self::tl($lang, 'Announcements', 'Anuncios', '공지'),
-                'companies' => self::tl($lang, 'Company rooms', 'Salas de empresa', '회사 채팅'),
-                'crews' => self::tl($lang, 'Crew rooms', 'Salas de cuadrilla', '팀 채팅'),
+                'rooms' => self::tl($lang, 'Chat rooms', 'Salas', '채팅방'),
                 'corrections' => self::tl($lang, 'Corrections', 'Correcciones', '정정요청'),
                 'dms' => self::tl($lang, 'Direct messages', 'Mensajes directos', 'DM'),
+                'newChat' => self::tl($lang, 'New chat', 'Nuevo chat', '새 채팅'),
+                'roomNamePh' => self::tl($lang, 'Room name (optional)', 'Nombre de sala (opcional)', '채팅방 이름 (선택)'),
+                'createChat' => self::tl($lang, 'Create', 'Crear', '만들기'),
+                'invite' => self::tl($lang, 'Invite', 'Invitar', '초대'),
+                'inviteAdd' => self::tl($lang, 'Add to room', 'Añadir a la sala', '채팅방에 추가'),
+                'leaveRoom' => self::tl($lang, 'Leave', 'Salir', '나가기'),
+                'pickNobody' => self::tl($lang, 'Pick people to start a chat', 'Elige personas', '대화 상대를 선택하세요'),
                 'corrCurrent' => self::tl($lang, 'Current', 'Actual', '현재'),
                 'corrRequested' => self::tl($lang, 'Requested', 'Solicitado', '요청'),
                 'corrReason' => self::tl($lang, 'Reason', 'Motivo', '사유'),

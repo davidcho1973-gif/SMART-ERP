@@ -230,14 +230,26 @@ class WorkforceApp extends Component
 
     public string $adjustOut = '';       // HH:MM (24h) — approver's edited clock-out
 
-    // ---- internal comms (announcements · company/crew chat · DM · bell) ----
+    // ---- internal comms (announcements · invite-based rooms · DM · bell) ----
     public ?int $commsChannel = null;
 
     public string $commsCompose = '';
 
+    /** new-chat picker open (pick 1 → DM, several → group room) */
     public bool $commsNewDm = false;
 
     public string $commsDmSearch = '';
+
+    /** picked employee ids in the new-chat / invite picker */
+    public array $commsPicked = [];
+
+    public string $commsRoomName = '';
+
+    /** invite picker open for the active group room */
+    public bool $commsInviteOpen = false;
+
+    /** last unread total seen by the poller — drives the "new message" chime */
+    public ?int $lastPing = null;
 
     public bool $bellOpen = false;
 
@@ -693,28 +705,133 @@ class WorkforceApp extends Component
         Comms::markRead($ch, $me);
     }
 
+    /** Open/close the new-chat picker (pick 1 person → DM, several → a group room). */
     public function toggleNewDm(): void
     {
         $this->commsNewDm = ! $this->commsNewDm;
+        $this->commsInviteOpen = false;
         $this->commsDmSearch = '';
+        $this->commsPicked = [];
+        $this->commsRoomName = '';
     }
 
+    /** Toggle a person in the picker's selection. */
+    public function togglePick(int $employeeId): void
+    {
+        $key = array_search($employeeId, $this->commsPicked, true);
+        if ($key !== false) {
+            unset($this->commsPicked[$key]);
+            $this->commsPicked = array_values($this->commsPicked);
+        } elseif (Employee::whereKey($employeeId)->exists()) {
+            $this->commsPicked[] = $employeeId;
+        }
+    }
+
+    /** Create the chat from the picker: one pick + no name → DM, otherwise a group room. */
+    public function createChat(): void
+    {
+        $me = $this->actorEmployee();
+        if (! $me) {
+            return;
+        }
+        $picked = array_values(array_filter(array_map('intval', $this->commsPicked), fn ($id) => $id !== $me->id));
+        if (empty($picked)) {
+            return;
+        }
+        $name = trim($this->commsRoomName);
+        $ch = (count($picked) === 1 && $name === '')
+            ? Comms::findOrCreateDm($me->id, $picked[0])
+            : Comms::createRoom($name, $me->id, $picked);
+        $this->openRoom($ch);
+    }
+
+    /** Quick 1:1 from a person row (still available from the bell/search). */
     public function startDm(int $employeeId): void
     {
         $me = $this->actorEmployee();
-        if (! $me || $employeeId === $me->id) {
+        if (! $me || $employeeId === $me->id || ! Employee::whereKey($employeeId)->exists()) {
             return;
         }
-        if (! Employee::whereKey($employeeId)->exists()) {
-            return;
-        }
-        $ch = Comms::findOrCreateDm($me->id, $employeeId);
+        $this->openRoom(Comms::findOrCreateDm($me->id, $employeeId));
+    }
+
+    /** Focus a channel and reset the picker state. */
+    protected function openRoom(Channel $ch): void
+    {
+        $me = $this->actorEmployee();
         $this->commsChannel = $ch->id;
         $this->commsNewDm = false;
+        $this->commsInviteOpen = false;
         $this->commsDmSearch = '';
+        $this->commsPicked = [];
+        $this->commsRoomName = '';
         $this->commsCompose = '';
-        $this->commsPane = 'thread'; // mobile: reveal the conversation
-        Comms::markRead($ch, $me);
+        $this->commsPane = 'thread';
+        if ($me) {
+            Comms::markRead($ch, $me);
+        }
+    }
+
+    /** Open the invite picker for the active group room. */
+    public function openInvite(): void
+    {
+        $ch = $this->commsChannel ? Channel::find($this->commsChannel) : null;
+        if (! $ch || $ch->type !== 'group') {
+            return;
+        }
+        $this->commsInviteOpen = true;
+        $this->commsNewDm = false;
+        $this->commsDmSearch = '';
+        $this->commsPicked = [];
+    }
+
+    /** Add the picked people to the active group room. */
+    public function inviteMembers(): void
+    {
+        $me = $this->actorEmployee();
+        $ch = $this->commsChannel ? Channel::find($this->commsChannel) : null;
+        if (! $me || ! $ch || $ch->type !== 'group' || ! Comms::canAccess($ch, $me)) {
+            return;
+        }
+        $picked = array_map('intval', $this->commsPicked);
+        if (! empty($picked)) {
+            Comms::addMembers($ch, $picked);
+            $this->showToast($this->tl('Invited', 'Invitado', '초대했어요'));
+        }
+        $this->commsInviteOpen = false;
+        $this->commsPicked = [];
+        $this->commsDmSearch = '';
+    }
+
+    /** Leave the active group room. */
+    public function leaveActiveRoom(): void
+    {
+        $me = $this->actorEmployee();
+        $ch = $this->commsChannel ? Channel::find($this->commsChannel) : null;
+        if (! $me || ! $ch || $ch->type !== 'group') {
+            return;
+        }
+        Comms::leaveRoom($ch, $me->id);
+        $this->commsChannel = null;
+        $this->commsPane = 'list';
+        $this->showToast($this->tl('Left the room', 'Saliste de la sala', '채팅방을 나갔어요'));
+    }
+
+    /**
+     * Polled a few times a minute: chime when the unread total grows since last check.
+     * First poll just seeds the baseline so an already-unread inbox doesn't ring.
+     */
+    public function pollComms(): void
+    {
+        $me = Employee::find($this->actorId());
+        if (! $me) {
+            return;
+        }
+        $total = Comms::totalUnread($me);
+        if ($this->lastPing !== null && $total > $this->lastPing) {
+            $this->dispatch('comms-ping');   // Alpine plays the notification sound
+        }
+        $this->lastPing = $total;
     }
 
     public function toggleBell(): void
@@ -2118,6 +2235,8 @@ class WorkforceApp extends Component
             'adjustingId' => $this->adjustingId,
             'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
             'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
+            'commsPicked' => $this->commsPicked, 'commsRoomName' => $this->commsRoomName,
+            'commsInviteOpen' => $this->commsInviteOpen,
             'commsPane' => $this->commsPane,
             'bellOpen' => $this->bellOpen,
             'actorId' => $this->actorId(),

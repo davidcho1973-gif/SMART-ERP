@@ -13,6 +13,9 @@
             <button wire:click="go('{{ $item['key'] }}')" style="{{ $Ui::navItem($item['active']) }}">
                 <span style="display: inline-flex; width: 20px; justify-content: center; flex-shrink: 0;">{!! $Icon::nav($item['key']) !!}</span>
                 <span style="white-space: nowrap;">{{ $item['label'] }}</span>
+                @if(($item['unread'] ?? 0) > 0)
+                    <span style="margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #E85D2A; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">{{ $item['unread'] > 99 ? '99+' : $item['unread'] }}</span>
+                @endif
             </button>
         @endforeach
         <div style="flex: 1;"></div>
@@ -109,9 +112,12 @@
     {{-- mobile bottom tab menu (admin / site-manager) — shown only under 820px --}}
     <nav class="wf-bottomnav">
         @foreach($nav as $item)
-            <button wire:click="go('{{ $item['key'] }}')" class="{{ $item['active'] ? 'active' : '' }}">
+            <button wire:click="go('{{ $item['key'] }}')" class="{{ $item['active'] ? 'active' : '' }}" style="position: relative;">
                 <span class="wf-navicon">{!! $Icon::nav($item['key']) !!}</span>
                 <span class="wf-navlabel">{{ $item['label'] }}</span>
+                @if(($item['unread'] ?? 0) > 0)
+                    <span style="position: absolute; top: 2px; right: 50%; margin-right: -20px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #E85D2A; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;">{{ $item['unread'] > 99 ? '99+' : $item['unread'] }}</span>
+                @endif
             </button>
         @endforeach
     </nav>

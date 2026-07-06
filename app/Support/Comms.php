@@ -2,10 +2,8 @@
 
 namespace App\Support;
 
-use App\Models\Assignment;
 use App\Models\Channel;
 use App\Models\ChannelMember;
-use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Message;
 use App\Models\Team;
@@ -18,28 +16,6 @@ use Illuminate\Support\Collection;
  */
 class Comms
 {
-    /** Company ids an employee belongs to (primary company + any involvement assignments). */
-    public static function companyIdsFor(Employee $me): array
-    {
-        $ids = Assignment::where('employee_id', $me->id)->pluck('company_id')->all();
-        if ($me->company_id) {
-            $ids[] = $me->company_id;
-        }
-
-        return array_values(array_unique(array_filter($ids)));
-    }
-
-    /** Crew ids an employee belongs to (primary crew + any involvement assignments). */
-    public static function teamIdsFor(Employee $me): array
-    {
-        $ids = Assignment::where('employee_id', $me->id)->pluck('team_id')->all();
-        if ($me->team_id) {
-            $ids[] = $me->team_id;
-        }
-
-        return array_values(array_unique(array_filter($ids)));
-    }
-
     /** Whether an employee is an attendance-correction approver (HR admin or any crew lead). */
     public static function isApprover(Employee $me): bool
     {
@@ -52,10 +28,9 @@ class Comms
         return match ($ch->type) {
             'announcement' => true,
             'correction' => self::isApprover($me),
-            'company' => in_array($ch->company_id, self::companyIdsFor($me), true),
-            'team' => in_array($ch->team_id, self::teamIdsFor($me), true),
-            'dm' => ChannelMember::where('channel_id', $ch->id)->where('employee_id', $me->id)->exists(),
-            default => false,
+            // rooms (group) and DMs are invite-based: membership is explicit
+            'group', 'dm' => ChannelMember::where('channel_id', $ch->id)->where('employee_id', $me->id)->exists(),
+            default => false,   // legacy company/team rooms are retired
         };
     }
 
@@ -72,26 +47,10 @@ class Comms
         return $ch->type === 'announcement' ? $canManage : true;
     }
 
-    /**
-     * Make sure the standing rooms exist: one org announcement channel, one room per
-     * company, and one room per crew. Idempotent — safe to call on every screen open.
-     */
+    /** Make sure the one standing room exists: the org announcement channel. Idempotent. */
     public static function ensureRooms(): void
     {
         Channel::firstOrCreate(['type' => 'announcement'], ['name' => '전체 공지']);
-
-        foreach (Company::all() as $c) {
-            Channel::firstOrCreate(
-                ['type' => 'company', 'company_id' => $c->id],
-                ['name' => $c->name],
-            );
-        }
-        foreach (Team::all() as $t) {
-            Channel::firstOrCreate(
-                ['type' => 'team', 'team_id' => $t->id],
-                ['name' => $t->name],
-            );
-        }
     }
 
     /** Find (or open) the DM room between two employees. */
@@ -114,25 +73,66 @@ class Comms
         return $ch;
     }
 
-    /** All channels an employee can see, freshest activity first. */
+    /** Create an invite-based group room: the creator plus the invited members. */
+    public static function createRoom(string $name, int $creatorId, array $memberIds): Channel
+    {
+        $ch = Channel::create([
+            'type' => 'group',
+            'name' => mb_substr(trim($name), 0, 60) ?: '새 채팅방',
+            'created_by' => $creatorId,
+        ]);
+        self::addMembers($ch, array_merge([$creatorId], $memberIds));
+
+        return $ch;
+    }
+
+    /** Add employees to a group room (no-op for ids already in). */
+    public static function addMembers(Channel $ch, array $memberIds): void
+    {
+        foreach (array_values(array_unique(array_filter($memberIds))) as $id) {
+            if (Employee::whereKey($id)->exists()) {
+                $ch->members()->firstOrCreate(['employee_id' => $id]);
+            }
+        }
+    }
+
+    /** Remove an employee from a group room; delete the room once it is empty. */
+    public static function leaveRoom(Channel $ch, int $empId): void
+    {
+        ChannelMember::where('channel_id', $ch->id)->where('employee_id', $empId)->delete();
+        if ($ch->type === 'group' && $ch->members()->count() === 0) {
+            Message::where('channel_id', $ch->id)->delete();
+            $ch->delete();
+        }
+    }
+
+    /** Employee ids in a room. */
+    public static function memberIds(Channel $ch): array
+    {
+        return ChannelMember::where('channel_id', $ch->id)->pluck('employee_id')->all();
+    }
+
+    /** All channels an employee can see. */
     public static function visibleChannels(Employee $me): Collection
     {
-        $companyIds = self::companyIdsFor($me);
-        $teamIds = self::teamIdsFor($me);
         $approver = self::isApprover($me);
 
         return Channel::query()
-            ->where(function ($q) use ($me, $companyIds, $teamIds, $approver) {
+            ->where(function ($q) use ($me, $approver) {
                 $q->where('type', 'announcement')
-                    ->orWhere(fn ($q) => $q->where('type', 'company')->whereIn('company_id', $companyIds ?: ['__none__']))
-                    ->orWhere(fn ($q) => $q->where('type', 'team')->whereIn('team_id', $teamIds ?: ['__none__']))
-                    ->orWhere(fn ($q) => $q->where('type', 'dm')
+                    ->orWhere(fn ($q) => $q->whereIn('type', ['group', 'dm'])
                         ->whereHas('members', fn ($m) => $m->where('employee_id', $me->id)));
                 if ($approver) {
                     $q->orWhere('type', 'correction');
                 }
             })
             ->get();
+    }
+
+    /** Total unread across everything the employee can see (drives the bell + ping). */
+    public static function totalUnread(Employee $me): int
+    {
+        return self::visibleChannels($me)->sum(fn (Channel $ch) => self::unreadCount($ch, $me));
     }
 
     /** Unread messages in a channel for an employee (own messages never count). */
