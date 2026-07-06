@@ -16,10 +16,11 @@ use Illuminate\Support\Collection;
  */
 class Comms
 {
-    /** Whether an employee is an attendance-correction approver (HR admin or any crew lead). */
+    /** Whether an employee is an attendance-correction approver (staff role or crew lead). */
     public static function isApprover(Employee $me): bool
     {
-        return $me->access === 'admin' || Team::where('lead', $me->id)->exists();
+        return in_array(Access::canonical($me->access), ['owner', 'hr_admin', 'site_manager'], true)
+            || Team::where('lead', $me->id)->exists();
     }
 
     /** Whether an employee may see (and post in) a channel. */

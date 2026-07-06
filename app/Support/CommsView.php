@@ -104,18 +104,22 @@ class CommsView
                     ];
                 })->all();
 
-            // approver queue for the correction room (HR admin sees all; a lead sees their crew)
+            // approver queue: owner/HR see all · a site manager their sites · a lead their crew
             $corrections = [];
             if ($activeCh->type === 'correction') {
-                // persona role wins over the roster access column so the demo admin (an
-                // employee with manager access) still sees every request
-                $isAdmin = (bool) ($s['actorIsAdmin'] ?? ($me->access === 'admin'));
+                $global = (bool) ($s['corrGlobal'] ?? ($me->access === 'admin'));
+                $sites = $s['corrSites'] ?? null;   // site-manager scope (null = n/a)
                 $cq = AttendanceCorrection::where('status', 'pending')->orderBy('id');
-                if (! $isAdmin) {
-                    $cq->where('lead_id', $me->id);
+                if (! $global) {
+                    $cq->where(function ($q) use ($me, $sites) {
+                        $q->where('lead_id', $me->id);
+                        if ($sites) {
+                            $q->orWhereIn('employee_id', Employee::whereIn('site_id', $sites)->pluck('id'));
+                        }
+                    });
                 }
                 $fmt = fn (?int $min) => $min === null ? '—' : Shift::fmtMin($min);
-                $corrections = $cq->get()->map(function (AttendanceCorrection $c) use ($me, $isAdmin, $lang, $nameOf, $emp, $fmt) {
+                $corrections = $cq->get()->map(function (AttendanceCorrection $c) use ($me, $global, $sites, $lang, $nameOf, $emp, $fmt) {
                     $worker = $emp((int) $c->employee_id);
                     $lead = $c->lead_id ? $emp((int) $c->lead_id) : null;
                     $company = $c->company_id ? Company::find($c->company_id) : null;
@@ -133,7 +137,7 @@ class CommsView
                         'origIn' => $fmt($c->orig_in_min), 'origOut' => $fmt($c->orig_out_min),
                         'reqIn' => $fmt($c->req_in_min), 'reqOut' => $fmt($c->req_out_min),
                         'reason' => $c->reason,
-                        'canDecide' => Corrections::canDecide($c, $me->id, $isAdmin),
+                        'canDecide' => Corrections::canDecide($c, $me->id, $global, $sites),
                     ];
                 })->all();
             }

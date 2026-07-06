@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Assignment;
 use App\Models\AttendanceCorrection;
+use App\Models\AuditLog;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
@@ -13,6 +14,7 @@ use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
 use App\Services\BadgeAnalyzer;
+use App\Support\Access;
 use App\Support\Comms;
 use App\Support\Corrections;
 use App\Support\Geo;
@@ -300,11 +302,159 @@ class WorkforceApp extends Component
         return (bool) config('workforce.demo');
     }
 
-    /** Mutating actions require demo mode or an authenticated admin/manager. */
-    protected function canManage(): bool
+    // =================== access policy (central gate) ===================
+
+    /**
+     * The actor's effective roles. Real mode reads the account's stored access
+     * (legacy values map via Access::canonical); demo personas map admin ⇒ owner,
+     * manager ⇒ site_manager. An employee who leads a crew gains 'crew_lead'.
+     */
+    protected function actorRoles(): array
     {
-        return $this->isDemo()
-            || (Auth::check() && in_array(Auth::user()->access, ['admin', 'manager'], true));
+        if ($this->isDemo()) {
+            $base = match ($this->role) {
+                'admin' => 'owner',
+                'manager' => 'site_manager',
+                default => 'worker',
+            };
+            $empId = $this->role === 'worker' ? $this->meEmployeeId() : $this->selfEmployeeId();
+        } else {
+            $base = Auth::check() ? Access::canonical(Auth::user()->access) : 'worker';
+            $empId = Auth::user()?->employee_id;
+        }
+        $roles = [$base];
+        if ($empId && Access::leadsTeams(Employee::find($empId))) {
+            $roles[] = 'crew_lead';
+        }
+
+        return $roles;
+    }
+
+    /** Site ids a site-scoped actor is confined to; null = unrestricted (D-3 hard scope). */
+    protected function scopeSiteIds(): ?array
+    {
+        $roles = $this->actorRoles();
+        if (array_intersect($roles, ['owner', 'hr_admin'])) {
+            return null;
+        }
+        if (! in_array('site_manager', $roles, true)) {
+            return null; // workers/crew leads are gated by role, not site scope
+        }
+        $emp = ($id = $this->selfEmployeeId()) ? Employee::find($id) : null;
+        $sid = $emp?->site_id ?? Site::first()?->id;
+
+        return array_values(array_filter([$sid]));
+    }
+
+    /** The site id a target maps to, for scope checks. */
+    protected function targetSiteId(mixed $target): ?string
+    {
+        return match (true) {
+            $target instanceof Employee => $target->site_id,
+            $target instanceof Team => Company::find($target->company_id)?->site_id,
+            $target instanceof Company => $target->site_id,
+            $target instanceof Site => $target->id,
+            is_string($target) => $target,
+            default => null,
+        };
+    }
+
+    /**
+     * The one permission gate: role holds the capability AND the target sits
+     * inside the actor's scope (owner/hr_admin: global · site_manager: their
+     * site · crew_lead: their crew). Call with no target for screen-level gates.
+     */
+    protected function can(string $cap, mixed $target = null): bool
+    {
+        $roles = $this->actorRoles();
+        if (! Access::allows($roles, $cap)) {
+            return false;
+        }
+        if ($target === null || array_intersect($roles, ['owner', 'hr_admin'])) {
+            return true;
+        }
+        if (in_array('site_manager', $roles, true)) {
+            $siteId = $this->targetSiteId($target);
+
+            return $siteId !== null && in_array($siteId, $this->scopeSiteIds() ?? [], true);
+        }
+        // crew_lead overlay: only their own crew's people
+        if (in_array('crew_lead', $roles, true) && $target instanceof Employee) {
+            $empId = $this->isDemo()
+                ? ($this->role === 'worker' ? $this->meEmployeeId() : $this->selfEmployeeId())
+                : Auth::user()?->employee_id;
+            $leads = $empId ? Access::leadsTeams(Employee::find($empId)) : [];
+
+            return $target->team_id !== null && in_array($target->team_id, $leads, true);
+        }
+
+        return false;
+    }
+
+    /** Corrections: may the actor decide requests org-wide (owner/hr_admin)? */
+    protected function correctionsGlobal(): bool
+    {
+        return (bool) array_intersect($this->actorRoles(), ['owner', 'hr_admin']);
+    }
+
+    /**
+     * The access value that may actually be granted: role changes require the
+     * roles.assign capability, the new role must be assignable by the actor, and
+     * nobody edits an account above their own rank. Otherwise the value is kept
+     * (edits) or clamped to worker (badge registration).
+     */
+    protected function grantableAccess(?Employee $target, string $wanted): string
+    {
+        $current = $target?->access ?? 'worker';
+        if (Access::canonical($wanted) === Access::canonical($current) && $target !== null) {
+            return $current; // unchanged
+        }
+        $actorRank = max(array_map(fn ($r) => Access::rank($r), $this->actorRoles()));
+        $allowed = $this->can('roles.assign')
+            && in_array(Access::canonical($wanted), Access::assignable($this->primaryRole()), true)
+            && Access::rank($current) <= $actorRank;
+
+        return $allowed ? $wanted : ($target !== null ? $current : 'worker');
+    }
+
+    /** Leave an audit row for a permission-sensitive act (Phase 4). */
+    protected function audit(string $action, string $target = '', string $detail = ''): void
+    {
+        $emp = $this->actorEmployee();
+        AuditLog::create([
+            'actor_id' => $emp?->id,
+            'actor_name' => $emp ? trim($emp->first.' '.$emp->last) : ($this->isDemo() ? 'demo·'.$this->role : 'system'),
+            'action' => $action,
+            'target' => $target !== '' ? $target : null,
+            'detail' => $detail !== '' ? $detail : null,
+        ]);
+    }
+
+    /** The actor's primary (highest) role name. */
+    protected function primaryRole(): string
+    {
+        $roles = $this->actorRoles();
+        usort($roles, fn ($a, $b) => Access::rank($b) <=> Access::rank($a));
+
+        return $roles[0] ?? 'worker';
+    }
+
+    /** D-3 hard scope: a site-scoped manager cannot point the app at another site. */
+    public function updatedSite($value): void
+    {
+        $scope = $this->scopeSiteIds();
+        if ($scope !== null && ! in_array($value, $scope, true)) {
+            $this->site = $scope[0] ?? 'all';
+        }
+    }
+
+    /** Pin the site selector inside the actor's scope (login / persona switch). */
+    protected function pinSiteToScope(): void
+    {
+        $scope = $this->scopeSiteIds();
+        if ($scope !== null && ! in_array($this->site, $scope, true)) {
+            $this->site = $scope[0] ?? 'all';
+        }
     }
 
     /** The employee behind the worker-mobile view. */
@@ -340,7 +490,7 @@ class WorkforceApp extends Component
             return $this->role !== 'worker';
         }
 
-        return Auth::check() && in_array(Auth::user()->access, ['admin', 'manager'], true);
+        return Auth::check() && Access::rank(Auth::user()->access) >= Access::RANK['company_admin'];
     }
 
     /**
@@ -352,7 +502,7 @@ class WorkforceApp extends Component
         if ($this->isDemo()) {
             return $this->selfEmployeeId();
         }
-        if (! Auth::check() || ! in_array(Auth::user()->access, ['admin', 'manager'], true)) {
+        if (! Auth::check() || Access::rank(Auth::user()->access) < Access::RANK['company_admin']) {
             return null;
         }
         $u = Auth::user();
@@ -367,7 +517,7 @@ class WorkforceApp extends Component
             'last' => isset($parts[1]) ? implode(' ', array_slice($parts, 1)) : '',
             'type' => 'manager',                 // staff, not a field worker (kept out of the worker timesheet)
             'access' => $u->access,
-            'role' => $u->access === 'admin' ? 'Administrator' : 'Site Manager',
+            'role' => in_array(Access::canonical($u->access), ['owner', 'hr_admin'], true) ? 'Administrator' : 'Site Manager',
             'email' => $u->email,
             'company_id' => Company::first()?->id,
             'team_id' => Team::first()?->id,
@@ -479,8 +629,15 @@ class WorkforceApp extends Component
     protected function applyUser(): void
     {
         $u = Auth::user();
-        $this->access = $u->access;
-        if ($u->access === 'worker') {
+        $canon = Access::canonical($u->access);
+        // the access prop is the VIEW ceiling (admin·manager·worker screens);
+        // real capabilities always come from the stored role via actorRoles()
+        $this->access = match ($canon) {
+            'owner', 'hr_admin' => 'admin',
+            'site_manager', 'company_admin' => 'manager',
+            default => 'worker',
+        };
+        if ($canon === 'worker') {
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
@@ -495,9 +652,10 @@ class WorkforceApp extends Component
                 $this->noLunchToday = $p->no_lunch;
             }
         } else {
-            $this->role = $u->access === 'admin' ? 'admin' : 'manager';
+            $this->role = $this->access;
             $this->screen = 'dashboard';
-            $this->lang = $u->access === 'manager' ? 'ko' : 'en';
+            $this->lang = $canon === 'site_manager' ? 'ko' : 'en';
+            $this->pinSiteToScope();
         }
     }
 
@@ -557,8 +715,8 @@ class WorkforceApp extends Component
             if (in_array($this->screen, ['worker', 'login'], true)) {
                 $this->screen = 'dashboard';
             }
-            // managers never see payroll
-            if ($target === 'manager' && $this->screen === 'payroll') {
+            // landing on payroll without the permission bounces to the dashboard
+            if ($this->screen === 'payroll' && ! $this->can('payroll.view')) {
                 $this->screen = 'dashboard';
             }
         }
@@ -581,6 +739,7 @@ class WorkforceApp extends Component
             $this->role = 'manager';
             $this->screen = 'dashboard';
             $this->lang = 'ko';
+            $this->pinSiteToScope();
         } else {
             $this->role = 'admin';
             $this->screen = 'dashboard';
@@ -595,8 +754,8 @@ class WorkforceApp extends Component
 
     public function go(string $screen): void
     {
-        // managers never see payroll; workers never see desktop screens
-        if ($this->role === 'manager' && $screen === 'payroll') {
+        // payroll is a real permission (not a hidden menu); workers have no desktop
+        if ($screen === 'payroll' && ! $this->can('payroll.view')) {
             return;
         }
         if ($this->role === 'worker' && $screen !== 'worker') {
@@ -691,7 +850,7 @@ class WorkforceApp extends Component
             return;
         }
         $ch = Channel::find($this->commsChannel);
-        if (! $ch || ! Comms::canPost($ch, $me, $this->canManage())) {
+        if (! $ch || ! Comms::canPost($ch, $me, $this->can('comms.announce'))) {
             $this->showToast($this->tl('You can’t post here', 'No puedes publicar aquí', '여기에는 글을 쓸 수 없어요'));
 
             return;
@@ -936,7 +1095,7 @@ class WorkforceApp extends Component
     /** Rotate the selected employee's badge photo 90° clockwise (fixes sideways photos). */
     public function rotateBadgePhoto(): void
     {
-        if (! $this->canManage() || ! $this->selectedEmp) {
+        if (! $this->selectedEmp || ! $this->can('employees.edit', Employee::find($this->selectedEmp))) {
             return;
         }
         $e = Employee::find($this->selectedEmp);
@@ -962,7 +1121,7 @@ class WorkforceApp extends Component
     /** Add a company-involvement assignment to the selected employee. */
     public function addAssignment(): void
     {
-        if (! $this->canManage() || ! $this->selectedEmp) {
+        if (! $this->selectedEmp || ! $this->can('assignments.manage', Employee::find($this->selectedEmp))) {
             return;
         }
         if ($this->newAssignCompany === '') {
@@ -989,7 +1148,7 @@ class WorkforceApp extends Component
 
     public function removeAssignment(int $id): void
     {
-        if (! $this->canManage()) {
+        if (! $this->selectedEmp || ! $this->can('assignments.manage', Employee::find($this->selectedEmp))) {
             return;
         }
         Assignment::where('id', $id)
@@ -1015,7 +1174,7 @@ class WorkforceApp extends Component
 
     public function saveEmp(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('employees.edit', Employee::find($this->selectedEmp))) {
             return;
         }
         $e = Employee::find($this->selectedEmp);
@@ -1025,6 +1184,8 @@ class WorkforceApp extends Component
             $teamId = $this->editForm['team'] ?? $e->team_id;
             $teamModel = $teamId ? Team::find($teamId) : null;
             $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
+            $prevAccess = $e->access;
+            $granted = $this->grantableAccess($e, $this->editForm['access'] ?? $e->access);
             $e->update([
                 'first' => $this->editForm['first'] ?? $e->first,
                 'last' => $this->editForm['last'] ?? $e->last,
@@ -1039,8 +1200,11 @@ class WorkforceApp extends Component
                 'phone' => $this->editForm['phone'] ?? $e->phone,
                 'email' => $this->editForm['email'] ?? $e->email,
                 'nat' => $this->editForm['nat'] ?? $e->nat,
-                'access' => $this->editForm['access'] ?? $e->access,
+                'access' => $granted,
             ]);
+            if ($granted !== $prevAccess) {
+                $this->audit('role.grant', $e->first.' '.$e->last.' (#'.$e->id.')', $prevAccess.' → '.$granted);
+            }
         }
         $this->selectedEmp = null;
         $this->showToast($this->dict()['e_save'].' ✓');
@@ -1058,10 +1222,14 @@ class WorkforceApp extends Component
 
     public function confirmDelete(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('employees.delete', Employee::find($this->deleteId))) {
             return;
         }
+        $d = Employee::find($this->deleteId);
         Employee::where('id', $this->deleteId)->delete();
+        if ($d) {
+            $this->audit('employee.delete', $d->first.' '.$d->last.' (#'.$d->id.')');
+        }
         $this->deleteId = null;
         $this->selectedEmp = null;
         $this->showToast($this->dict()['e_delete'].' ✓');
@@ -1079,12 +1247,16 @@ class WorkforceApp extends Component
 
     public function confirmTerm(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('employees.terminate', Employee::find($this->terminateId))) {
             return;
         }
+        $t = Employee::find($this->terminateId);
         Employee::where('id', $this->terminateId)->update([
             'emp' => 'terminated', 'term' => '07/01/2026', 'access' => 'worker', 'status' => 'off',
         ]);
+        if ($t) {
+            $this->audit('employee.terminate', $t->first.' '.$t->last.' (#'.$t->id.')');
+        }
         $this->terminateId = null;
         $this->selectedEmp = null;
         $this->showToast($this->dict()['e_terminate'].' ✓');
@@ -1092,10 +1264,11 @@ class WorkforceApp extends Component
 
     public function reactivate(int $id): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('employees.terminate', Employee::find($id))) {
             return;
         }
         Employee::where('id', $id)->update(['emp' => 'active', 'term' => null]);
+        $this->audit('employee.reactivate', '#'.$id);
         $this->showToast($this->dict()['e_reactivated']);
     }
 
@@ -1130,7 +1303,7 @@ class WorkforceApp extends Component
 
     public function saveCompany(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can($this->editCompanyId ? 'companies.edit' : 'companies.create')) {
             return;
         }
         $name = trim($this->newCoName);
@@ -1168,7 +1341,7 @@ class WorkforceApp extends Component
 
     public function confirmDeleteCompany(): void
     {
-        if (! $this->canManage() || ! $this->deleteCompanyId) {
+        if (! $this->deleteCompanyId || ! $this->can('companies.delete')) {
             return;
         }
         $id = $this->deleteCompanyId;
@@ -1176,6 +1349,7 @@ class WorkforceApp extends Component
         Employee::where('company_id', $id)->update(['company_id' => null, 'team_id' => null]);
         Team::where('company_id', $id)->delete();
         Company::where('id', $id)->delete();
+        $this->audit('company.delete', $id);
         $this->deleteCompanyId = null;
         $this->showToast($this->dict()['pj_deleted'].' ✓');
     }
@@ -1209,7 +1383,7 @@ class WorkforceApp extends Component
 
     public function saveTeam(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('teams.manage', $this->teamModal ? Company::find($this->teamModal) : null)) {
             return;
         }
         if (trim($this->newTeamName) === '' || ! $this->teamModal) {
@@ -1249,7 +1423,7 @@ class WorkforceApp extends Component
 
     public function confirmDeleteTeam(): void
     {
-        if (! $this->canManage() || ! $this->deleteTeamId) {
+        if (! $this->deleteTeamId || ! $this->can('teams.manage', Team::find($this->deleteTeamId))) {
             return;
         }
         Employee::where('team_id', $this->deleteTeamId)->update(['team_id' => null]);
@@ -1260,7 +1434,7 @@ class WorkforceApp extends Component
 
     public function changeLead(string $teamId, string $leadId): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('teams.manage', Team::find($teamId))) {
             return;
         }
         Team::where('id', $teamId)->update(['lead' => (int) $leadId]);
@@ -1307,7 +1481,7 @@ class WorkforceApp extends Component
      */
     public function geocodeSiteAddress(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('sites.edit', $this->siteModal ? Site::find($this->siteModal) : null)) {
             return;
         }
         $q = trim($this->siteAddress);
@@ -1337,7 +1511,7 @@ class WorkforceApp extends Component
 
     public function saveSiteGeo(): void
     {
-        if (! $this->canManage() || ! $this->siteModal) {
+        if (! $this->siteModal || ! $this->can('sites.edit', Site::find($this->siteModal))) {
             return;
         }
         $site = Site::find($this->siteModal);
@@ -1375,13 +1549,14 @@ class WorkforceApp extends Component
      */
     public function confirmDeleteSite(): void
     {
-        if (! $this->canManage() || ! $this->deleteSiteId) {
+        if (! $this->deleteSiteId || ! $this->can('sites.delete')) {
             return;
         }
         $id = $this->deleteSiteId;
         Company::where('site_id', $id)->update(['site_id' => null]);
         Employee::where('site_id', $id)->update(['site_id' => null]);
         Site::where('id', $id)->delete();
+        $this->audit('site.delete', $id);
         if ($this->site === $id) {
             $this->site = 'all';   // the filtered-on site is gone → fall back to all
         }
@@ -1624,7 +1799,7 @@ class WorkforceApp extends Component
 
     public function finishBadge(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('employees.register', Team::find($this->regTeam))) {
             return;
         }
         $d = $this->dict();
@@ -1658,7 +1833,7 @@ class WorkforceApp extends Component
             'role' => trim($this->regRoleTitle),
             'type' => $this->regType === 'manager' ? 'manager' : 'worker',
             'lang' => $this->regType === 'worker_local' ? 'es' : 'ko',
-            'access' => $this->regAccess,
+            'access' => $this->grantableAccess(null, $this->regAccess),
             'rate' => (float) ($this->regRate ?: 0),
             'issued' => trim($this->regIssued),
             'phone' => trim($this->regPhone), 'email' => trim($this->regEmail),
@@ -1694,7 +1869,7 @@ class WorkforceApp extends Component
 
     public function manualPunch(int $id, string $dir): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('punch.manual', Employee::find($id))) {
             return;
         }
         $e = Employee::find($id);
@@ -1717,12 +1892,16 @@ class WorkforceApp extends Component
             }
             $e->update(['status' => 'off', 'out_t' => $now]);
         }
+        $this->audit('punch.manual', $e->first.' '.$e->last.' (#'.$e->id.')', $dir.' '.$now);
         $label = $dir === 'in' ? $this->dict()['q_in'] : $this->dict()['q_out'];
         $this->showToast($e->first.' '.$e->last.' · '.$label);
     }
 
     public function exportPayroll(): void
     {
+        if (! $this->can('payroll.export')) {
+            return;
+        }
         $this->showToast($this->dict()['p_export'].' ✓');
     }
 
@@ -1735,7 +1914,7 @@ class WorkforceApp extends Component
      */
     public function findByBadge(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('payroll.view')) {
             return;
         }
         $q = trim($this->badgeLookup);
@@ -1760,6 +1939,9 @@ class WorkforceApp extends Component
 
     public function openPayDetail(int $id): void
     {
+        if (! $this->can('payroll.view')) {
+            return;
+        }
         $this->payDetail = $id;
     }
 
@@ -1770,6 +1952,9 @@ class WorkforceApp extends Component
 
     public function openVoucher(): void
     {
+        if (! $this->can('payroll.view')) {
+            return;
+        }
         $this->payVoucher = true;
     }
 
@@ -1780,7 +1965,7 @@ class WorkforceApp extends Component
 
     public function printVoucher(): void
     {
-        if (! $this->canManage()) {
+        if (! $this->can('payroll.process')) {
             return;
         }
         if (trim($this->checkNo) === '') {
@@ -1892,7 +2077,7 @@ class WorkforceApp extends Component
     public function togglePunchLunch(int $punchId): void
     {
         $p = Punch::find($punchId);
-        if (! $p || $p->employee_id !== $this->meEmployeeId() && ! $this->canManage()) {
+        if (! $p || $p->employee_id !== $this->meEmployeeId() && ! $this->can('punch.manual', Employee::find($p->employee_id))) {
             return;
         }
         $p->update(['no_lunch' => ! $p->no_lunch]);
@@ -2078,13 +2263,10 @@ class WorkforceApp extends Component
     }
 
     /** Whether the current viewer is an HR admin (may approve any request). */
+    /** Legacy shim: "admin" now means a global corrections decider (owner/hr_admin). */
     protected function actorIsAdmin(): bool
     {
-        if ($this->isDemo()) {
-            return $this->role === 'admin';
-        }
-
-        return Auth::check() && Auth::user()->access === 'admin';
+        return $this->correctionsGlobal();
     }
 
     /** Approver: approve a request → apply it to the punch immediately. */
@@ -2095,7 +2277,7 @@ class WorkforceApp extends Component
         if (! $c || ! $me) {
             return;
         }
-        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+        if (! Corrections::canDecide($c, $me->id, $this->correctionsGlobal(), $this->scopeSiteIds())) {
             $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '승인 권한이 없습니다'));
 
             return;
@@ -2132,7 +2314,7 @@ class WorkforceApp extends Component
         if (! $c || ! $me) {
             return;
         }
-        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+        if (! Corrections::canDecide($c, $me->id, $this->correctionsGlobal(), $this->scopeSiteIds())) {
             $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '승인 권한이 없습니다'));
 
             return;
@@ -2176,7 +2358,7 @@ class WorkforceApp extends Component
         if (! $c || ! $me) {
             return;
         }
-        if (! Corrections::canDecide($c, $me->id, $this->actorIsAdmin())) {
+        if (! Corrections::canDecide($c, $me->id, $this->correctionsGlobal(), $this->scopeSiteIds())) {
             $this->showToast($this->tl('Not allowed to decide this', 'No puedes decidir esto', '반려 권한이 없습니다'));
 
             return;
@@ -2231,7 +2413,21 @@ class WorkforceApp extends Component
             'correctionOpen' => $this->correctionOpen, 'correctionDate' => $this->correctionDate,
             'correctionType' => $this->correctionType, 'correctionIn' => $this->correctionIn,
             'correctionOut' => $this->correctionOut, 'correctionReason' => $this->correctionReason,
-            'rejectingId' => $this->rejectingId, 'actorIsAdmin' => $this->actorIsAdmin(),
+            'rejectingId' => $this->rejectingId,
+            'corrGlobal' => $this->correctionsGlobal(), 'corrSites' => $this->scopeSiteIds(),
+            'scopeSites' => $this->scopeSiteIds(),
+            'can' => [
+                'payrollView' => $this->can('payroll.view'),
+                'sitesCreate' => $this->can('sites.create'),
+                'sitesDelete' => $this->can('sites.delete'),
+                'companiesCreate' => $this->can('companies.create'),
+                'companiesDelete' => $this->can('companies.delete'),
+                'employeesDelete' => $this->can('employees.delete'),
+                'employeesTerminate' => Access::allows($this->actorRoles(), 'employees.terminate'),
+                'rolesAssign' => $this->can('roles.assign'),
+                'auditView' => $this->correctionsGlobal(),
+                'assignableRoles' => Access::assignable($this->primaryRole()),
+            ],
             'adjustingId' => $this->adjustingId,
             'commsChannel' => $this->commsChannel, 'commsCompose' => $this->commsCompose,
             'commsNewDm' => $this->commsNewDm, 'commsDmSearch' => $this->commsDmSearch,
@@ -2240,7 +2436,7 @@ class WorkforceApp extends Component
             'commsPane' => $this->commsPane,
             'bellOpen' => $this->bellOpen,
             'actorId' => $this->actorId(),
-            'canManage' => $this->canManage(),
+            'canManage' => $this->can('comms.announce'),
             'toast' => $this->toast,
             'nfcUid' => $this->currentUid() ?? self::NFC_UID,
             'nfcId' => $this->nfcId($this->currentUid() ?? self::NFC_UID),

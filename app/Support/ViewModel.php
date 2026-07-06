@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Assignment;
 use App\Models\AttendanceCorrection;
+use App\Models\AuditLog;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
@@ -29,7 +30,7 @@ class ViewModel
 
         $stColor = ['present' => '#1F9D6B', 'late' => '#E8A33D', 'absent' => '#D9483B', 'off' => '#9AA0A6'];
         $stBg = ['present' => '#E7F4EE', 'late' => '#FBF1DF', 'absent' => '#FBE9E7', 'off' => '#EFEFEC'];
-        $accColor = ['admin' => '#E85D2A', 'manager' => '#3B72E0', 'worker' => '#6B6E76'];
+        $accColor = ['admin' => '#E85D2A', 'owner' => '#E85D2A', 'hr_admin' => '#B9761F', 'manager' => '#3B72E0', 'site_manager' => '#3B72E0', 'company_admin' => '#0EA5A0', 'worker' => '#6B6E76'];
 
         $isDemo = (bool) config('workforce.demo');
         $authUser = Auth::user();
@@ -63,9 +64,11 @@ class ViewModel
         $scopedActive = $siteScope($activeAll);
 
         // ---- nav (managers have no payroll) ----
-        $navKeys = $s['role'] === 'manager'
-            ? ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance']
-            : ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance', 'payroll'];
+        $caps = (array) ($s['can'] ?? []);
+        $navKeys = ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance'];
+        if ($caps['payrollView'] ?? ($s['role'] !== 'manager')) {
+            $navKeys[] = 'payroll';   // payroll is a permission, not a hidden menu
+        }
         // unread badge for the Internal Comms nav item (computed once, reused below)
         $navActor = Employee::find($s['actorId'] ?? null);
         $commsUnread = $navActor ? Comms::totalUnread($navActor) : 0;
@@ -79,9 +82,11 @@ class ViewModel
             'key' => $k, 'label' => $L['w_tab_'.$k], 'active' => $s['mobileTab'] === $k,
         ], $mKeys);
 
+        $scopeSites = $s['scopeSites'] ?? null;   // null = unrestricted
+        $visibleSites = $scopeSites === null ? $sites : $sites->whereIn('id', $scopeSites)->values();
         $siteOptions = array_merge(
-            [['id' => 'all', 'label' => $L['allSites']]],
-            $sites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name.' · '.$st->city])->all()
+            $scopeSites === null ? [['id' => 'all', 'label' => $L['allSites']]] : [],
+            $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name.' · '.$st->city])->all()
         );
 
         // ---- dashboard stats ----
@@ -189,7 +194,7 @@ class ViewModel
                 'role' => $e->role, 'rate' => $e->rate,
                 'statusLabel' => $L['st_'.$e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
                 'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
-                'access' => $e->access, 'accessLabel' => $L['access_'.$e->access], 'accessColor' => $accColor[$e->access],
+                'access' => $e->access, 'accessLabel' => $L['access_'.$e->access] ?? $e->access, 'accessColor' => $accColor[$e->access] ?? '#6B6E76',
                 'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
                 'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
                 'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
@@ -402,7 +407,7 @@ class ViewModel
             'company' => $companyName($me->company_id), 'role' => $me->role, 'nat' => $me->nat,
             'empId' => $me->emp_id, 'phone' => $me->phone, 'email' => $me->email, 'issued' => $me->issued,
             'rate' => Money::rate($me->rate), 'reg' => $wReg, 'ot' => $wOt, 'hours' => $meWh,
-            'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_'.$me->access],
+            'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_'.$me->access] ?? $me->access,
         ];
 
         // authenticated user with no linked employee (e.g. admin previewing the
@@ -690,6 +695,16 @@ class ViewModel
             'authName' => $authUser?->name,
             'googleEnabled' => (bool) config('services.google.client_id'),
             'qrPrint' => ['company' => $selQr['company'], 'team' => $selQr['team'], 'lead' => $selQr['lead'], 'svg' => $teamQrSvg, 'leadWord' => $L['pj_lead']],
+            'can' => $caps,
+            'auditTrail' => ($caps['auditView'] ?? false)
+                ? AuditLog::orderByDesc('id')->limit(30)->get()->map(fn ($a) => [
+                    'when' => $a->created_at?->format('M j · g:i A') ?? '—',
+                    'actor' => $a->actor_name,
+                    'action' => $a->action,
+                    'target' => $a->target,
+                    'detail' => $a->detail,
+                ])->all()
+                : null,
             'toast' => $s['toast'],
         ];
     }

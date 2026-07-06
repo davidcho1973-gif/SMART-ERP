@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\AttendanceCorrection;
+use App\Models\AuditLog;
 use App\Models\Channel;
 use App\Models\Employee;
 use App\Models\Message;
@@ -57,7 +58,7 @@ class Corrections
     /** Employee ids that may act on a request: every active HR admin + the snapshot lead. */
     public static function approverEmployeeIds(AttendanceCorrection $c): array
     {
-        $ids = Employee::where('access', 'admin')->where('emp', 'active')->pluck('id')->all();
+        $ids = Employee::whereIn('access', ['admin', 'owner', 'hr_admin'])->where('emp', 'active')->pluck('id')->all();
         if ($c->lead_id) {
             $ids[] = (int) $c->lead_id;
         }
@@ -101,8 +102,13 @@ class Corrections
         return $c;
     }
 
-    /** May this actor approve/reject the request? (requester excluded, lead-or-admin only) */
-    public static function canDecide(AttendanceCorrection $c, ?int $actorEmpId, bool $isAdmin): bool
+    /**
+     * May this actor approve/reject the request? The requester never decides their
+     * own request. Global deciders (owner/hr_admin) act org-wide; a site manager
+     * acts when the worker is on one of their sites; a crew lead when the request
+     * snapshotted them as the responsible lead.
+     */
+    public static function canDecide(AttendanceCorrection $c, ?int $actorEmpId, bool $global, ?array $siteScope = null): bool
     {
         if (! $c->isPending() || ! $actorEmpId) {
             return false;
@@ -110,11 +116,19 @@ class Corrections
         if ($actorEmpId === (int) $c->employee_id) {
             return false; // no self-approval
         }
-        if ($isAdmin) {
+        if ($global) {
             return true;
         }
+        if ($c->lead_id !== null && $actorEmpId === (int) $c->lead_id) {
+            return true;
+        }
+        if ($siteScope) {
+            $siteId = Employee::find($c->employee_id)?->site_id;
 
-        return $c->lead_id !== null && $actorEmpId === (int) $c->lead_id;
+            return $siteId !== null && in_array($siteId, $siteScope, true);
+        }
+
+        return false;
     }
 
     /**
@@ -151,6 +165,7 @@ class Corrections
             'appl_in_min' => $applIn,
             'appl_out_min' => $applOut,
         ]);
+        self::auditDecision($c, $actorEmpId, 'correction.approve');
         self::syncEmployeeStatus($c);
     }
 
@@ -165,6 +180,21 @@ class Corrections
             'decided_by' => $actorEmpId,
             'decided_at' => now(),
             'decision_note' => mb_substr(trim($note), 0, 300) ?: null,
+        ]);
+        self::auditDecision($c, $actorEmpId, 'correction.reject');
+    }
+
+    /** Correction decisions join the org-wide audit stream (Phase 4). */
+    protected static function auditDecision(AttendanceCorrection $c, int $actorEmpId, string $action): void
+    {
+        $actor = Employee::find($actorEmpId);
+        $worker = Employee::find($c->employee_id);
+        AuditLog::create([
+            'actor_id' => $actorEmpId,
+            'actor_name' => $actor ? trim($actor->first.' '.$actor->last) : '#'.$actorEmpId,
+            'action' => $action,
+            'target' => ($worker ? trim($worker->first.' '.$worker->last) : '#'.$c->employee_id).' · '.$c->work_date,
+            'detail' => $c->decision_note,
         ]);
     }
 

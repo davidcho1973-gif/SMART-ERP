@@ -200,21 +200,35 @@ class CorrectionTest extends TestCase
         $this->assertSame('approved', $c->fresh()->status);
     }
 
-    public function test_a_non_lead_manager_cannot_approve_another_crews_request(): void
+    public function test_a_site_manager_cannot_approve_requests_outside_their_site(): void
     {
         $date = $this->yesterday();
-        // request from worker 106 (crew t1, lead 101)
+        // move the worker to another site so the request sits outside manager 101's
+        // scope (site s1), and point the request at a different crew's lead too
+        Employee::where('id', 106)->update(['site_id' => 's2']);
         $c = Corrections::submit(Employee::find(106), $date, 'set', 390, 930, 'fix');
-
-        // demo 'manager' persona is employee 101 — but retarget to a different lead's request:
-        // build a request whose lead is 102 (crew t2) so 101 is neither admin nor its lead
         $c->update(['lead_id' => 102, 'team_id' => 't2']);
 
         Livewire::test(WorkforceApp::class)
-            ->call('demo', 'manager')          // employee 101
+            ->call('demo', 'manager')          // employee 101 · site_manager of s1
             ->call('approveCorrection', $c->id);
 
-        $this->assertSame('pending', $c->fresh()->status);  // blocked
+        $this->assertSame('pending', $c->fresh()->status);  // blocked: not their lead, not their site
+    }
+
+    public function test_a_site_manager_can_approve_requests_on_their_own_site(): void
+    {
+        $date = $this->yesterday();
+        // request from a worker on site s1 whose snapshotted lead is someone else —
+        // the site manager may still decide because the worker is on their site
+        $c = Corrections::submit(Employee::find(106), $date, 'set', 390, 930, 'fix');
+        $c->update(['lead_id' => 102, 'team_id' => 't2']);   // not manager 101's crew
+
+        Livewire::test(WorkforceApp::class)
+            ->call('demo', 'manager')          // employee 101 · site_manager of s1
+            ->call('approveCorrection', $c->id);
+
+        $this->assertSame('approved', $c->fresh()->status);  // in-scope: worker is on s1
     }
 
     public function test_requester_cannot_approve_their_own_request(): void

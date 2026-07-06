@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
+use App\Support\Access;
 use App\Support\Timesheet;
 use App\Support\Xlsx;
 use Illuminate\Http\Request;
@@ -18,6 +20,19 @@ class TimesheetExportController extends Controller
             $date = now()->format('Y-m-d');
         }
         $site = is_string($request->query('site')) ? $request->query('site') : 'all';
+
+        // capability + hard scope (D-3): workers can't export; a site manager's
+        // export is pinned to their own site no matter what the URL says
+        if (! config('workforce.demo') && Auth::check()) {
+            $role = Access::canonical(Auth::user()->access);
+            abort_unless(Access::allows([$role], 'timesheet.export'), 403);
+            if ($role === 'site_manager') {
+                $own = Auth::user()->employee_id
+                    ? Employee::find(Auth::user()->employee_id)?->site_id
+                    : null;
+                $site = $own ?? $site;
+            }
+        }
         $lang = in_array($request->query('lang'), ['en', 'es', 'ko'], true) ? $request->query('lang') : 'en';
         $L = (array) trans('app', [], $lang);
 
@@ -41,7 +56,7 @@ class TimesheetExportController extends Controller
         // Sheet 2 — summary by company · crew
         $groups = [];
         foreach ($ts['rows'] as $r) {
-            $key = $r['company'] . '||' . $r['team'];
+            $key = $r['company'].'||'.$r['team'];
             $groups[$key] ??= ['company' => $r['company'], 'team' => $r['team'], 'workers' => 0, 'reg' => 0.0, 'ot' => 0.0];
             $groups[$key]['workers']++;
             $groups[$key]['reg'] += $r['regNum'];
@@ -58,11 +73,11 @@ class TimesheetExportController extends Controller
             ['name' => $L['ts_totals'], 'rows' => $summary],
         ]);
 
-        $filename = 'attendance_' . $date . '.xlsx';
+        $filename = 'attendance_'.$date.'.xlsx';
 
         return response($xlsx, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 }

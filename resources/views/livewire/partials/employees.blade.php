@@ -49,9 +49,9 @@
                         <button wire:click.stop="reactivate({{ $e['id'] }})" title="reactivate" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg></button>
                     @endif
                     @if($e['isActive'])
-                        <button wire:click.stop="askTerm({{ $e['id'] }})" title="terminate" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+                        @if($can['employeesTerminate'] ?? true)<button wire:click.stop="askTerm({{ $e['id'] }})" title="terminate" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>@endif
                     @endif
-                    <button wire:click.stop="askDelete({{ $e['id'] }})" title="delete" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                    @if($can['employeesDelete'] ?? true)<button wire:click.stop="askDelete({{ $e['id'] }})" title="delete" style="width: 30px; height: 30px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>@endif
                 </span>
             </div>
         @endforeach
@@ -107,10 +107,19 @@
                 </div>
                 <div style="margin-top: 22px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
                     <div style="font-size: 12px; font-weight: 700; color: #8A8880; margin-bottom: 10px;">{{ $L['e_accessNote'] }}</div>
-                    <div style="display: flex; gap: 6px;">
-                        <button wire:click="setFormAccess('admin')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='admin', $acc['admin']) }}">{{ $L['access_admin'] }}</button>
-                        <button wire:click="setFormAccess('manager')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='manager', $acc['manager']) }}">{{ $L['access_manager'] }}</button>
-                        <button wire:click="setFormAccess('worker')" style="{{ $Ui::accessSeg(($editForm['access'] ?? '')==='worker', $acc['worker']) }}">{{ $L['access_worker'] }}</button>
+                    @php
+                        // chips = what this actor may grant (Access::assignable); legacy stored
+                        // values (admin/manager) highlight on their canonical chip
+                        $grantable = $can['assignableRoles'] ?? [];
+                        $curCanon = \App\Support\Access::canonical($editForm['access'] ?? '');
+                        $chipColor = fn ($r) => $acc[$r] ?? '#6B6E76';
+                    @endphp
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        @forelse($grantable as $r)
+                            <button wire:click="setFormAccess('{{ $r }}')" style="{{ $Ui::accessSeg($curCanon === $r, $chipColor($r)) }}">{{ $L['access_'.$r] ?? $r }}</button>
+                        @empty
+                            <span style="display: inline-flex; font-size: 12.5px; font-weight: 600; color: #8A8880; background: #EFEDE6; padding: 6px 12px; border-radius: 8px;">{{ $L['access_'.$curCanon] ?? $curCanon }}</span>
+                        @endforelse
                     </div>
                 </div>
 
@@ -148,12 +157,12 @@
                 <button wire:click="saveEmp" style="width: 100%; margin-top: 22px; padding: 13px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_save'] }}</button>
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
                     @if($sel['isActive'])
-                        <button wire:click="askTerm({{ $sel['id'] }})" style="flex: 1; padding: 12px; border: 1px solid #FBF1DF; border-radius: 11px; background: #FBF1DF; color: #8A6A2E; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_terminate'] }}</button>
+                        @if($can['employeesTerminate'] ?? true)<button wire:click="askTerm({{ $sel['id'] }})" style="flex: 1; padding: 12px; border: 1px solid #FBF1DF; border-radius: 11px; background: #FBF1DF; color: #8A6A2E; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_terminate'] }}</button>@endif
                     @endif
                     @if($sel['isTerminated'])
                         <button wire:click="reactivate({{ $sel['id'] }})" style="flex: 1; padding: 12px; border: 1px solid #E7F4EE; border-radius: 11px; background: #E7F4EE; color: #1F7A57; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_reactivate'] }}</button>
                     @endif
-                    <button wire:click="askDelete({{ $sel['id'] }})" style="padding: 12px 18px; border: 1px solid #FBE9E7; border-radius: 11px; background: #FBE9E7; color: #D9483B; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_delete'] }}</button>
+                    @if($can['employeesDelete'] ?? true)<button wire:click="askDelete({{ $sel['id'] }})" style="padding: 12px 18px; border: 1px solid #FBE9E7; border-radius: 11px; background: #FBE9E7; color: #D9483B; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_delete'] }}</button>@endif
                 </div>
             </div>
         </div>
@@ -187,5 +196,24 @@
                 <button wire:click="confirmTerm" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E8A33D; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_terminate'] }}</button>
             </div>
         </div>
+    </div>
+@endif
+
+{{-- permission & correction audit trail — owner / HR only (Phase 4) --}}
+@if(!is_null($auditTrail ?? null))
+    <div style="margin-top: 26px; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
+        <div style="padding: 14px 20px; border-bottom: 1px solid #F0EEE8; display: flex; align-items: baseline; gap: 10px;">
+            <span style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 14.5px;">{{ $L['e_auditTitle'] }}</span>
+            <span style="font-size: 11.5px; color: #A7A49B;">{{ $L['e_auditSub'] }}</span>
+        </div>
+        @forelse($auditTrail as $a)
+            <div style="display: grid; grid-template-columns: 110px 150px 1fr; gap: 10px; padding: 10px 20px; border-bottom: 1px solid #F5F3EE; font-size: 12.5px; align-items: baseline;">
+                <span style="font-family: 'Space Grotesk'; color: #A7A49B; font-size: 11.5px;">{{ $a['when'] }}</span>
+                <span style="font-weight: 600;">{{ $a['actor'] }}</span>
+                <span style="color: #5A5D64;"><span style="font-family: 'Space Grotesk'; font-size: 11px; font-weight: 700; color: #E85D2A; background: #FDF0EA; padding: 2px 7px; border-radius: 6px; margin-right: 7px;">{{ $a['action'] }}</span>{{ $a['target'] }}@if($a['detail']) · <span style="color: #8A8880;">{{ $a['detail'] }}</span>@endif</span>
+            </div>
+        @empty
+            <div style="padding: 22px; text-align: center; color: #B7B4AB; font-size: 12.5px;">{{ $L['e_auditEmpty'] }}</div>
+        @endforelse
     </div>
 @endif
