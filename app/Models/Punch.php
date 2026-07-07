@@ -8,6 +8,7 @@ class Punch extends Model
 {
     protected $fillable = [
         'employee_id', 'work_date', 'in_min', 'out_min', 'no_lunch', 'early_reason', 'source',
+        'team_id', 'company_id', 'site_id',
         'in_lat', 'in_lng', 'in_acc', 'out_lat', 'out_lng', 'out_acc', 'in_geo_ok', 'out_geo_ok',
     ];
 

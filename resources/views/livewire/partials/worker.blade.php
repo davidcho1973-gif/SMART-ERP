@@ -4,11 +4,12 @@
     $w = $worker['me'];
     $clockedIn = $clock === 'in';
     $clockDone = $clock === 'done';
+    $clockBtnBase = 'display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:19px;border:none;border-radius:18px;font-size:18.5px;font-weight:800;color:#fff;';
     $clockBtnStyle = $clockDone
-        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#3A3D45;color:rgba(255,255,255,0.8);font-size:19px;font-weight:700;cursor:not-allowed;opacity:0.75;'
+        ? $clockBtnBase.'background:#3A3D45;color:rgba(255,255,255,0.75);cursor:not-allowed;'
         : ($clockedIn
-            ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
-            : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);');
+            ? $clockBtnBase.'background:linear-gradient(180deg,#E25A4C,#D9483B);cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.34),inset 0 1px 0 rgba(255,255,255,0.15);'
+            : $clockBtnBase.'background:linear-gradient(180deg,#23B27C,#1F9D6B);cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.38),inset 0 1px 0 rgba(255,255,255,0.18);');
     $statusPillBg = $clockDone ? 'rgba(255,255,255,0.12)' : ($clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)');
     $statusPillColor = $clockDone ? 'rgba(255,255,255,0.8)' : ($clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)');
     $noLunchRowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:12px 14px;border-radius:14px;background:'.($noLunchToday?'rgba(74,222,128,0.12)':'rgba(255,255,255,0.06)').';border:1px solid '.($noLunchToday?'rgba(74,222,128,0.4)':'rgba(255,255,255,0.14)').';';
@@ -36,18 +37,23 @@
                         <div style="background: #16181D; border-radius: 22px; padding: 24px; color: #fff; text-align: center;">
                             <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; background: {{ $statusPillBg }}; color: {{ $statusPillColor }}; padding: 6px 14px; border-radius: 20px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $statusPillColor }};"></span>{{ $clockDone ? $L['w_workDone'] : ($clockedIn ? $L['w_status_in'] : $L['w_status_out']) }}</div>
                             <div class="wk-bigtime" style="font-family: 'Space Grotesk'; font-size: 46px; font-weight: 700; margin-top: 16px;">{{ now()->format('g:i A') }}</div>
-                            <div style="font-size: 12.5px; color: rgba(255,255,255,0.5);">{{ $w['teamName'] }} · {{ $w['role'] }}</div>
+                            <div style="font-size: 12.5px; color: rgba(255,255,255,0.5);">{{ $w['role'] }}</div>
+                            {{-- today's crew — updated live when the worker scans another crew's QR --}}
+                            <div style="display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 11px; font-size: 12px; color: rgba(255,255,255,0.55);">
+                                {{ $L['w_todayTeam'] }}
+                                <span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(59,114,224,0.22); color: #9DBCFF; padding: 3px 10px; border-radius: 7px; font-weight: 700; font-size: 12px;">{{ $w['teamName'] }}</span>
+                            </div>
                             @if($clockedIn)
-                                <div style="margin-top: 10px; font-size: 12.5px; color: #4ADE80;">{{ $L['w_since'] }} {{ $clockInTime }}</div>
+                                <div style="margin-top: 9px; font-size: 12.5px; color: #4ADE80;">{{ $L['w_since'] }} {{ $clockInTime }}</div>
                             @endif
-                            <div style="margin-top: 20px;">
+                            <div style="margin-top: 18px;">
                                 @if($clockDone)
                                     <button type="button" disabled style="{{ $clockBtnStyle }}">{{ $L['w_workDone'] }}</button>
                                 @else
                                     {{-- capture GPS on tap; clock proceeds even if permission is denied (coords → null).
                                          busy latch: one punch per tap — repeat taps are ignored until the round-trip
                                          (GPS lookup + server call) finishes, so a double-tap can't clock straight back out --}}
-                                    <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? 'opacity:0.6;' : ''"
+                                    <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? { opacity: '0.55' } : {}"
                                         @click="
                                             if (busy) return;
                                             busy = true;
@@ -60,7 +66,16 @@
                                                 );
                                             } else { go(null, null, null); }
                                         "
-                                        style="{{ $clockBtnStyle }}">{{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}</button>
+                                        style="{{ $clockBtnStyle }}">
+                                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v5l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+                                        {{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}
+                                    </button>
+                                    {{-- moved crews today? scan that crew's QR — assigns today's crew (and clocks in if not yet in) --}}
+                                    <button type="button" @click="$dispatch('open-team-scan')" style="display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 16px; border-radius: 15px; border: 1.5px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; text-align: left;">
+                                        <span style="width: 38px; height: 38px; border-radius: 10px; background: rgba(232,93,42,0.18); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 21v.01M17 21v.01M21 17v.01"/></svg></span>
+                                        <span style="flex: 1;"><span style="display: block; font-size: 14px; font-weight: 700;">{{ $L['w_teamQrBtn'] }}</span><span style="display: block; font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['w_teamQrHint'] }}</span></span>
+                                        <span style="color: rgba(255,255,255,0.4); font-size: 18px;">›</span>
+                                    </button>
                                 @endif
                             </div>
                             @if($clockedIn)
@@ -73,6 +88,60 @@
                                 <button wire:click="openEarly" style="margin-top: 10px; width: 100%; padding: 13px; border: 1px solid rgba(255,255,255,0.22); border-radius: 16px; background: transparent; color: #F4C168; font-size: 15px; font-weight: 600; cursor: pointer;">{{ $L['w_early'] }}</button>
                             @endif
                         </div>
+                        {{-- team-QR scanner: camera + BarcodeDetector; the scanned crew becomes today's crew --}}
+                        <div x-data="{
+                                open: false, unsupported: false, stream: null, timer: null, det: null, sending: false,
+                                async start() {
+                                    this.open = true; this.unsupported = false; this.sending = false;
+                                    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { this.unsupported = true; return; }
+                                    try {
+                                        this.det = new BarcodeDetector({ formats: ['qr_code'] });
+                                        this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                                        this.$refs.vid.srcObject = this.stream;
+                                        this.tick();
+                                    } catch (e) { this.unsupported = true; }
+                                },
+                                async tick() {
+                                    if (!this.open || this.sending) return;
+                                    try {
+                                        const codes = await this.det.detect(this.$refs.vid);
+                                        if (codes.length && codes[0].rawValue) { this.found(codes[0].rawValue); return; }
+                                    } catch (e) {}
+                                    this.timer = setTimeout(() => this.tick(), 250);
+                                },
+                                found(text) {
+                                    this.sending = true;
+                                    const send = (la, ln, ac) => $wire.assignTeamByQr(text, la, ln, ac).finally(() => this.stop());
+                                    if (navigator.geolocation) {
+                                        navigator.geolocation.getCurrentPosition(
+                                            p => send(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+                                            () => send(null, null, null),
+                                            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+                                    } else { send(null, null, null); }
+                                },
+                                stop() {
+                                    this.open = false;
+                                    clearTimeout(this.timer);
+                                    if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+                                }
+                            }"
+                            @open-team-scan.window="start()" @keydown.escape.window="stop()">
+                            <div x-show="open" x-cloak style="position: absolute; inset: 0; background: #0B0C0F; z-index: 60; display: flex; flex-direction: column; color: #fff;">
+                                <div style="display: flex; align-items: center; gap: 10px; padding: 46px 18px 12px;">
+                                    <button type="button" @click="stop()" style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.12); border: none; color: #fff; font-size: 16px; cursor: pointer;">✕</button>
+                                    <div><div style="font-size: 16px; font-weight: 700;">{{ $L['w_scanTitle'] }}</div><div style="font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['w_scanSub'] }}</div></div>
+                                </div>
+                                <div style="flex: 1; position: relative; margin: 8px 18px; border-radius: 18px; overflow: hidden; background: #1B1D22;">
+                                    <video x-ref="vid" autoplay playsinline muted style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;"></video>
+                                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                                        <div style="width: 200px; height: 200px; border: 3px solid rgba(232,93,42,0.9); border-radius: 18px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);"></div>
+                                    </div>
+                                    <div x-show="unsupported" style="position: absolute; inset: 0; background: #16181D; display: flex; align-items: center; justify-content: center; text-align: center; padding: 28px; font-size: 13.5px; color: rgba(255,255,255,0.75); line-height: 1.6;">{{ $L['w_scanUnsupported'] }}</div>
+                                </div>
+                                <div style="text-align: center; font-size: 12.5px; color: rgba(255,255,255,0.55); padding: 10px 26px 26px;" x-text="sending ? '{{ $L['w_scanSending'] }}' : '{{ $L['w_scanHint'] }}'"></div>
+                            </div>
+                        </div>
+
                         @if($earlyOpen)
                             <div style="margin-top: 16px; background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 18px;">
                                 <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">{{ $L['w_earlyTitle'] }}</div>

@@ -2157,6 +2157,9 @@ class WorkforceApp extends Component
             $p->in_min = $p->in_min ?? $nowMin;
             $p->out_min = null;
             $p->source = 'manual';
+            $p->team_id = $p->team_id ?? $e->team_id;
+            $p->company_id = $p->company_id ?? $e->company_id;
+            $p->site_id = $p->site_id ?? $e->site_id;
             $p->save();
             $e->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
         } else {
@@ -2384,6 +2387,10 @@ class WorkforceApp extends Component
             $p->out_min = null;
             $p->no_lunch = $this->noLunchToday;
             $p->source = 'worker';
+            // stamp today's crew/company/site — later team moves must not rewrite this day
+            $p->team_id = $me->team_id;
+            $p->company_id = $me->company_id;
+            $p->site_id = $me->site_id;
             $p->in_lat = $coords['lat'] ?? null;
             $p->in_lng = $coords['lng'] ?? null;
             $p->in_acc = $coords['acc'] ?? null;
@@ -2413,6 +2420,55 @@ class WorkforceApp extends Component
             $p->save();
             $me?->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_out']);
+        }
+    }
+
+    /**
+     * Worker-home QR scanner result: the scanned crew becomes today's crew.
+     * Accepts the raw QR text (a /scan/{team} URL) or a bare team id. If the
+     * worker hasn't clocked in yet, the same tap clocks them in too.
+     */
+    public function assignTeamByQr(string $qrValue, float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
+    {
+        $d = $this->dict();
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $me = Employee::find($eid);
+        if (! $me || ! $me->isActive()) {
+            return;
+        }
+        // extract the team id from a /scan/{team} URL, else treat the value as an id
+        $teamId = preg_match('#/scan/([^/?\s]+)#', $qrValue, $m) ? $m[1] : trim($qrValue);
+        $team = Team::find($teamId);
+        $company = $team ? Company::find($team->company_id) : null;
+        if (! $team) {
+            $this->showToast($d['w_scanBadQr']);
+
+            return;
+        }
+        if ($me->team_id !== $team->id) {
+            $from = $me->team_id;
+            $me->update([
+                'team_id' => $team->id,
+                'company_id' => $company?->id ?? $me->company_id,
+                'site_id' => $company?->site_id ?? $me->site_id,
+            ]);
+            $this->audit('team.move', trim($me->first.' '.$me->last).' (#'.$me->id.')', ($from ?? '—').' → '.$team->id.' · via QR');
+            // restamp today's open (not yet clocked-out) punch so the day reads as the new crew
+            $p = $this->todayPunch($eid);
+            if ($p->exists && $p->out_min === null) {
+                $p->update(['team_id' => $team->id, 'company_id' => $company?->id, 'site_id' => $company?->site_id]);
+            }
+        }
+        $p = $this->todayPunch($eid);
+        if ($p->in_min === null) {
+            // not clocked in yet — one scan does both: assign + clock in
+            $this->doClock($lat, $lng, $acc);
+            $this->showToast($team->name.' · '.$d['w_teamMoved'].' · '.$d['w_done_in']);
+        } else {
+            $this->showToast($team->name.' · '.$d['w_teamMoved']);
         }
     }
 

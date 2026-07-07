@@ -147,11 +147,34 @@ class ScanClock extends Component
             $geoOk = null;   // too imprecise to confirm on-site
         }
         if ($p->in_min === null) {
+            // scanning a crew's QR IS the day's team assignment: the scanned crew
+            // becomes today's crew (stamped on the punch) and the person's current
+            // crew — no admin work needed when workers move between crews.
+            $team = Team::find($this->teamId);
+            $company = $team ? Company::find($team->company_id) : null;
+            if ($team && $emp->team_id !== $team->id) {
+                $from = $emp->team_id;
+                $emp->update([
+                    'team_id' => $team->id,
+                    'company_id' => $company?->id ?? $emp->company_id,
+                    'site_id' => $company?->site_id ?? $emp->site_id,
+                ]);
+                \App\Models\AuditLog::create([
+                    'actor_id' => $emp->id,
+                    'actor_name' => trim($emp->first.' '.$emp->last),
+                    'action' => 'team.move',
+                    'target' => trim($emp->first.' '.$emp->last).' (#'.$emp->id.')',
+                    'detail' => ($from ?? '—').' → '.$team->id.' · via QR',
+                ]);
+            }
             $this->clock = 'in';
             $this->clockInTime = Shift::fmtMin($nowMin);
             $p->in_min = $nowMin;
             $p->out_min = null;
             $p->source = 'qr';
+            $p->team_id = $team?->id ?? $emp->team_id;
+            $p->company_id = $company?->id ?? $emp->company_id;
+            $p->site_id = $company?->site_id ?? $emp->site_id;
             $p->in_lat = $coords['lat'] ?? null;
             $p->in_lng = $coords['lng'] ?? null;
             $p->in_acc = $coords['acc'] ?? null;

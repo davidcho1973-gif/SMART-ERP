@@ -82,12 +82,17 @@ class Timesheet
             // Distance is recomputed from stored coords for the reviewer badge.
             [$geoOff, $geoDist] = self::geoReview($p, $sites->get($e->site_id));
 
+            // the punch snapshot (crew/company at clock time) wins over the
+            // person's CURRENT crew — moving teams later must not rewrite this day
+            $dayTeam = $p?->team_id ?? $e->team_id;
+            $dayCompany = $p?->company_id ?? $e->company_id;
+
             $rows[] = [
                 'id' => $e->id,
                 'hasPunch' => $p !== null && $p->in_min !== null,   // a real punch record that can be voided
-                'company' => $companyName($e->company_id),
-                'team' => $teamName($e->team_id),
-                'teamColor' => $teamColor($e->team_id),
+                'company' => $companyName($dayCompany),
+                'team' => $teamName($dayTeam),
+                'teamColor' => $teamColor($dayTeam),
                 'name' => $e->displayName($lang), 'initials' => $e->initials(),
                 'actIn' => $actIn, 'actOut' => $actOut,
                 'paidIn' => $paidIn, 'paidOut' => $paidOut,

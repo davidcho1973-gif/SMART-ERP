@@ -1,11 +1,12 @@
 @php
     $Ui = \App\Support\Ui::class;
     $clockDone = $clockDone ?? false;
+    $clockBtnBase = 'display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:19px;border:none;border-radius:18px;font-size:18.5px;font-weight:800;color:#fff;';
     $clockBtnStyle = $clockDone
-        ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#8A8880;color:rgba(255,255,255,0.85);font-size:19px;font-weight:700;cursor:not-allowed;opacity:0.7;'
+        ? $clockBtnBase.'background:#3A3D45;color:rgba(255,255,255,0.75);cursor:not-allowed;'
         : ($clockedIn
-            ? 'width:100%;padding:20px;border:none;border-radius:20px;background:#D9483B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.3);'
-            : 'width:100%;padding:20px;border:none;border-radius:20px;background:#1F9D6B;color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.35);');
+            ? $clockBtnBase.'background:linear-gradient(180deg,#E25A4C,#D9483B);cursor:pointer;box-shadow:0 10px 24px rgba(217,72,59,0.34),inset 0 1px 0 rgba(255,255,255,0.15);'
+            : $clockBtnBase.'background:linear-gradient(180deg,#23B27C,#1F9D6B);cursor:pointer;box-shadow:0 10px 24px rgba(31,157,107,0.38),inset 0 1px 0 rgba(255,255,255,0.18);');
     $pillBg = $clockDone ? 'rgba(255,255,255,0.14)' : ($clockedIn ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.1)');
     $pillColor = $clockDone ? 'rgba(255,255,255,0.85)' : ($clockedIn ? '#4ADE80' : 'rgba(255,255,255,0.7)');
 @endphp
@@ -47,7 +48,7 @@
                     @else
                         {{-- capture GPS when tapped; clock in/out proceeds even if permission is denied (coords → null).
                              busy latch: repeat taps are ignored until the GPS lookup + server call finish --}}
-                        <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? 'opacity:0.6;' : ''"
+                        <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? { opacity: '0.55' } : {}"
                             @click="
                                 if (busy) return;
                                 busy = true;
