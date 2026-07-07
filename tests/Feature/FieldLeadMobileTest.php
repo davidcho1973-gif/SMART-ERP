@@ -114,6 +114,26 @@ class FieldLeadMobileTest extends TestCase
         $this->assertNull(Team::find('t2')->shift_in);
     }
 
+    public function test_admin_view_as_field_lead_shows_the_mobile_crew_preview(): void
+    {
+        Team::query()->update(['lead' => null]);          // 106 is the only lead to preview
+        Team::whereKey('t1')->update(['lead' => 106]);
+        $admin = User::where('email', 'davidcho1973@gmail.com')->first();
+
+        Livewire::actingAs($admin)
+            ->test(WorkforceApp::class)
+            ->assertSet('role', 'admin')                 // lands on the desktop
+            ->assertViewHas('viewSwitch', fn ($vs) => collect($vs)->contains(fn ($v) => $v['role'] === 'lead'))
+            ->call('viewAs', 'lead')
+            ->assertSet('role', 'worker')                // now the phone app
+            ->assertSet('previewEmpId', 106)             // standing in for the crew lead
+            ->assertSet('mobileTab', 'crew')
+            ->assertViewHas('crew', fn ($crew) => $crew !== null && count($crew['teams']) === 1)
+            ->call('viewAs', 'admin')
+            ->assertSet('role', 'admin')
+            ->assertSet('previewEmpId', null);           // back to the real admin view
+    }
+
     public function test_lead_can_adjust_a_crew_members_paid_time_from_the_phone(): void
     {
         Team::whereKey('t1')->update(['lead' => 106, 'shift_in' => 300, 'shift_out' => 840]);

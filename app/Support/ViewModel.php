@@ -713,13 +713,22 @@ class ViewModel
             ?? ($s['role'] === 'admin' ? ($lang === 'ko' ? '김현수' : 'Hyunsoo Kim') : ($lang === 'ko' ? '박정우' : 'Jungwoo Park'));
 
         // Access hierarchy: which views this account may switch to (rank ≤ ceiling).
-        $rank = ['worker' => 1, 'manager' => 2, 'admin' => 3];
+        // The middle rung is the field-lead mobile preview ('lead'), which replaced
+        // the old desktop "manager" view — clicking it shows the crew-lead phone UI.
+        $rank = ['worker' => 1, 'lead' => 2, 'manager' => 2, 'admin' => 3];
         $access = $s['access'] ?? 'admin';
-        $roleLabels = ['admin' => $L['roleAdmin'], 'manager' => $L['roleManager'], 'worker' => $L['roleWorker']];
+        $previewLead = ($s['previewEmpId'] ?? null) !== null;
+        $roleLabels = ['admin' => $L['roleAdmin'], 'lead' => $L['roleFieldLead'], 'worker' => $L['roleWorker']];
+        $activeView = fn ($r) => match ($r) {
+            'admin' => $s['role'] === 'admin',
+            'lead' => $s['role'] === 'worker' && $previewLead,
+            'worker' => $s['role'] === 'worker' && ! $previewLead,
+            default => false,
+        };
         $viewSwitch = [];
-        foreach (['admin', 'manager', 'worker'] as $r) {
+        foreach (['admin', 'lead', 'worker'] as $r) {
             if (($rank[$r] ?? 0) <= ($rank[$access] ?? 3)) {
-                $viewSwitch[] = ['role' => $r, 'label' => $roleLabels[$r], 'active' => $s['role'] === $r];
+                $viewSwitch[] = ['role' => $r, 'label' => $roleLabels[$r], 'active' => $activeView($r)];
             }
         }
 

@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'tagline' => 'Multi-site workforce · Arizona', 'roleSwitch' => 'Role', 'viewAs' => 'View as', 'roleAdmin' => 'Admin', 'roleManager' => 'Site Manager', 'roleWorker' => 'Worker',
+    'tagline' => 'Multi-site workforce · Arizona', 'roleSwitch' => 'Role', 'viewAs' => 'View as', 'roleAdmin' => 'Admin', 'roleManager' => 'Site Manager', 'roleFieldLead' => 'Field Lead', 'roleWorker' => 'Worker',
     'loginKicker' => 'MULTI-SITE WORKFORCE OS', 'loginTitle' => "One system for\nevery site & crew", 'loginSub' => 'From badge onboarding to QR attendance, company & crew setup and USD payroll — across all your US project sites.',
     'statWorkers' => 'Workers', 'statSites' => 'Sites', 'statCompanies' => 'Companies',
     'signInTitle' => 'Sign in', 'signInSub' => 'Authenticate with your company Google account to land on your role view.', 'googleBtn' => 'Continue with Google', 'orDemo' => 'or explore a demo',

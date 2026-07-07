@@ -188,6 +188,9 @@ class WorkforceApp extends Component
     /** field-lead mobile: id of the crew whose shift is being edited (inline editor) */
     public ?string $crewShiftTeam = null;
 
+    /** admin "view as → field lead": the crew-lead employee the preview is standing in for */
+    public ?int $previewEmpId = null;
+
     public ?string $editCompanyId = null;   // company modal in edit mode
 
     public ?string $editTeamId = null;       // team modal in edit mode
@@ -524,6 +527,10 @@ class WorkforceApp extends Component
     /** The employee behind the worker-mobile view. */
     protected function meEmployeeId(): int
     {
+        // admin previewing "view as → field lead": stand in for that crew lead
+        if ($this->previewEmpId !== null) {
+            return $this->previewEmpId;
+        }
         // any authenticated user linked to an employee sees their own record
         if (! $this->isDemo() && Auth::check() && Auth::user()->employee_id) {
             return (int) Auth::user()->employee_id;
@@ -781,7 +788,19 @@ class WorkforceApp extends Component
     /** Rank of a role for the access hierarchy (higher = more access). */
     protected function roleRank(string $r): int
     {
-        return ['worker' => 1, 'manager' => 2, 'admin' => 3][$r] ?? 0;
+        // 'lead' (field-lead mobile preview) sits at the manager rung
+        return ['worker' => 1, 'lead' => 2, 'manager' => 2, 'admin' => 3][$r] ?? 0;
+    }
+
+    /** An active employee who leads a crew — the persona behind the field-lead preview. */
+    protected function firstFieldLeadId(): ?int
+    {
+        $leadIds = Team::whereNotNull('lead')->pluck('lead')->unique()->all();
+        if ($leadIds === []) {
+            return null;
+        }
+
+        return Employee::whereIn('id', $leadIds)->where('emp', 'active')->orderBy('id')->value('id');
     }
 
     /**
@@ -790,20 +809,29 @@ class WorkforceApp extends Component
      */
     public function viewAs(string $target): void
     {
-        if (! in_array($target, ['admin', 'manager', 'worker'], true)) {
+        if (! in_array($target, ['admin', 'lead', 'worker'], true)) {
             return;
         }
         // never let a view exceed the account's own access level
         if ($this->roleRank($target) > $this->roleRank($this->access)) {
             return;
         }
-        if ($target === 'worker') {
+        if ($target === 'worker' || $target === 'lead') {
+            // both render the worker-mobile UI; 'lead' previews it as a field lead
+            // (points the phone at a crew lead so the "우리 팀" tab appears)
             $this->selectedEmp = null;
             $this->role = 'worker';
             $this->screen = 'worker';
-            $this->mobileTab = 'home';
+            if ($target === 'lead') {
+                $this->previewEmpId = $this->firstFieldLeadId();
+                $this->mobileTab = $this->previewEmpId ? 'crew' : 'home';
+            } else {
+                $this->previewEmpId = null;
+                $this->mobileTab = 'home';
+            }
             $this->syncWorkerClock();
         } else {
+            $this->previewEmpId = null;
             $this->role = $target;
             if (in_array($this->screen, ['worker', 'login'], true)) {
                 $this->screen = 'dashboard';
@@ -3071,6 +3099,7 @@ class WorkforceApp extends Component
             'hasUid' => $this->currentUid() !== null,
             'meEmployeeId' => $this->meEmployeeId(),
             'selfEmployeeId' => $this->selfEmployeeId(),
+            'previewEmpId' => $this->previewEmpId,
             'canDeskClock' => $this->canDeskClock(),
         ];
     }

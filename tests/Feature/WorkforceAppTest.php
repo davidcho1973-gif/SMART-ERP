@@ -599,7 +599,8 @@ class WorkforceAppTest extends TestCase
             ->set('loginPassword', 'Nahshon!2026')
             ->call('login')
             ->assertSet('access', 'admin')
-            ->call('viewAs', 'manager')->assertSet('role', 'manager')->assertSet('screen', 'dashboard')
+            // the middle rung is now the field-lead mobile preview (was desktop "manager")
+            ->call('viewAs', 'lead')->assertSet('role', 'worker')->assertSet('screen', 'worker')
             ->call('viewAs', 'worker')->assertSet('role', 'worker')->assertSet('screen', 'worker')
             ->call('viewAs', 'admin')->assertSet('role', 'admin')->assertSet('screen', 'dashboard');
     }
