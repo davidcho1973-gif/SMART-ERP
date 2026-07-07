@@ -26,10 +26,7 @@ class BadgeAnalyzer
     private function generate(array $payload): ?\Illuminate\Http\Client\Response
     {
         $key = config('services.gemini.key');
-        $models = array_values(array_unique(array_filter([
-            config('services.gemini.model', 'gemini-2.5-flash'),
-            config('services.gemini.fallback_model'),
-        ])));
+        $models = (array) config('services.gemini.models', ['gemini-2.5-flash']);
         $response = null;
         foreach ($models as $m) {
             try {

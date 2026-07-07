@@ -37,10 +37,11 @@ return [
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
-        // pinned release: the "-latest" alias gets throttled (503 high demand)
-        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
-        // tried when the primary model is overloaded (503/429)
-        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash-lite'),
+        // tried in order: newest first, stepping down whenever a model is
+        // overloaded (503) or over quota (429). Comma-separated, env-overridable.
+        'models' => array_values(array_filter(array_map('trim', explode(',',
+            env('GEMINI_MODELS', 'gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite')
+        )))),
     ],
 
     'google' => [

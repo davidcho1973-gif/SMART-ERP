@@ -31,7 +31,6 @@ class ReportFormatter
     public function format(string $raw, string $hintLang): ?array
     {
         $key = config('services.gemini.key');
-        $model = config('services.gemini.model', 'gemini-2.5-flash');
 
         $prompt = <<<PROMPT
 You are formatting a construction-site daily work report. The text below is a
@@ -87,10 +86,10 @@ PROMPT;
             ],
         ];
 
-        // primary model first; when Google throttles it (503 high demand / 429
-        // quota) fall through to the lighter model instead of failing the report
+        // newest model first; whenever Google throttles one (503 high demand /
+        // 429 quota) step down the chain instead of failing the report
         $response = null;
-        $models = array_values(array_unique(array_filter([$model, config('services.gemini.fallback_model')])));
+        $models = (array) config('services.gemini.models', ['gemini-2.5-flash']);
         foreach ($models as $m) {
             try {
                 $response = Http::timeout(45)->post(
