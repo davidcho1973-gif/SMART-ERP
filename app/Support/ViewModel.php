@@ -248,6 +248,8 @@ class ViewModel
             $pool = $pool->filter(fn ($e) => $e->emp === 'active');
         } elseif ($s['empFilter'] === 'terminated') {
             $pool = $pool->filter(fn ($e) => $e->emp === 'terminated');
+        } elseif ($s['empFilter'] === 'invited') {
+            $pool = $pool->filter(fn ($e) => $e->emp === 'active' && $e->activated_at === null);
         }
         $filtered = $pool->filter(function ($e) use ($s, $q) {
             $okTeam = $s['teamFilter'] === 'all' || $e->team_id === $s['teamFilter'];
@@ -278,6 +280,7 @@ class ViewModel
                 'access' => $e->access, 'accessLabel' => $L['access_'.$e->access] ?? $e->access, 'accessColor' => $accColor[$e->access] ?? '#6B6E76',
                 'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
                 'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
+                'isInvited' => $e->emp === 'active' && $e->activated_at === null,
                 'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
                 'inT' => $e->in_t, 'term' => $e->term,
             ];
@@ -326,6 +329,17 @@ class ViewModel
             ['id' => 'en', 'label' => 'English'],
             ['id' => 'ko', 'label' => '한국어'],
         ];
+        // invite drawer: roles the inviter may grant, real sites, companies on them
+        $inviteRoleOptions = array_map(
+            fn ($r) => ['id' => $r, 'label' => $L['access_'.$r] ?? $r],
+            $caps['assignableRoles'] ?? []
+        );
+        $inviteSiteOptions = $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name.' · '.$st->city])->all();
+        $inviteCompanyOptions = array_merge(
+            [['id' => '', 'label' => '—']],
+            $visibleSites->flatMap(fn ($st) => $companies->where('site_id', $st->id)
+                ->map(fn ($c) => ['id' => $c->id, 'label' => $c->name.' · '.$st->name]))->values()->all()
+        );
 
         // ---- projects hub ----
         $scopedCompanies = $s['site'] === 'all' ? $companies : $companies->filter(fn ($c) => $c->site_id === $s['site'])->values();
@@ -749,6 +763,8 @@ class ViewModel
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
                 'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions,
                 'payTypeOptions' => $payTypeOptions, 'langOptions' => $langOptions,
+                'inviteRoleOptions' => $inviteRoleOptions, 'inviteSiteOptions' => $inviteSiteOptions,
+                'inviteCompanyOptions' => $inviteCompanyOptions,
                 'accColor' => $accColor,
                 'assignments' => $empAssignments, 'assignTeamOptions' => $assignTeamOptions,
                 'operator' => 'NAHSHON',

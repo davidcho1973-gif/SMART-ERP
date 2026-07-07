@@ -49,7 +49,8 @@ class RbacTest extends TestCase
     {
         $this->assertTrue(Access::allows('owner', 'sites.delete'));
         $this->assertFalse(Access::allows('hr_admin', 'sites.delete'));   // people+money, no destructive org ops
-        $this->assertTrue(Access::allows('hr_admin', 'payroll.process'));
+        $this->assertTrue(Access::allows('owner', 'payroll.process'));
+        $this->assertFalse(Access::allows('hr_admin', 'payroll.process')); // payroll is head-office (owner) only
         $this->assertFalse(Access::allows('site_manager', 'payroll.view')); // payroll is a real permission
         $this->assertTrue(Access::allows('site_manager', 'punch.manual'));
         $this->assertFalse(Access::allows('site_manager', 'employees.terminate'));
@@ -63,7 +64,7 @@ class RbacTest extends TestCase
         // D-2: the role exists in the policy, but nobody can grant it from the UI yet
         $this->assertNotContains('company_admin', Access::assignable('owner'));
         $this->assertNotContains('company_admin', Access::assignable('hr_admin'));
-        $this->assertSame([], Access::assignable('site_manager'));
+        $this->assertSame(['worker'], Access::assignable('site_manager')); // a site lead may invite workers
         $this->assertSame([], Access::assignable('worker'));
     }
 
@@ -131,7 +132,7 @@ class RbacTest extends TestCase
         $this->assertNull(Punch::where('employee_id', 107)->where('work_date', now()->format('Y-m-d'))->first());
     }
 
-    public function test_hr_admin_account_gets_people_and_payroll_but_no_org_destruction(): void
+    public function test_hr_admin_account_gets_people_but_not_payroll_or_org_destruction(): void
     {
         config(['workforce.demo' => false]);
         $hr = User::create([
@@ -144,7 +145,7 @@ class RbacTest extends TestCase
             ->assertSet('access', 'admin')            // admin VIEW ceiling (UI), caps still hr_admin
             ->assertSet('role', 'admin')
             ->call('go', 'payroll')
-            ->assertSet('screen', 'payroll')          // payroll permission granted
+            ->assertSet('screen', 'dashboard')        // payroll is owner-only — navigation refused
             ->call('askDeleteCompany', $co->id)
             ->call('confirmDeleteCompany');
 

@@ -58,11 +58,11 @@ class Access
         'timesheet.export' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
         'corrections.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
 
-        // payroll — a real permission, not a hidden menu (D-1: unified seat,
-        // separable later by simply splitting these three caps onto a flag)
-        'payroll.view' => ['owner', 'hr_admin'],
-        'payroll.process' => ['owner', 'hr_admin'],
-        'payroll.export' => ['owner', 'hr_admin'],
+        // payroll — head-office only. The boss (owner) handles pay; the office
+        // admin (hr_admin) manages people & attendance but never sees money.
+        'payroll.view' => ['owner'],
+        'payroll.process' => ['owner'],
+        'payroll.export' => ['owner'],
 
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
@@ -109,6 +109,7 @@ class Access
         return match (self::canonical($assignerRoleOrAccess)) {
             'owner' => ['owner', 'hr_admin', 'site_manager', 'worker'],
             'hr_admin' => ['site_manager', 'worker'],
+            'site_manager' => ['worker'],   // a site lead can invite workers into their site
             default => [],
         };
     }

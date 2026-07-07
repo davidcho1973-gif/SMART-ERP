@@ -55,6 +55,23 @@ class WorkforceApp extends Component
 
     public string $empFilter = 'active';
 
+    // ---- invite → activate ----
+    public bool $inviteOpen = false;
+
+    public string $invFirst = '';
+
+    public string $invLast = '';
+
+    public string $invEmail = '';
+
+    public string $invPhone = '';
+
+    public string $invRole = 'worker';
+
+    public string $invSite = '';
+
+    public string $invCompany = '';
+
     public string $teamFilter = 'all';
 
     public string $search = '';
@@ -650,6 +667,10 @@ class WorkforceApp extends Component
     protected function applyUser(): void
     {
         $u = Auth::user();
+        // first authenticated login flips an invited employee to active
+        if ($u->employee_id && ($linked = Employee::find($u->employee_id)) && $linked->activated_at === null) {
+            $linked->update(['activated_at' => now()]);
+        }
         $canon = Access::canonical($u->access);
         // the access prop is the VIEW ceiling (admin·manager·worker screens);
         // real capabilities always come from the stored role via actorRoles()
@@ -1309,6 +1330,94 @@ class WorkforceApp extends Component
         $this->screen = 'badge';
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
+    }
+
+    /** Open the lightweight employee-invite drawer (name + email + role + site). */
+    public function openEmpInvite(): void
+    {
+        if (! $this->can('employees.register')) {
+            return;
+        }
+        $this->reset(['invFirst', 'invLast', 'invEmail', 'invPhone', 'invCompany']);
+        $this->invRole = 'worker';
+        $scope = $this->scopeSiteIds();
+        $this->invSite = $this->site !== 'all'
+            ? $this->site
+            : ($scope[0] ?? Site::first()?->id ?? '');
+        $this->inviteOpen = true;
+    }
+
+    public function closeEmpInvite(): void
+    {
+        $this->inviteOpen = false;
+    }
+
+    /**
+     * Create an "invited" employee: the minimum needed to log in and start
+     * clocking (name, email, access, site). Rate/badge/crew come later. The
+     * record stays activated_at = null until the person's first login.
+     */
+    public function saveEmpInvite(): void
+    {
+        $d = $this->dict();
+        // company (if picked) fixes the site, mirroring the crew→company→site chain
+        $company = $this->invCompany !== '' ? Company::find($this->invCompany) : null;
+        $siteId = $company?->site_id ?: ($this->invSite ?: null);
+
+        if (! $this->can('employees.register', $siteId)) {
+            return;
+        }
+        if (trim($this->invFirst) === '' && trim($this->invLast) === '') {
+            $this->showToast($d['inv_needName']);
+
+            return;
+        }
+        $email = trim($this->invEmail);
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->showToast($d['inv_needEmail']);
+
+            return;
+        }
+        $phone = trim($this->invPhone);
+        $dup = Employee::where('email', $email)
+            ->orWhere(fn ($q) => $phone !== '' ? $q->where('phone', $phone) : $q->whereRaw('1=0'))
+            ->exists();
+        if ($dup) {
+            $this->showToast($d['inv_dup']);
+
+            return;
+        }
+
+        $granted = $this->grantableAccess(null, $this->invRole);
+        $e = Employee::create([
+            'emp_id' => $this->inviteEmpId(),
+            'first' => trim($this->invFirst), 'last' => trim($this->invLast),
+            'nat' => '', 'code' => '',
+            'team_id' => null,
+            'company_id' => $company?->id,
+            'site_id' => $siteId,
+            'role' => '', 'type' => 'worker', 'pay_type' => 'hourly', 'lang' => 'es',
+            'access' => $granted,
+            'rate' => 0,
+            'phone' => $phone, 'email' => $email,
+            'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0,
+            'emp' => 'active', 'term' => null,
+            'activated_at' => null,   // invited — flips to active on first login
+        ]);
+        $this->audit('employee.invite', trim($e->first.' '.$e->last).' (#'.$e->id.')', $email.' · '.$granted);
+        $this->inviteOpen = false;
+        $this->empFilter = 'active';
+        $this->showToast($d['inv_sent']);
+    }
+
+    /** Unique human-ish id for a badge-less invited employee. */
+    protected function inviteEmpId(): string
+    {
+        do {
+            $id = 'INV-'.strtoupper(Str::random(6));
+        } while (Employee::where('emp_id', $id)->exists());
+
+        return $id;
     }
 
     public function saveEmp(): void
@@ -2631,6 +2740,7 @@ class WorkforceApp extends Component
                 'companiesDelete' => $this->can('companies.delete'),
                 'employeesDelete' => $this->can('employees.delete'),
                 'employeesTerminate' => Access::allows($this->actorRoles(), 'employees.terminate'),
+                'employeesRegister' => Access::allows($this->actorRoles(), 'employees.register'),
                 'punchManual' => Access::allows($this->actorRoles(), 'punch.manual'),
                 'rolesAssign' => $this->can('roles.assign'),
                 'auditView' => $this->correctionsGlobal(),

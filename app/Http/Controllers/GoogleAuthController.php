@@ -46,6 +46,10 @@ class GoogleAuthController extends Controller
                 'access' => $employee->access,
                 'employee_id' => $employee->id,
             ]);
+            // invited → active on this first sign-in
+            if ($employee->activated_at === null) {
+                $employee->update(['activated_at' => now()]);
+            }
         }
 
         if (! $user->google_id) {

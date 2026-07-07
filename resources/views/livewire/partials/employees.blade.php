@@ -6,11 +6,13 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A7A49B" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
             <input wire:model.live="search" placeholder="{{ $L['e_search'] }}" style="border: none; outline: none; flex: 1; font-size: 14px; background: transparent;"/>
         </div>
+        @if($can['employeesRegister'] ?? true)<button wire:click="openEmpInvite" style="padding: 10px 16px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; color: #16181D; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['e_invite'] }}</button>@endif
         <button wire:click="addWorker" style="padding: 10px 18px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['e_add'] }}</button>
     </div>
     <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
         <div style="display: inline-flex; gap: 2px; padding: 3px; background: #EAE8E1; border-radius: 10px;">
             <button wire:click="setEmpFilter('active')" style="{{ $Ui::pill($empFilter==='active') }}">{{ $L['e_filterActive'] }}</button>
+            <button wire:click="setEmpFilter('invited')" style="{{ $Ui::pill($empFilter==='invited') }}">{{ $L['e_filterInvited'] }}</button>
             <button wire:click="setEmpFilter('terminated')" style="{{ $Ui::pill($empFilter==='terminated') }}">{{ $L['e_filterTerminated'] }}</button>
             <button wire:click="setEmpFilter('all')" style="{{ $Ui::pill($empFilter==='all') }}">{{ $L['e_filterAll'] }}</button>
         </div>
@@ -29,7 +31,7 @@
             <div wire:click="selectEmp({{ $e['id'] }})" style="display: grid; grid-template-columns: 1.7fr 1.5fr 0.9fr 1fr 1fr 1.6fr 0.8fr 0.9fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; cursor: pointer; font-size: 13px; min-width: 1160px; opacity: {{ $e['rowOpacity'] }};">
                 <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
                     <span style="display: inline-flex; width: 36px; height: 36px; border-radius: 50%; background: {{ $e['teamColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; font-family: 'Space Grotesk';">{{ $e['initials'] }}</span>
-                    <span style="min-width: 0; overflow: hidden;"><span style="display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['name'] }}</span><span style="display: block; font-size: 11px; color: #A7A49B; font-family: 'Space Grotesk'; white-space: nowrap;">{{ $e['empId'] }}</span></span>
+                    <span style="min-width: 0; overflow: hidden;"><span style="display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['name'] }}@if(!empty($e['isInvited']))<span style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #8A6A2E; background: #FBF1DF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">{{ $L['e_invited'] }}</span>@endif</span><span style="display: block; font-size: 11px; color: #A7A49B; font-family: 'Space Grotesk'; white-space: nowrap;">{{ $e['empId'] }}</span></span>
                 </span>
                 <span style="display: flex; flex-wrap: wrap; gap: 4px;">
                     @foreach($e['companies'] as $i => $co)
@@ -218,5 +220,29 @@
         @empty
             <div style="padding: 22px; text-align: center; color: #B7B4AB; font-size: 12.5px;">{{ $L['e_auditEmpty'] }}</div>
         @endforelse
+    </div>
+@endif
+
+{{-- invite → activate: create the minimum record so the person can log in & clock --}}
+@if($inviteOpen)
+    <div x-data @click="$wire.closeEmpInvite()" style="position: fixed; inset: 0; z-index: 80; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div @click.stop style="width: 440px; max-width: 100%; background: #fff; border-radius: 18px; padding: 26px;">
+            <div style="font-size: 17px; font-weight: 700;">{{ $L['inv_title'] }}</div>
+            <div style="font-size: 12.5px; color: #8A8880; margin-top: 5px; line-height: 1.5;">{{ $L['inv_sub'] }}</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px;">
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_first'] }}</span><input wire:model="invFirst" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;outline:none;"/></label>
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_last'] }}</span><input wire:model="invLast" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;outline:none;"/></label>
+                <label style="grid-column: span 2;"><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_email'] }}</span><input wire:model="invEmail" type="email" placeholder="name@example.com" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;outline:none;"/></label>
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_phone'] }}</span><input wire:model="invPhone" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;outline:none;"/></label>
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_role'] }}</span><select wire:model="invRole" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;background:#fff;cursor:pointer;">@foreach($emp['inviteRoleOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_site'] }}</span><select wire:model="invSite" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;background:#fff;cursor:pointer;">@foreach($emp['inviteSiteOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
+                <label><span style="font-size: 11.5px; color: #A7A49B;">{{ $L['inv_company'] }}</span><select wire:model="invCompany" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #E4E2DB;border-radius:9px;font-size:14px;background:#fff;cursor:pointer;">@foreach($emp['inviteCompanyOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
+            </div>
+            <div style="font-size: 11.5px; color: #A7A49B; margin-top: 14px; line-height: 1.5; padding: 11px 13px; background: #FAFAF8; border-left: 3px solid #1F9D6B; border-radius: 0 8px 8px 0;">{{ $L['inv_hint'] }}</div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button wire:click="closeEmpInvite" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_cancel'] }}</button>
+                <button wire:click="saveEmpInvite" style="flex: 2; padding: 12px; border: none; border-radius: 11px; background: #1F9D6B; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['inv_send'] }}</button>
+            </div>
+        </div>
     </div>
 @endif

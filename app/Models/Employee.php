@@ -9,13 +9,20 @@ class Employee extends Model
     protected $fillable = [
         'emp_id', 'badge_qr', 'badge_photo', 'first', 'last', 'ko', 'nat', 'code',
         'team_id', 'company_id', 'site_id', 'role', 'type', 'pay_type', 'lang', 'access',
-        'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term',
+        'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term', 'activated_at',
     ];
 
     protected $casts = [
         'rate' => 'float',
         'wh' => 'integer',
+        'activated_at' => 'datetime',
     ];
+
+    /** Invited but not yet logged in (no first authenticated session). */
+    public function isInvited(): bool
+    {
+        return $this->emp === 'active' && $this->activated_at === null;
+    }
 
     public function team()
     {
