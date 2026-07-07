@@ -824,11 +824,10 @@ class WorkforceApp extends Component
             $this->screen = 'worker';
             if ($target === 'lead') {
                 $this->previewEmpId = $this->firstFieldLeadId();
-                $this->mobileTab = $this->previewEmpId ? 'crew' : 'home';
             } else {
                 $this->previewEmpId = null;
-                $this->mobileTab = 'home';
             }
+            $this->mobileTab = 'home';   // always land on the clock screen first
             $this->syncWorkerClock();
         } else {
             $this->previewEmpId = null;

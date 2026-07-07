@@ -40,6 +40,7 @@ class FieldLeadMobileTest extends TestCase
             ->assertViewHas('isWorker', true)
             ->assertViewHas('crew', fn ($crew) => $crew !== null && count($crew['teams']) === 1)
             ->assertSee('Mi cuadrilla')          // the crew tab in the mobile nav
+            ->assertDontSee('¿Hoy trabajas con otra cuadrilla?')  // worker-only crew-switch hidden
             ->set('mobileTab', 'crew')
             ->assertSee('Electrical Crew A');     // his crew, shown in the panel
     }
@@ -79,7 +80,8 @@ class FieldLeadMobileTest extends TestCase
         Livewire::actingAs($carlos)
             ->test(WorkforceApp::class)
             ->assertSet('role', 'worker')
-            ->assertViewHas('crew', null);
+            ->assertViewHas('crew', null)
+            ->assertSee('¿Hoy trabajas con otra cuadrilla?');  // workers keep the crew-switch option
     }
 
     public function test_lead_can_set_the_crew_shift_from_the_phone(): void
@@ -127,7 +129,7 @@ class FieldLeadMobileTest extends TestCase
             ->call('viewAs', 'lead')
             ->assertSet('role', 'worker')                // now the phone app
             ->assertSet('previewEmpId', 106)             // standing in for the crew lead
-            ->assertSet('mobileTab', 'crew')
+            ->assertSet('mobileTab', 'home')             // always lands on the clock screen
             ->assertViewHas('crew', fn ($crew) => $crew !== null && count($crew['teams']) === 1)
             ->call('viewAs', 'admin')
             ->assertSet('role', 'admin')

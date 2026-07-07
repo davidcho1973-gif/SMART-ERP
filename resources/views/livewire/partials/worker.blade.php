@@ -70,12 +70,15 @@
                                         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v5l3 3"/><circle cx="12" cy="12" r="9"/></svg>
                                         {{ $clockedIn ? $L['w_clockout'] : $L['w_clockin'] }}
                                     </button>
-                                    {{-- moved crews today? scan that crew's QR — assigns today's crew (and clocks in if not yet in) --}}
-                                    <button type="button" @click="$dispatch('open-team-scan')" style="display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 16px; border-radius: 15px; border: 1.5px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; text-align: left;">
-                                        <span style="width: 38px; height: 38px; border-radius: 10px; background: rgba(232,93,42,0.18); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 21v.01M17 21v.01M21 17v.01"/></svg></span>
-                                        <span style="flex: 1;"><span style="display: block; font-size: 14px; font-weight: 700;">{{ $L['w_teamQrBtn'] }}</span><span style="display: block; font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['w_teamQrHint'] }}</span></span>
-                                        <span style="color: rgba(255,255,255,0.4); font-size: 18px;">›</span>
-                                    </button>
+                                    {{-- moved crews today? scan that crew's QR — assigns today's crew (and clocks in if not yet in).
+                                         Field leads run a fixed crew, so this worker-only option is hidden for them. --}}
+                                    @if(! ($isFieldLead ?? false))
+                                        <button type="button" @click="$dispatch('open-team-scan')" style="display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 16px; border-radius: 15px; border: 1.5px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; text-align: left;">
+                                            <span style="width: 38px; height: 38px; border-radius: 10px; background: rgba(232,93,42,0.18); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 21v.01M17 21v.01M21 17v.01"/></svg></span>
+                                            <span style="flex: 1;"><span style="display: block; font-size: 14px; font-weight: 700;">{{ $L['w_teamQrBtn'] }}</span><span style="display: block; font-size: 11.5px; color: rgba(255,255,255,0.5);">{{ $L['w_teamQrHint'] }}</span></span>
+                                            <span style="color: rgba(255,255,255,0.4); font-size: 18px;">›</span>
+                                        </button>
+                                    @endif
                                 @endif
                             </div>
                             @if($clockedIn)

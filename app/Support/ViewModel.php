@@ -791,7 +791,7 @@ class ViewModel
             'isWorker' => $s['role'] === 'worker',
             'isDesktopApp' => $s['role'] !== 'worker' && $s['screen'] !== 'login',
             'stat_workers' => $activeAll->filter(fn ($e) => $e->type === 'worker')->count(),
-            'nav' => $nav, 'mobileTabs' => $mobileTabs, 'crew' => $crew,
+            'nav' => $nav, 'mobileTabs' => $mobileTabs, 'crew' => $crew, 'isFieldLead' => $isFieldLead,
             'siteOptions' => $siteOptions, 'siteVal' => $s['site'],
             'me' => [
                 'name' => $meName,
