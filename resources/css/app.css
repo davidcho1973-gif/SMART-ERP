@@ -101,6 +101,7 @@ input, button, select { font-family: inherit; }
     /* --- top control bar: tighten, hide the tagline --- */
     .wf-topbar { padding: 8px 14px !important; gap: 10px !important; }
     .wf-tagline { display: none !important; }
+    .wf-topdate { display: none !important; }
 
     /* --- dashboard grids collapse --- */
     .wf-stats { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
