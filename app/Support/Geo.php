@@ -13,6 +13,30 @@ class Geo
     /** Fallback geofence radius when a site hasn't set its own (metres). */
     public const DEFAULT_RADIUS_M = 150;
 
+    /** Above this reported accuracy the fix is too coarse to trust an "on-site" result (metres). */
+    public const MAX_TRUSTED_ACC_M = 500;
+
+    /**
+     * Sanitize browser-reported coordinates. Returns null for missing or
+     * out-of-range values (garbage / spoofed nonsense), otherwise a clean tuple.
+     *
+     * @return array{lat:float,lng:float,acc:float|null}|null
+     */
+    public static function coords(float|string|null $lat, float|string|null $lng, float|string|null $acc): ?array
+    {
+        if ($lat === null || $lng === null || $lat === '' || $lng === '') {
+            return null;
+        }
+        $la = (float) $lat;
+        $ln = (float) $lng;
+        if ($la < -90 || $la > 90 || $ln < -180 || $ln > 180) {
+            return null;
+        }
+        $ac = ($acc !== null && $acc !== '') ? (float) $acc : null;
+
+        return ['lat' => $la, 'lng' => $ln, 'acc' => ($ac !== null && $ac >= 0) ? $ac : null];
+    }
+
     /** Great-circle distance between two lat/lng points, in metres. */
     public static function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {

@@ -26,6 +26,7 @@ use App\Support\ViewModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -503,6 +504,21 @@ class WorkforceApp extends Component
         }
 
         return 106; // sample worker (Carlos) — demo & admins with no linked employee
+    }
+
+    /**
+     * The employee the current user may clock in/out — or null when nobody is.
+     * Unlike meEmployeeId(), this NEVER falls back to a sample id for real
+     * traffic: an unauthenticated or unlinked visitor can clock no one. This is
+     * the gate for every worker-initiated write (clock, lunch, correction).
+     */
+    protected function clockableEmployeeId(): ?int
+    {
+        if ($this->isDemo()) {
+            return $this->meEmployeeId();   // demo persona (Carlos / manager)
+        }
+
+        return (Auth::check() && Auth::user()->employee_id) ? (int) Auth::user()->employee_id : null;
     }
 
     /** The employee to clock for from the desktop (admin/manager's own record). */
@@ -2321,10 +2337,29 @@ class WorkforceApp extends Component
      */
     public function doClock(float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
     {
-        $eid = $this->meEmployeeId();
-        $me = Employee::find($eid);
-        $p = $this->todayPunch($eid);
         $d = $this->dict();
+        // 1) only an authenticated, linked person may clock — and only themselves
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $me = Employee::find($eid);
+        // 2) a terminated / missing record cannot punch
+        if (! $me || ! $me->isActive()) {
+            $this->showToast($d['w_notActive']);
+
+            return;
+        }
+        // 3) throttle: a handful of attempts per minute per employee
+        $rlKey = 'clock:'.$eid;
+        if (RateLimiter::tooManyAttempts($rlKey, 6)) {
+            $this->showToast($d['w_tooMany']);
+
+            return;
+        }
+        RateLimiter::hit($rlKey, 60);
+
+        $p = $this->todayPunch($eid);
         // day already complete (in + out) — locked. Only an admin may correct it via
         // manualPunch; a repeat tap must not reopen the record or overwrite the times.
         if ($this->dayLocked($p)) {
@@ -2334,11 +2369,13 @@ class WorkforceApp extends Component
             return;
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
-        $site = $me && $me->site_id ? Site::find($me->site_id) : null;
-        [, $geoOk] = Geo::verifySite($site, $lat, $lng);
-        $coords = $lat !== null && $lng !== null && $lat !== '' && $lng !== ''
-            ? ['lat' => (float) $lat, 'lng' => (float) $lng, 'acc' => $acc !== null && $acc !== '' ? (float) $acc : null]
-            : null;
+        $site = $me->site_id ? Site::find($me->site_id) : null;
+        // 4) sanitize coordinates; a too-coarse fix can't confirm "on site"
+        $coords = Geo::coords($lat, $lng, $acc);
+        [, $geoOk] = Geo::verifySite($site, $coords['lat'] ?? null, $coords['lng'] ?? null);
+        if ($geoOk === true && ($coords['acc'] === null || $coords['acc'] > Geo::MAX_TRUSTED_ACC_M)) {
+            $geoOk = null;   // inside the radius, but the fix is too imprecise to trust
+        }
         if ($p->in_min === null) {
             // first clock-in of the day
             $this->clock = 'in';
@@ -2381,8 +2418,12 @@ class WorkforceApp extends Component
 
     public function toggleNoLunch(): void
     {
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
         $this->noLunchToday = ! $this->noLunchToday;
-        $p = $this->todayPunch($this->meEmployeeId());
+        $p = $this->todayPunch($eid);
         if ($p->exists) {
             $p->update(['no_lunch' => $this->noLunchToday]);
         }
@@ -2498,7 +2539,10 @@ class WorkforceApp extends Component
     /** Worker: open the correction form for a work date (prefilled with the current punch). */
     public function openCorrection(string $workDate): void
     {
-        $eid = $this->meEmployeeId();
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
         if ($reason = $this->correctionBlockedReason($eid, $workDate)) {
             $this->showToast($reason);
 
@@ -2528,7 +2572,10 @@ class WorkforceApp extends Component
     /** Worker: validate and file the correction request. */
     public function submitCorrection(): void
     {
-        $eid = $this->meEmployeeId();
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
         $me = Employee::find($eid);
         if (! $me || $this->correctionDate === '') {
             return;

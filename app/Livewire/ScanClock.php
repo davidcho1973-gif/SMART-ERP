@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Support\Geo;
 use App\Support\Shift;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -111,11 +112,26 @@ class ScanClock extends Component
     public function doClock(float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
     {
         $emp = $this->me();
+        $d = $this->dict();
         if (! $emp) {
             return;
         }
+        // a terminated / inactive record cannot punch
+        if (! $emp->isActive()) {
+            $this->toast = $d['w_notActive'];
+
+            return;
+        }
+        // throttle: a few attempts per minute per employee
+        $rlKey = 'scanclock:'.$emp->id;
+        if (RateLimiter::tooManyAttempts($rlKey, 6)) {
+            $this->toast = $d['w_tooMany'];
+
+            return;
+        }
+        RateLimiter::hit($rlKey, 60);
+
         $p = $this->todayPunch($emp->id);
-        $d = $this->dict();
         // one clock-in + one clock-out per day. Once both are recorded the day is
         // locked (punch-based, not UI state) — a re-scan can't reopen or overwrite it.
         if ($this->dayLocked($p)) {
@@ -125,10 +141,11 @@ class ScanClock extends Component
             return;
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
-        [, $geoOk] = Geo::verifySite($this->scannedSite(), $lat, $lng);
-        $coords = $lat !== null && $lng !== null && $lat !== '' && $lng !== ''
-            ? ['lat' => (float) $lat, 'lng' => (float) $lng, 'acc' => $acc !== null && $acc !== '' ? (float) $acc : null]
-            : null;
+        $coords = Geo::coords($lat, $lng, $acc);
+        [, $geoOk] = Geo::verifySite($this->scannedSite(), $coords['lat'] ?? null, $coords['lng'] ?? null);
+        if ($geoOk === true && ($coords['acc'] === null || $coords['acc'] > Geo::MAX_TRUSTED_ACC_M)) {
+            $geoOk = null;   // too imprecise to confirm on-site
+        }
         if ($p->in_min === null) {
             $this->clock = 'in';
             $this->clockInTime = Shift::fmtMin($nowMin);
