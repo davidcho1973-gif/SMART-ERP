@@ -98,6 +98,23 @@
             <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 18px;">{{ $projects['teamModalCo'] }}</div>
             <label style="display: block; margin-bottom: 14px;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_teamName'] }}</span><input wire:model="newTeamName" placeholder="Electrical Crew B" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
             <label style="display: block;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_selectLead'] }}</span><select wire:model="newTeamLead" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; background: #fff; cursor: pointer;">@foreach($projects['teamLeadOptions'] as $o)<option value="{{ $o['id'] }}">{{ $o['label'] }}</option>@endforeach</select></label>
+
+            {{-- work shift (optional): within ±30 min of these times, 8h is guaranteed --}}
+            <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid #F0EEE8;">
+                <div style="font-size: 13px; font-weight: 700; color: #16181D;">{{ $L['pj_shiftTitle'] }}</div>
+                <div style="font-size: 11.5px; color: #8A8880; margin-top: 4px; line-height: 1.45;">{{ $L['pj_shiftHint'] }}</div>
+                <div style="display: flex; gap: 10px; margin-top: 12px; align-items: flex-end;">
+                    <div style="width: 64px; font-size: 12px; font-weight: 600; color: #16181D; padding-bottom: 10px;">{{ $L['pj_shiftWeekday'] }}</div>
+                    <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['pj_shiftIn'] }}</span><input wire:model="teamShiftIn" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                    <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['pj_shiftOut'] }}</span><input wire:model="teamShiftOut" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-end;">
+                    <div style="width: 64px; font-size: 12px; font-weight: 600; color: #16181D; padding-bottom: 10px;">{{ $L['pj_shiftSat'] }}</div>
+                    <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['pj_shiftIn'] }}</span><input wire:model="teamSatIn" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                    <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['pj_shiftOut'] }}</span><input wire:model="teamSatOut" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                </div>
+            </div>
+
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelTeam" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
                 <button wire:click="saveTeam" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $projects['editingTeam'] ? $L['pj_saveEdit'] : $L['pj_save'] }}</button>

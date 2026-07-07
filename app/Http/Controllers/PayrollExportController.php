@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Punch;
 use App\Models\Site;
 use App\Support\Access;
+use App\Support\Attendance;
 use App\Support\Payroll;
 use App\Support\PayrollXlsx;
 use App\Support\Shift;
@@ -183,10 +184,8 @@ class PayrollExportController extends Controller
 
         $out = [];
         foreach ($punches as $p) {
-            $date = Carbon::parse($p->work_date);
-            [$si, $so] = Payroll::scheduleFor($p->in_min, $date->isSaturday());
-            $paid = max(0.0, Shift::compute(Shift::fmtMin($p->in_min), Shift::fmtMin($p->out_min), $si, $so, $p->no_lunch)['paid']);
-            $key = $date->format('Y-m-d');
+            $paid = max(0.0, Attendance::paidHours($p));
+            $key = Carbon::parse($p->work_date)->format('Y-m-d');
             $out[$p->employee_id][$key] = round(($out[$p->employee_id][$key] ?? 0) + $paid, 2);
         }
 

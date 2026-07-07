@@ -10,6 +10,7 @@ class Punch extends Model
         'employee_id', 'work_date', 'in_min', 'out_min', 'no_lunch', 'early_reason', 'source',
         'team_id', 'company_id', 'site_id',
         'in_lat', 'in_lng', 'in_acc', 'out_lat', 'out_lng', 'out_acc', 'in_geo_ok', 'out_geo_ok',
+        'adj_in_min', 'adj_out_min', 'adj_reason', 'adj_by',
     ];
 
     protected $casts = [
@@ -24,7 +25,16 @@ class Punch extends Model
         'out_acc' => 'float',
         'in_geo_ok' => 'boolean',
         'out_geo_ok' => 'boolean',
+        'adj_in_min' => 'integer',
+        'adj_out_min' => 'integer',
+        'adj_by' => 'integer',
     ];
+
+    /** Has a team lead manually adjusted this day's paid time? */
+    public function isAdjusted(): bool
+    {
+        return $this->adj_in_min !== null || $this->adj_out_min !== null;
+    }
 
     public function employee()
     {

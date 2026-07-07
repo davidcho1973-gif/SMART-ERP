@@ -41,10 +41,7 @@ class Payroll
             return null;
         }
 
-        return $punches->sum(function ($p) {
-            [$si, $so] = self::scheduleFor($p->in_min, \Illuminate\Support\Carbon::parse($p->work_date)->isSaturday());
-            return max(0, Shift::compute(Shift::fmtMin($p->in_min), Shift::fmtMin($p->out_min), $si, $so, $p->no_lunch)['paid']);
-        });
+        return $punches->sum(fn ($p) => max(0, Attendance::paidHours($p)));
     }
 
     /** Guess the scheduled shift from the punch-in time: 6–3 / 7–4 weekdays, 7–2 Saturdays. */

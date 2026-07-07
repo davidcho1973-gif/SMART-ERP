@@ -423,11 +423,13 @@ class ViewModel
                 if ($periodPunches->isNotEmpty()) {
                     $days = $periodPunches->map(function ($pn) use ($tl) {
                         $date = Carbon::parse($pn->work_date);
-                        [$si, $so] = Payroll::scheduleFor($pn->in_min, $date->isSaturday());
-                        $c = Shift::compute(Shift::fmtMin($pn->in_min), Shift::fmtMin($pn->out_min), $si, $so, $pn->no_lunch);
+                        $c = \App\Support\Attendance::settle($pn);
                         $chips = [];
-                        if ($c['noLunch']) {
+                        if ($pn->no_lunch) {
                             $chips[] = ['label' => $tl('No lunch', 'Sin almuerzo', '무점심'), 'bg' => '#F0F4EE', 'color' => '#5A7A4A'];
+                        }
+                        if ($c['adjusted']) {
+                            $chips[] = ['label' => $tl('Adjusted', 'Ajustado', '팀장 조정'), 'bg' => '#E9F1FB', 'color' => '#3B72E0'];
                         }
                         if ($pn->early_reason) {
                             $chips[] = ['label' => $pn->early_reason, 'bg' => '#FBF1DF', 'color' => '#8A6A2E'];
@@ -435,7 +437,7 @@ class ViewModel
 
                         return [
                             'd' => $date->format('M j'), 'dow' => $date->format('D'),
-                            'inFmt' => $c['inFmt'], 'outFmt' => $c['outFmt'],
+                            'inFmt' => $c['paidInFmt'], 'outFmt' => $c['paidOutFmt'],
                             'paid' => number_format(max(0, $c['paid']), 1).'h', 'chips' => $chips,
                         ];
                     })->all();

@@ -39,7 +39,7 @@
                         <th style="padding: 12px 14px; font-weight: 600;">{{ $L['ts_paidOut'] }}</th>
                         <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_reg'] }}</th>
                         <th style="padding: 12px 14px; font-weight: 600; text-align: right;">{{ $L['ts_ot'] }}</th>
-                        @if($can['punchManual'] ?? false)<th style="padding: 12px 14px;"></th>@endif
+                        @if(($can['punchManual'] ?? false) || ($can['attendanceAdjust'] ?? false))<th style="padding: 12px 14px;"></th>@endif
                     </tr>
                 </thead>
                 <tbody>
@@ -59,12 +59,21 @@
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk';">{{ $r['actIn'] }}</td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk';">@if($r['onDuty'])<span style="color: #1F9D6B; font-weight: 600;">{{ $L['ts_onduty'] }}</span>@else{{ $r['actOut'] }}@endif</td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidIn'] }}</td>
-                        <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">{{ $r['paidOut'] }}</td>
+                        <td style="padding: 11px 14px; font-family: 'Space Grotesk'; color: #8A8880;">
+                            {{ $r['paidOut'] }}
+                            @if(!empty($r['adjusted']))<span title="{{ $L['ts_adjHint'] }}" style="margin-left: 5px; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: #EAF1FC; color: #3B72E0; font-family: system-ui;">{{ $L['ts_adjusted'] }}</span>@endif
+                        </td>
                         <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600;">{{ $r['reg'] }}</td>
                         <td style="padding: 11px 14px; text-align: right; font-family: 'Space Grotesk'; font-weight: 600; color: {{ $r['ot'] !== '—' ? '#C05621' : '#C7C4BB' }};">{{ $r['ot'] }}</td>
-                        @if($can['punchManual'] ?? false)
-                            <td style="padding: 11px 14px; text-align: right;">
-                                @if(!empty($r['hasPunch']))
+                        @if(($can['punchManual'] ?? false) || ($can['attendanceAdjust'] ?? false))
+                            <td style="padding: 11px 14px; text-align: right; white-space: nowrap;">
+                                @if(!empty($r['hasPunch']) && !empty($r['punchId']) && ($can['attendanceAdjust'] ?? false))
+                                    {{-- team-lead paid-time adjustment: approve OT past the shift end, restore an early-leave --}}
+                                    <button wire:click="openAdjust({{ $r['punchId'] }})" title="{{ $L['ts_adjTitle'] }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #3B72E0; font-size: 12px; font-weight: 600; cursor: pointer; margin-right: 6px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>{{ $L['ts_adjust'] }}
+                                    </button>
+                                @endif
+                                @if(!empty($r['hasPunch']) && ($can['punchManual'] ?? false))
                                     {{-- void a mistaken clock: deletes the day's record so the worker can clock in again --}}
                                     <button wire:click="askVoidPunch({{ $r['id'] }})" title="{{ $L['ts_voidTitle'] }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #C0522B; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>{{ $L['ts_void'] }}
@@ -96,6 +105,41 @@
                     <div style="display: flex; gap: 10px; margin-top: 22px;">
                         <button wire:click="cancelVoidPunch" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_cancel'] }}</button>
                         <button wire:click="confirmVoidPunch" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #C0522B; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['ts_voidConfirm'] }}</button>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- team-lead paid-time adjustment --}}
+        @if($adjPunchId)
+            @php $adjRow = collect($ts['rows'])->firstWhere('punchId', $adjPunchId); @endphp
+            <div style="position: fixed; inset: 0; z-index: 80; background: rgba(22,24,29,0.5); display: flex; align-items: center; justify-content: center; padding: 20px;">
+                <div style="width: 430px; background: #fff; border-radius: 18px; padding: 26px;">
+                    <div style="font-size: 17px; font-weight: 700;">{{ $L['ts_adjTitle'] }}</div>
+                    @if($adjRow)
+                        <div style="font-size: 13.5px; font-weight: 600; margin-top: 6px;">{{ $adjRow['name'] }} · {{ $ts['date'] }}</div>
+                        <div style="display: flex; gap: 16px; margin-top: 12px; padding: 12px 14px; background: #FAFAF8; border-radius: 12px; font-size: 12.5px;">
+                            @if($adjRow['shiftLabel'])<div><span style="color: #8A8880;">{{ $L['ts_shift'] }}</span><br><b style="font-family: 'Space Grotesk';">{{ $adjRow['shiftLabel'] }}</b></div>@endif
+                            <div><span style="color: #8A8880;">{{ $L['ts_actual'] }}</span><br><b style="font-family: 'Space Grotesk';">{{ $adjRow['actIn'] }} → {{ $adjRow['actOut'] }}</b></div>
+                        </div>
+                    @endif
+                    <div style="font-size: 11.5px; color: #8A8880; margin-top: 14px; line-height: 1.45;">{{ $L['ts_adjMsg'] }}</div>
+                    <div style="display: flex; gap: 10px; margin-top: 12px; align-items: flex-end;">
+                        <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['ts_paidIn'] }}</span><input wire:model="adjPaidIn" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                        <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['ts_paidOut'] }}</span><input wire:model="adjPaidOut" type="time" style="width: 100%; margin-top: 4px; padding: 9px 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                    </div>
+                    <div style="display: flex; gap: 7px; margin-top: 10px;">
+                        <button wire:click="bumpAdjust('out', 30)" style="padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #16181D; font-size: 12px; font-weight: 600; cursor: pointer;">+30m {{ $L['ts_ot'] }}</button>
+                        <button wire:click="bumpAdjust('out', 60)" style="padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #16181D; font-size: 12px; font-weight: 600; cursor: pointer;">+1h {{ $L['ts_ot'] }}</button>
+                        <button wire:click="bumpAdjust('out', -30)" style="padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #5A5D64; font-size: 12px; font-weight: 600; cursor: pointer;">−30m</button>
+                    </div>
+                    <label style="display: block; margin-top: 14px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['ts_adjReason'] }}</span><input wire:model="adjPaidReason" placeholder="{{ $L['ts_adjReasonPh'] }}" style="width: 100%; margin-top: 4px; padding: 10px 12px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button wire:click="closeAdjust" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_cancel'] }}</button>
+                        @if(!empty($adjRow['adjusted']))
+                            <button wire:click="clearAdjust" style="padding: 12px 16px; border: 1px solid #F3D9CB; border-radius: 11px; background: #fff; color: #C0522B; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['ts_adjRemove'] }}</button>
+                        @endif
+                        <button wire:click="saveAdjust" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #3B72E0; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['ts_adjSave'] }}</button>
                     </div>
                 </div>
             </div>

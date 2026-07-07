@@ -57,6 +57,9 @@ class Access
         'attendance.config' => ['owner', 'site_manager'],
         'timesheet.export' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
         'corrections.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
+        // a crew's work shift + lead adjustments to paid time (approve OT, restore early-leave)
+        'shifts.manage' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
+        'attendance.adjust' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
 
         // payroll — head-office only. The boss (owner) handles pay; the office
         // admin (hr_admin) manages people & attendance but never sees money.

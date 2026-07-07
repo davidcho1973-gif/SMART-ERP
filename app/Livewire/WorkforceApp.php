@@ -16,6 +16,7 @@ use App\Models\Team;
 use App\Services\BadgeAnalyzer;
 use App\Services\ReportFormatter;
 use App\Support\Access;
+use App\Support\Attendance;
 use App\Support\Comms;
 use App\Support\Corrections;
 use App\Support\Geo;
@@ -165,6 +166,24 @@ class WorkforceApp extends Component
     public string $newTeamName = '';
 
     public string $newTeamLead = '';
+
+    // team work shift (HH:MM 24h strings; empty = not configured)
+    public string $teamShiftIn = '';
+
+    public string $teamShiftOut = '';
+
+    public string $teamSatIn = '';
+
+    public string $teamSatOut = '';
+
+    // team-lead paid-time adjustment (attendance screen)
+    public ?int $adjPunchId = null;
+
+    public string $adjPaidIn = '';
+
+    public string $adjPaidOut = '';
+
+    public string $adjPaidReason = '';
 
     public ?string $editCompanyId = null;   // company modal in edit mode
 
@@ -416,14 +435,18 @@ class WorkforceApp extends Component
 
             return $siteId !== null && in_array($siteId, $this->scopeSiteIds() ?? [], true);
         }
-        // crew_lead overlay: only their own crew's people
-        if (in_array('crew_lead', $roles, true) && $target instanceof Employee) {
+        // crew_lead overlay: only their own crew — a person in it, or the team itself
+        if (in_array('crew_lead', $roles, true)) {
             $empId = $this->isDemo()
                 ? ($this->role === 'worker' ? $this->meEmployeeId() : $this->selfEmployeeId())
                 : Auth::user()?->employee_id;
             $leads = $empId ? Access::leadsTeams(Employee::find($empId)) : [];
-
-            return $target->team_id !== null && in_array($target->team_id, $leads, true);
+            if ($target instanceof Employee) {
+                return $target->team_id !== null && in_array($target->team_id, $leads, true);
+            }
+            if ($target instanceof Team) {
+                return in_array($target->id, $leads, true);
+            }
         }
 
         return false;
@@ -1623,11 +1646,24 @@ class WorkforceApp extends Component
         $this->showToast($this->dict()['pj_deleted'].' ✓');
     }
 
+    /** minutes since midnight → "HH:MM" (24h) for a time input, or '' */
+    protected function hhmm24(?int $min): string
+    {
+        return $min === null ? '' : sprintf('%02d:%02d', intdiv($min, 60), $min % 60);
+    }
+
+    /** "HH:MM" (24h time input) → minutes since midnight, or null when blank/invalid */
+    protected function minOf24(string $v): ?int
+    {
+        return preg_match('/^(\d{1,2}):(\d{2})$/', trim($v), $m) ? ((int) $m[1]) * 60 + (int) $m[2] : null;
+    }
+
     public function openTeamModal(string $companyId): void
     {
         $this->editTeamId = null;
         $this->teamModal = $companyId;
         $this->newTeamName = '';
+        $this->reset(['teamShiftIn', 'teamShiftOut', 'teamSatIn', 'teamSatOut']);
         $first = Employee::where('type', 'manager')->where('emp', 'active')->orderBy('id')->first();
         $this->newTeamLead = $first ? (string) $first->id : '';
     }
@@ -1642,6 +1678,10 @@ class WorkforceApp extends Component
         $this->teamModal = $t->company_id;
         $this->newTeamName = $t->name;
         $this->newTeamLead = $t->lead !== null ? (string) $t->lead : '';
+        $this->teamShiftIn = $this->hhmm24($t->shift_in);
+        $this->teamShiftOut = $this->hhmm24($t->shift_out);
+        $this->teamSatIn = $this->hhmm24($t->sat_in);
+        $this->teamSatOut = $this->hhmm24($t->sat_out);
     }
 
     public function cancelTeam(): void
@@ -1658,11 +1698,23 @@ class WorkforceApp extends Component
         if (trim($this->newTeamName) === '' || ! $this->teamModal) {
             return;
         }
+        // A configured shift is optional; leads set it later. Only persist a
+        // shift leg when both ends are present (a half-set shift is ignored).
+        $shiftIn = $this->minOf24($this->teamShiftIn);
+        $shiftOut = $this->minOf24($this->teamShiftOut);
+        $satIn = $this->minOf24($this->teamSatIn);
+        $satOut = $this->minOf24($this->teamSatOut);
+        $shift = [
+            'shift_in' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftIn : null,
+            'shift_out' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftOut : null,
+            'sat_in' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satIn : null,
+            'sat_out' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satOut : null,
+        ];
         if ($this->editTeamId) {
             Team::where('id', $this->editTeamId)->update([
                 'name' => trim($this->newTeamName),
                 'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
-            ]);
+            ] + $shift);
             $this->showToast($this->dict()['pj_saved'].' ✓');
         } else {
             $cols = ['#3B72E0', '#1F9D6B', '#E85D2A', '#D9483B', '#8A5CF6', '#0EA5A0'];
@@ -1673,7 +1725,7 @@ class WorkforceApp extends Component
                 'company_id' => $this->teamModal,
                 'lead' => $this->newTeamLead !== '' ? (int) $this->newTeamLead : null,
                 'color' => $cols[$count % count($cols)],
-            ]);
+            ] + $shift);
             $this->showToast(str_replace('+ ', '', $this->dict()['pj_newTeam']).' ✓');
         }
         $this->teamModal = null;
@@ -2228,6 +2280,105 @@ class WorkforceApp extends Component
         }
         $this->audit('punch.void', $e->first.' '.$e->last.' (#'.$e->id.')', $this->attDate.' · '.$was);
         $this->showToast($this->dict()['ts_voided']);
+    }
+
+    /**
+     * Team-lead paid-time adjustment: open the editor for one punch, prefilled
+     * with the currently-settled paid in/out so the lead nudges (approve OT past
+     * the shift end, restore an early-leave) rather than retyping the shift.
+     */
+    public function openAdjust(int $punchId): void
+    {
+        $p = Punch::find($punchId);
+        if (! $p) {
+            return;
+        }
+        if (! $this->can('attendance.adjust', Employee::find($p->employee_id))) {
+            return;
+        }
+        $settled = Attendance::settle($p);
+        $this->adjPunchId = $punchId;
+        $this->adjPaidIn = $this->hhmm24($p->adj_in_min ?? $settled['paidIn'] ?? $p->in_min);
+        $this->adjPaidOut = $this->hhmm24($p->adj_out_min ?? $settled['paidOut'] ?? $p->out_min);
+        $this->adjPaidReason = (string) ($p->adj_reason ?? '');
+    }
+
+    public function closeAdjust(): void
+    {
+        $this->adjPunchId = null;
+        $this->adjPaidIn = $this->adjPaidOut = $this->adjPaidReason = '';
+    }
+
+    /** Save the lead's adjusted paid times onto the punch (audited). */
+    public function saveAdjust(): void
+    {
+        $id = $this->adjPunchId;
+        $p = $id ? Punch::find($id) : null;
+        if (! $p) {
+            return;
+        }
+        $e = Employee::find($p->employee_id);
+        if (! $this->can('attendance.adjust', $e)) {
+            return;
+        }
+        $in = $this->minOf24($this->adjPaidIn);
+        $out = $this->minOf24($this->adjPaidOut);
+        if ($in === null || $out === null) {
+            $this->showToast($this->tl('Enter both times', 'Ingresa ambas horas', '두 시각을 모두 입력하세요'));
+
+            return;
+        }
+        if ($out < $in) {
+            $this->showToast($this->tl('Clock-out is before clock-in', 'La salida es antes de la entrada', '퇴근이 출근보다 빠릅니다'));
+
+            return;
+        }
+        if (trim($this->adjPaidReason) === '') {
+            $this->showToast($this->tl('A reason is required', 'Se requiere un motivo', '사유를 입력하세요'));
+
+            return;
+        }
+        $p->update([
+            'adj_in_min' => $in,
+            'adj_out_min' => $out,
+            'adj_reason' => trim($this->adjPaidReason),
+            'adj_by' => $this->actorEmployee()?->id,
+        ]);
+        $this->audit('attendance.adjust',
+            ($e ? $e->first.' '.$e->last.' (#'.$e->id.')' : '#'.$p->employee_id),
+            $p->work_date.' · '.Shift::fmtMin($in).'→'.Shift::fmtMin($out).' · '.trim($this->adjPaidReason));
+        $this->closeAdjust();
+        $this->showToast($this->tl('Adjusted & applied', 'Ajustado y aplicado', '조정 반영 완료'));
+    }
+
+    /** Quick nudge for the adjust editor: add minutes to the paid-in/out leg. */
+    public function bumpAdjust(string $leg, int $mins): void
+    {
+        $prop = $leg === 'in' ? 'adjPaidIn' : 'adjPaidOut';
+        $cur = $this->minOf24($this->$prop);
+        if ($cur === null) {
+            return;
+        }
+        $this->$prop = $this->hhmm24(max(0, min(1439, $cur + $mins)));
+    }
+
+    /** Remove a lead adjustment — the punch reverts to the automatic shift settle. */
+    public function clearAdjust(): void
+    {
+        $id = $this->adjPunchId;
+        $p = $id ? Punch::find($id) : null;
+        if (! $p) {
+            return;
+        }
+        $e = Employee::find($p->employee_id);
+        if (! $this->can('attendance.adjust', $e)) {
+            return;
+        }
+        $p->update(['adj_in_min' => null, 'adj_out_min' => null, 'adj_reason' => null, 'adj_by' => null]);
+        $this->audit('attendance.adjust.clear',
+            ($e ? $e->first.' '.$e->last.' (#'.$e->id.')' : '#'.$p->employee_id), $p->work_date);
+        $this->closeAdjust();
+        $this->showToast($this->tl('Adjustment removed', 'Ajuste eliminado', '조정 취소 완료'));
     }
 
     // =================== payroll ===================
@@ -2845,6 +2996,8 @@ class WorkforceApp extends Component
                 'employeesTerminate' => Access::allows($this->actorRoles(), 'employees.terminate'),
                 'employeesRegister' => Access::allows($this->actorRoles(), 'employees.register'),
                 'punchManual' => Access::allows($this->actorRoles(), 'punch.manual'),
+                'attendanceAdjust' => Access::allows($this->actorRoles(), 'attendance.adjust'),
+                'shiftsManage' => Access::allows($this->actorRoles(), 'shifts.manage'),
                 'rolesAssign' => $this->can('roles.assign'),
                 'auditView' => $this->correctionsGlobal(),
                 'assignableRoles' => Access::assignable($this->primaryRole()),

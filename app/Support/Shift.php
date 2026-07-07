@@ -42,10 +42,25 @@ class Shift
         return $hh . ':' . str_pad((string) $m, 2, '0', STR_PAD_LEFT) . ' ' . $ap;
     }
 
+    /** ±30 min grace window (minutes) around the scheduled shift boundary. */
+    public const GRACE_MIN = 30;
+
     /** Snap an actual punch to the scheduled time when within the ±30 min grace window. */
     public static function snap(int $actual, int $sched): int
     {
-        return abs($actual - $sched) <= 30 ? $sched : $actual;
+        return abs($actual - $sched) <= self::GRACE_MIN ? $sched : $actual;
+    }
+
+    /**
+     * Paid hours for a settled in/out (minutes), deducting the 1h lunch when the
+     * span covers 11:00–12:00 and lunch wasn't skipped. Never negative.
+     */
+    public static function paidHours(int $paidIn, int $paidOut, bool $noLunch): float
+    {
+        $span = $paidOut - $paidIn;
+        $tookLunch = ! $noLunch && $paidIn <= 660 && $paidOut >= 720;
+
+        return max(0.0, ($span - ($tookLunch ? 60 : 0)) / 60);
     }
 
     /**

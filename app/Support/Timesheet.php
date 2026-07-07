@@ -45,28 +45,28 @@ class Timesheet
         $present = 0;
 
         foreach ($workers as $e) {
-            $p = $dayPunches->get($e->id);
-            $inMin = $outMin = null;
-            $noLunch = false;
-            if ($p && $p->in_min !== null) {
-                $inMin = $p->in_min;
-                $outMin = $p->out_min;
-                $noLunch = (bool) $p->no_lunch;
-            } elseif ($isToday && $e->in_t !== '—' && $e->in_t !== '') {
-                $inMin = Shift::minOf($e->in_t);
-                $outMin = ($e->out_t !== '—' && $e->out_t !== '') ? Shift::minOf($e->out_t) : null;
+            $realPunch = $dayPunches->get($e->id);
+            // settle from the real punch; fall back to today's live status by
+            // synthesizing a transient punch (so it still uses the crew's shift)
+            $p = ($realPunch && $realPunch->in_min !== null) ? $realPunch : null;
+            if ($p === null && $isToday && $e->in_t !== '—' && $e->in_t !== '') {
+                $p = new Punch([
+                    'work_date' => $date, 'team_id' => $e->team_id, 'no_lunch' => false,
+                    'in_min' => Shift::minOf($e->in_t),
+                    'out_min' => ($e->out_t !== '—' && $e->out_t !== '') ? Shift::minOf($e->out_t) : null,
+                ]);
             }
+            $hasIn = $p !== null && $p->in_min !== null;
+            $settled = ($p !== null && $p->in_min !== null && $p->out_min !== null) ? Attendance::settle($p) : null;
 
-            $actIn = $inMin !== null ? Shift::fmtMin($inMin) : '—';
-            $actOut = $outMin !== null ? Shift::fmtMin($outMin) : '—';
+            $actIn = $hasIn ? Shift::fmtMin($p->in_min) : '—';
+            $actOut = ($p !== null && $p->out_min !== null) ? Shift::fmtMin($p->out_min) : '—';
             $paidIn = $paidOut = $regStr = $otStr = '—';
             $regNum = $otNum = 0.0;
-            if ($inMin !== null && $outMin !== null) {
-                [$si, $so] = Payroll::scheduleFor($inMin, $isSat);
-                $c = Shift::compute(Shift::fmtMin($inMin), Shift::fmtMin($outMin), $si, $so, $noLunch);
-                $paidIn = $c['inFmt'];
-                $paidOut = $c['outFmt'];
-                $paid = max(0, $c['paid']);
+            if ($settled !== null) {
+                $paidIn = $settled['paidInFmt'];
+                $paidOut = $settled['paidOutFmt'];
+                $paid = max(0, $settled['paid']);
                 $regNum = min($paid, 8);
                 $otNum = max(0, $paid - 8);
                 $regTotal += $regNum;
@@ -74,31 +74,38 @@ class Timesheet
                 $regStr = number_format($regNum, 1).'h';
                 $otStr = $otNum > 0.05 ? number_format($otNum, 1).'h' : '—';
             }
-            if ($inMin !== null) {
+            if ($hasIn) {
                 $present++;
             }
 
             // off-site flag: any punch leg recorded outside the site geofence.
             // Distance is recomputed from stored coords for the reviewer badge.
-            [$geoOff, $geoDist] = self::geoReview($p, $sites->get($e->site_id));
+            [$geoOff, $geoDist] = self::geoReview($realPunch, $sites->get($e->site_id));
 
             // the punch snapshot (crew/company at clock time) wins over the
             // person's CURRENT crew — moving teams later must not rewrite this day
             $dayTeam = $p?->team_id ?? $e->team_id;
             $dayCompany = $p?->company_id ?? $e->company_id;
 
+            $dayShift = ($settled && $settled['source'] === 'team' && $settled['shiftIn'] !== null)
+                ? Shift::fmtMin($settled['shiftIn']).' – '.Shift::fmtMin($settled['shiftOut'])
+                : null;
+
             $rows[] = [
                 'id' => $e->id,
-                'hasPunch' => $p !== null && $p->in_min !== null,   // a real punch record that can be voided
+                'hasPunch' => $realPunch !== null && $realPunch->in_min !== null,   // a real punch record that can be voided / adjusted
+                'punchId' => $realPunch?->id,
                 'company' => $companyName($dayCompany),
-                'team' => $teamName($dayTeam),
+                'team' => $teamName($dayTeam), 'teamId' => $dayTeam,
                 'teamColor' => $teamColor($dayTeam),
                 'name' => $e->displayName($lang), 'initials' => $e->initials(),
                 'actIn' => $actIn, 'actOut' => $actOut,
                 'paidIn' => $paidIn, 'paidOut' => $paidOut,
                 'reg' => $regStr, 'ot' => $otStr,
                 'regNum' => round($regNum, 2), 'otNum' => round($otNum, 2),
-                'onDuty' => $inMin !== null && $outMin === null,
+                'onDuty' => $p !== null && $p->in_min !== null && $p->out_min === null,
+                'adjusted' => $settled['adjusted'] ?? false,
+                'shiftLabel' => $dayShift,
                 'geoOff' => $geoOff, 'geoDist' => $geoDist,
             ];
         }
