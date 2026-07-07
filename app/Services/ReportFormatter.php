@@ -31,7 +31,7 @@ class ReportFormatter
     public function format(string $raw, string $hintLang): ?array
     {
         $key = config('services.gemini.key');
-        $model = config('services.gemini.model', 'gemini-flash-latest');
+        $model = config('services.gemini.model', 'gemini-2.5-flash');
 
         $prompt = <<<PROMPT
 You are formatting a construction-site daily work report. The text below is a
@@ -64,37 +64,48 @@ Respond with JSON only.
 {$raw}
 PROMPT;
 
-        try {
-            $response = Http::timeout(45)->post(
-                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
-                [
-                    'contents' => [[
-                        'parts' => [['text' => $prompt]],
-                    ]],
-                    'generationConfig' => [
-                        'response_mime_type' => 'application/json',
-                        'response_schema' => [
-                            'type' => 'OBJECT',
-                            'properties' => [
-                                'lang' => ['type' => 'STRING'],
-                                'done' => ['type' => 'STRING'],
-                                'issues' => ['type' => 'STRING'],
-                                'plan' => ['type' => 'STRING'],
-                                'done_ko' => ['type' => 'STRING'],
-                                'issues_ko' => ['type' => 'STRING'],
-                                'plan_ko' => ['type' => 'STRING'],
-                            ],
-                            'required' => ['lang', 'done', 'issues', 'plan'],
-                        ],
-                        'temperature' => 0.2,
+        $payload = [
+            'contents' => [[
+                'parts' => [['text' => $prompt]],
+            ]],
+            'generationConfig' => [
+                'response_mime_type' => 'application/json',
+                'response_schema' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'lang' => ['type' => 'STRING'],
+                        'done' => ['type' => 'STRING'],
+                        'issues' => ['type' => 'STRING'],
+                        'plan' => ['type' => 'STRING'],
+                        'done_ko' => ['type' => 'STRING'],
+                        'issues_ko' => ['type' => 'STRING'],
+                        'plan_ko' => ['type' => 'STRING'],
                     ],
-                ]
-            );
-        } catch (\Throwable) {
-            return null;
+                    'required' => ['lang', 'done', 'issues', 'plan'],
+                ],
+                'temperature' => 0.2,
+            ],
+        ];
+
+        // primary model first; when Google throttles it (503 high demand / 429
+        // quota) fall through to the lighter model instead of failing the report
+        $response = null;
+        $models = array_values(array_unique(array_filter([$model, config('services.gemini.fallback_model')])));
+        foreach ($models as $m) {
+            try {
+                $response = Http::timeout(45)->post(
+                    "https://generativelanguage.googleapis.com/v1beta/models/{$m}:generateContent?key={$key}",
+                    $payload
+                );
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($response->successful()) {
+                break;
+            }
         }
 
-        if (! $response->successful()) {
+        if ($response === null || ! $response->successful()) {
             return null;
         }
         $text = $response->json('candidates.0.content.parts.0.text');

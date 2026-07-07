@@ -20,15 +20,41 @@ class BadgeAnalyzer
     }
 
     /**
+     * Call generateContent on the configured model, falling through to the
+     * fallback model when Google throttles the primary (503 / 429).
+     */
+    private function generate(array $payload): ?\Illuminate\Http\Client\Response
+    {
+        $key = config('services.gemini.key');
+        $models = array_values(array_unique(array_filter([
+            config('services.gemini.model', 'gemini-2.5-flash'),
+            config('services.gemini.fallback_model'),
+        ])));
+        $response = null;
+        foreach ($models as $m) {
+            try {
+                $response = Http::timeout(45)->post(
+                    "https://generativelanguage.googleapis.com/v1beta/models/{$m}:generateContent?key={$key}",
+                    $payload
+                );
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($response->successful()) {
+                return $response;
+            }
+        }
+
+        return $response !== null && $response->successful() ? $response : null;
+    }
+
+    /**
      * Badge BACK: return the unique code — the number printed directly under
      * the QR code (e.g. "00102810"). Used when browser-side QR decoding fails
      * (glare / laminate reflections).
      */
     public function analyzeBack(string $imageBytes, string $mime): ?string
     {
-        $key = config('services.gemini.key');
-        $model = config('services.gemini.model', 'gemini-flash-latest');
-
         $prompt = <<<'PROMPT'
 This photo shows the BACK of a construction site badge. It has a QR code with a
 human-readable code printed directly UNDER the QR (e.g. "00102810").
@@ -38,32 +64,24 @@ Ignore the P/N line at the bottom and any brand names. If the code is
 unreadable, return an empty string. Respond with JSON only.
 PROMPT;
 
-        try {
-            $response = Http::timeout(45)->post(
-                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
-                [
-                    'contents' => [[
-                        'parts' => [
-                            ['text' => $prompt],
-                            ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
-                        ],
-                    ]],
-                    'generationConfig' => [
-                        'response_mime_type' => 'application/json',
-                        'response_schema' => [
-                            'type' => 'OBJECT',
-                            'properties' => ['code' => ['type' => 'STRING']],
-                            'required' => ['code'],
-                        ],
-                        'temperature' => 0,
-                    ],
-                ]
-            );
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (! $response->successful()) {
+        $response = $this->generate([
+            'contents' => [[
+                'parts' => [
+                    ['text' => $prompt],
+                    ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
+                ],
+            ]],
+            'generationConfig' => [
+                'response_mime_type' => 'application/json',
+                'response_schema' => [
+                    'type' => 'OBJECT',
+                    'properties' => ['code' => ['type' => 'STRING']],
+                    'required' => ['code'],
+                ],
+                'temperature' => 0,
+            ],
+        ]);
+        if ($response === null) {
             return null;
         }
         $text = $response->json('candidates.0.content.parts.0.text');
@@ -79,9 +97,6 @@ PROMPT;
      */
     public function analyzeFront(string $imageBytes, string $mime): ?array
     {
-        $key = config('services.gemini.key');
-        $model = config('services.gemini.model', 'gemini-flash-latest');
-
         $prompt = <<<'PROMPT'
 You are reading a construction-site ID badge (front side). Extract exactly these fields:
 
@@ -100,46 +115,38 @@ You are reading a construction-site ID badge (front side). Extract exactly these
 Use empty string "" for text fields that are unreadable. Respond with JSON only.
 PROMPT;
 
-        try {
-            $response = Http::timeout(45)->post(
-                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
-                [
-                    'contents' => [[
-                        'parts' => [
-                            ['text' => $prompt],
-                            ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
-                        ],
-                    ]],
-                    'generationConfig' => [
-                        'response_mime_type' => 'application/json',
-                        'response_schema' => [
+        $response = $this->generate([
+            'contents' => [[
+                'parts' => [
+                    ['text' => $prompt],
+                    ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode($imageBytes)]],
+                ],
+            ]],
+            'generationConfig' => [
+                'response_mime_type' => 'application/json',
+                'response_schema' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'company' => ['type' => 'STRING'],
+                        'last' => ['type' => 'STRING'],
+                        'first' => ['type' => 'STRING'],
+                        'role' => ['type' => 'STRING'],
+                        'issued' => ['type' => 'STRING'],
+                        'face' => [
                             'type' => 'OBJECT',
                             'properties' => [
-                                'company' => ['type' => 'STRING'],
-                                'last' => ['type' => 'STRING'],
-                                'first' => ['type' => 'STRING'],
-                                'role' => ['type' => 'STRING'],
-                                'issued' => ['type' => 'STRING'],
-                                'face' => [
-                                    'type' => 'OBJECT',
-                                    'properties' => [
-                                        'x' => ['type' => 'NUMBER'], 'y' => ['type' => 'NUMBER'],
-                                        'w' => ['type' => 'NUMBER'], 'h' => ['type' => 'NUMBER'],
-                                    ],
-                                    'required' => ['x', 'y', 'w', 'h'],
-                                ],
+                                'x' => ['type' => 'NUMBER'], 'y' => ['type' => 'NUMBER'],
+                                'w' => ['type' => 'NUMBER'], 'h' => ['type' => 'NUMBER'],
                             ],
-                            'required' => ['company', 'last', 'first', 'role', 'issued'],
+                            'required' => ['x', 'y', 'w', 'h'],
                         ],
-                        'temperature' => 0,
                     ],
-                ]
-            );
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (! $response->successful()) {
+                    'required' => ['company', 'last', 'first', 'role', 'issued'],
+                ],
+                'temperature' => 0,
+            ],
+        ]);
+        if ($response === null) {
             return null;
         }
 

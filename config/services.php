@@ -37,7 +37,10 @@ return [
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
+        // pinned release: the "-latest" alias gets throttled (503 high demand)
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        // tried when the primary model is overloaded (503/429)
+        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-2.5-flash-lite'),
     ],
 
     'google' => [
