@@ -258,6 +258,109 @@
                             @endforeach
                         </div>
                     </div>
+                @elseif($mobileTab === 'crew' && $crew)
+                    <div style="padding: 12px 20px 20px;">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 6px 0 4px;">
+                            <div style="font-size: 18px; font-weight: 700;">{{ $L['w_tab_crew'] }}</div>
+                            <div style="font-size: 12px; color: #8A8880;">{{ $crew['dateLabel'] }}</div>
+                        </div>
+                        <div style="font-size: 12.5px; color: #8A8880; margin-bottom: 14px;">{{ $L['ts_present'] }} <b style="color:#1F9D6B;">{{ $crew['present'] }}</b> / {{ $crew['count'] }}</div>
+
+                        {{-- each crew's work shift + a phone editor to set it --}}
+                        @foreach($crew['teams'] as $t)
+                            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 9px;">
+                                    <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $t['color'] }};"></span>
+                                    <span style="flex: 1; font-weight: 700; font-size: 14.5px;">{{ $t['name'] }}</span>
+                                    <button wire:click="openCrewShift('{{ $t['id'] }}')" style="font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 9px; border: 1px solid #E4E2DB; background: #FAFAF8; color: #3B72E0; cursor: pointer;">{{ $L['w_crew_setShift'] }}</button>
+                                </div>
+                                <div style="display: flex; gap: 18px; margin-top: 10px; font-size: 12.5px;">
+                                    <div><span style="color: #8A8880;">{{ $L['pj_shiftWeekday'] }}</span><br><b style="font-family: 'Space Grotesk';">{{ $t['weekday'] ?? $L['w_crew_noShift'] }}</b></div>
+                                    @if($t['saturday'])<div><span style="color: #8A8880;">{{ $L['pj_shiftSat'] }}</span><br><b style="font-family: 'Space Grotesk';">{{ $t['saturday'] }}</b></div>@endif
+                                </div>
+                            </div>
+                        @endforeach
+
+                        {{-- today's crew attendance — actual vs paid, with a lead adjust button --}}
+                        <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 18px 0 8px;">{{ $L['w_crew_today'] }}</div>
+                        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
+                            @forelse($crew['rows'] as $r)
+                                <div style="padding: 12px 16px; border-bottom: 1px solid #F2F0EA;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span style="flex: 1; font-weight: 600; font-size: 13.5px;">{{ $r['name'] }}@if(!empty($r['adjusted']))<span style="margin-left: 6px; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: #EAF1FC; color: #3B72E0;">{{ $L['ts_adjusted'] }}</span>@endif</span>
+                                        @if(!empty($r['hasPunch']) && !empty($r['punchId']))
+                                            <button wire:click="openAdjust({{ $r['punchId'] }})" style="font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 8px; border: 1px solid #E4E2DB; background: #fff; color: #3B72E0; cursor: pointer;">{{ $L['ts_adjust'] }}</button>
+                                        @endif
+                                    </div>
+                                    <div style="display: flex; gap: 14px; margin-top: 6px; font-family: 'Space Grotesk'; font-size: 12px;">
+                                        <span style="color: #8A8880;">{{ $L['ts_actual'] }} <b style="color:#16181D;">{{ $r['actIn'] }} → {{ $r['onDuty'] ? $L['ts_onduty'] : $r['actOut'] }}</b></span>
+                                        <span style="color: #8A8880;">{{ $L['ts_paidIn'] }} <b style="color:#16181D;">{{ $r['paidIn'] }} → {{ $r['paidOut'] }}</b></span>
+                                    </div>
+                                    <div style="margin-top: 5px; font-family: 'Space Grotesk'; font-size: 12px; font-weight: 700;">{{ $r['reg'] }}@if($r['ot'] !== '—')<span style="color:#C05621;"> +{{ $r['ot'] }} {{ $L['ts_ot'] }}</span>@endif</div>
+                                </div>
+                            @empty
+                                <div style="padding: 26px 16px; text-align: center; color: #A7A49B; font-size: 13px;">{{ $L['w_crew_noOne'] }}</div>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    {{-- crew shift editor (field lead, phone) --}}
+                    @if($crewShiftTeam)
+                        <div style="position: fixed; inset: 0; z-index: 90; background: rgba(22,24,29,0.5); display: flex; align-items: flex-end; justify-content: center;">
+                            <div style="width: 100%; max-width: 460px; background: #fff; border-radius: 20px 20px 0 0; padding: 22px 20px 28px;">
+                                <div style="font-size: 16px; font-weight: 700;">{{ $L['pj_shiftTitle'] }}</div>
+                                <div style="font-size: 11.5px; color: #8A8880; margin-top: 4px; line-height: 1.45;">{{ $L['pj_shiftHint'] }}</div>
+                                <div style="display: flex; gap: 10px; margin-top: 14px; align-items: flex-end;">
+                                    <div style="width: 58px; font-size: 12px; font-weight: 600; padding-bottom: 11px;">{{ $L['pj_shiftWeekday'] }}</div>
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['pj_shiftIn'] }}</span><input wire:model="teamShiftIn" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['pj_shiftOut'] }}</span><input wire:model="teamShiftOut" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-end;">
+                                    <div style="width: 58px; font-size: 12px; font-weight: 600; padding-bottom: 11px;">{{ $L['pj_shiftSat'] }}</div>
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['pj_shiftIn'] }}</span><input wire:model="teamSatIn" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['pj_shiftOut'] }}</span><input wire:model="teamSatOut" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                    <button wire:click="closeCrewShift" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
+                                    <button wire:click="saveCrewShift" style="flex: 1; padding: 13px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['pj_save'] }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- paid-time adjust editor (field lead, phone) --}}
+                    @if($adjPunchId)
+                        @php $ar = collect($crew['rows'])->firstWhere('punchId', $adjPunchId); @endphp
+                        <div style="position: fixed; inset: 0; z-index: 90; background: rgba(22,24,29,0.5); display: flex; align-items: flex-end; justify-content: center;">
+                            <div style="width: 100%; max-width: 460px; background: #fff; border-radius: 20px 20px 0 0; padding: 22px 20px 28px;">
+                                <div style="font-size: 16px; font-weight: 700;">{{ $L['ts_adjTitle'] }}</div>
+                                @if($ar)
+                                    <div style="font-size: 13.5px; font-weight: 600; margin-top: 5px;">{{ $ar['name'] }}</div>
+                                    <div style="display: flex; gap: 16px; margin-top: 10px; padding: 11px 13px; background: #FAFAF8; border-radius: 12px; font-size: 12px;">
+                                        @if($ar['shiftLabel'])<div><span style="color:#8A8880;">{{ $L['ts_shift'] }}</span><br><b style="font-family:'Space Grotesk';">{{ $ar['shiftLabel'] }}</b></div>@endif
+                                        <div><span style="color:#8A8880;">{{ $L['ts_actual'] }}</span><br><b style="font-family:'Space Grotesk';">{{ $ar['actIn'] }} → {{ $ar['actOut'] }}</b></div>
+                                    </div>
+                                @endif
+                                <div style="display: flex; gap: 10px; margin-top: 14px; align-items: flex-end;">
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['ts_paidIn'] }}</span><input wire:model="adjPaidIn" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                    <label style="flex: 1;"><span style="font-size: 11px; color: #8A8880;">{{ $L['ts_paidOut'] }}</span><input wire:model="adjPaidOut" type="time" style="width: 100%; margin-top: 4px; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 15px; outline: none; font-family: 'Space Grotesk';"/></label>
+                                </div>
+                                <div style="display: flex; gap: 7px; margin-top: 10px;">
+                                    <button wire:click="bumpAdjust('out', 30)" style="padding: 7px 12px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">+30m {{ $L['ts_ot'] }}</button>
+                                    <button wire:click="bumpAdjust('out', 60)" style="padding: 7px 12px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">+1h {{ $L['ts_ot'] }}</button>
+                                    <button wire:click="bumpAdjust('out', -30)" style="padding: 7px 12px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #5A5D64; font-size: 12px; font-weight: 600; cursor: pointer;">−30m</button>
+                                </div>
+                                <label style="display: block; margin-top: 14px;"><span style="font-size: 11px; color: #8A8880;">{{ $L['ts_adjReason'] }}</span><input wire:model="adjPaidReason" placeholder="{{ $L['ts_adjReasonPh'] }}" style="width: 100%; margin-top: 4px; padding: 11px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                                <div style="display: flex; gap: 10px; margin-top: 18px;">
+                                    <button wire:click="closeAdjust" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['e_cancel'] }}</button>
+                                    @if(!empty($ar['adjusted']))
+                                        <button wire:click="clearAdjust" style="padding: 13px 15px; border: 1px solid #F3D9CB; border-radius: 12px; background: #fff; color: #C0522B; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['ts_adjRemove'] }}</button>
+                                    @endif
+                                    <button wire:click="saveAdjust" style="flex: 1; padding: 13px; border: none; border-radius: 12px; background: #3B72E0; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['ts_adjSave'] }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                 @elseif($mobileTab === 'pay')
                     <div style="padding: 12px 20px 20px;">
                         <div style="font-size: 18px; font-weight: 700; margin: 6px 0 16px;">{{ $L['w_payslip'] }}</div>

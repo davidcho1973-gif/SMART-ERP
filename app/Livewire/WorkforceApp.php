@@ -185,6 +185,9 @@ class WorkforceApp extends Component
 
     public string $adjPaidReason = '';
 
+    /** field-lead mobile: id of the crew whose shift is being edited (inline editor) */
+    public ?string $crewShiftTeam = null;
+
     public ?string $editCompanyId = null;   // company modal in edit mode
 
     public ?string $editTeamId = null;       // team modal in edit mode
@@ -718,11 +721,16 @@ class WorkforceApp extends Component
             'site_manager', 'company_admin' => 'manager',
             default => 'worker',
         };
-        if ($canon === 'worker') {
+        $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
+        // a crew lead works the field from their phone: anyone who leads a team
+        // gets the worker-mobile app (with a crew panel), not the desktop — except
+        // the top office roles (owner/hr_admin), who keep the admin desktop.
+        $fieldLead = $emp && Access::leadsTeams($emp) !== [] && ! in_array($canon, ['owner', 'hr_admin'], true);
+        if ($canon === 'worker' || $fieldLead) {
+            $this->access = 'worker';   // lock the view to mobile (no desktop switch)
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
-            $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
             $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true) ? $emp->lang : 'es';
             Comms::ensureRooms();   // worker home board reads announcements + their rooms
             // restore today's clock state from the punch record (out · in · done)
@@ -737,7 +745,6 @@ class WorkforceApp extends Component
             $this->screen = 'dashboard';
             // the linked employee's registered language is the app default;
             // fall back to the old role-based guess when there is no record
-            $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
             $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true)
                 ? $emp->lang
                 : ($canon === 'site_manager' ? 'ko' : 'en');
@@ -2349,6 +2356,52 @@ class WorkforceApp extends Component
             $p->work_date.' · '.Shift::fmtMin($in).'→'.Shift::fmtMin($out).' · '.trim($this->adjPaidReason));
         $this->closeAdjust();
         $this->showToast($this->tl('Adjusted & applied', 'Ajustado y aplicado', '조정 반영 완료'));
+    }
+
+    /**
+     * Field-lead mobile: open the inline shift editor for a crew they lead,
+     * prefilled with the crew's current weekday/Saturday shift.
+     */
+    public function openCrewShift(string $teamId): void
+    {
+        $t = Team::find($teamId);
+        if (! $t || ! $this->can('shifts.manage', $t)) {
+            return;
+        }
+        $this->crewShiftTeam = $teamId;
+        $this->teamShiftIn = $this->hhmm24($t->shift_in);
+        $this->teamShiftOut = $this->hhmm24($t->shift_out);
+        $this->teamSatIn = $this->hhmm24($t->sat_in);
+        $this->teamSatOut = $this->hhmm24($t->sat_out);
+    }
+
+    public function closeCrewShift(): void
+    {
+        $this->crewShiftTeam = null;
+        $this->reset(['teamShiftIn', 'teamShiftOut', 'teamSatIn', 'teamSatOut']);
+    }
+
+    /** Save the crew shift a field lead set from their phone (gated shifts.manage). */
+    public function saveCrewShift(): void
+    {
+        $t = $this->crewShiftTeam ? Team::find($this->crewShiftTeam) : null;
+        if (! $t || ! $this->can('shifts.manage', $t)) {
+            return;
+        }
+        $shiftIn = $this->minOf24($this->teamShiftIn);
+        $shiftOut = $this->minOf24($this->teamShiftOut);
+        $satIn = $this->minOf24($this->teamSatIn);
+        $satOut = $this->minOf24($this->teamSatOut);
+        $t->update([
+            'shift_in' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftIn : null,
+            'shift_out' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftOut : null,
+            'sat_in' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satIn : null,
+            'sat_out' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satOut : null,
+        ]);
+        $this->audit('shifts.manage', $t->name.' (#'.$t->id.')',
+            'shift '.($t->shift_in !== null ? Shift::fmtMin($t->shift_in).'–'.Shift::fmtMin($t->shift_out) : '—'));
+        $this->closeCrewShift();
+        $this->showToast($this->dict()['pj_saved'].' ✓');
     }
 
     /** Quick nudge for the adjust editor: add minutes to the paid-in/out leg. */

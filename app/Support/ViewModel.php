@@ -77,7 +77,15 @@ class ViewModel
             'unread' => $k === 'comms' ? $commsUnread : 0,
         ], $navKeys);
 
-        $mKeys = ['home', 'work', 'pay', 'me'];
+        // field lead on the mobile app: crews they lead → extra "우리 팀" tab
+        $mobileLeadTeamIds = [];
+        if ($s['role'] === 'worker') {
+            $meId = $s['meEmployeeId'] ?? null;
+            $mobileLeadTeamIds = $meId ? $teams->where('lead', $meId)->pluck('id')->all() : [];
+        }
+        $isFieldLead = $mobileLeadTeamIds !== [];
+
+        $mKeys = $isFieldLead ? ['home', 'work', 'crew', 'pay', 'me'] : ['home', 'work', 'pay', 'me'];
         $mobileTabs = array_map(fn ($k) => [
             'key' => $k, 'label' => $L['w_tab_'.$k], 'active' => $s['mobileTab'] === $k,
         ], $mKeys);
@@ -515,6 +523,33 @@ class ViewModel
         // ---- daily timesheet (company → team → worker; actual vs paid, reg/OT) ----
         $timesheet = Timesheet::forDate($s['attDate'] ?? now()->format('Y-m-d'), $s['site'], $lang);
 
+        // ---- field-lead crew panel (mobile "우리 팀" tab) ----
+        $crew = null;
+        if ($isFieldLead) {
+            $crewDate = now()->format('Y-m-d');
+            $crewTs = Timesheet::forDate($crewDate, 'all', $lang);
+            $crewRows = array_values(array_filter(
+                $crewTs['rows'],
+                fn ($r) => in_array($r['teamId'], $mobileLeadTeamIds, true)
+            ));
+            $crewTeams = $teams->whereIn('id', $mobileLeadTeamIds)->map(fn ($t) => [
+                'id' => $t->id, 'name' => $t->name, 'color' => $t->color,
+                'hasShift' => $t->shift_in !== null && $t->shift_out !== null,
+                'weekday' => ($t->shift_in !== null && $t->shift_out !== null)
+                    ? Shift::fmtMin($t->shift_in).' – '.Shift::fmtMin($t->shift_out) : null,
+                'saturday' => ($t->sat_in !== null && $t->sat_out !== null)
+                    ? Shift::fmtMin($t->sat_in).' – '.Shift::fmtMin($t->sat_out) : null,
+            ])->values()->all();
+            $crew = [
+                'date' => $crewDate,
+                'dateLabel' => Carbon::parse($crewDate)->format('D · M j'),
+                'rows' => $crewRows,
+                'count' => count($crewRows),
+                'present' => count(array_filter($crewRows, fn ($r) => ! empty($r['hasPunch']))),
+                'teams' => $crewTeams,
+            ];
+        }
+
         // ---- worker mobile (me = authed employee, demo fallback 106) ----
         $meId = $s['meEmployeeId'] ?? 106;
         $me = $employees->firstWhere('id', $meId) ?? $employees->firstWhere('id', 106) ?? $employees->first();
@@ -747,7 +782,7 @@ class ViewModel
             'isWorker' => $s['role'] === 'worker',
             'isDesktopApp' => $s['role'] !== 'worker' && $s['screen'] !== 'login',
             'stat_workers' => $activeAll->filter(fn ($e) => $e->type === 'worker')->count(),
-            'nav' => $nav, 'mobileTabs' => $mobileTabs,
+            'nav' => $nav, 'mobileTabs' => $mobileTabs, 'crew' => $crew,
             'siteOptions' => $siteOptions, 'siteVal' => $s['site'],
             'me' => [
                 'name' => $meName,
