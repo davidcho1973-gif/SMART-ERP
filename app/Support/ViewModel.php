@@ -292,8 +292,16 @@ class ViewModel
         $delRaw = $employees->firstWhere('id', $s['deleteId']);
         $termRaw = $employees->firstWhere('id', $s['terminateId']);
 
-        $managers = $employees->filter(fn ($e) => $e->type === 'manager' && $e->emp === 'active')->values();
-        $managerOptions = $managers->map(fn ($m) => ['id' => $m->id, 'label' => $empName($m)])->all();
+        // team-lead candidates: any active employee may lead a crew (a lead is often
+        // a senior field worker, not only office/manager staff). Managers/foremen are
+        // listed first, then workers; each labeled with their job title to pick from.
+        $leadCandidates = $employees->filter(fn ($e) => $e->emp === 'active')
+            ->sortBy(fn ($e) => ($e->type === 'manager' ? '0' : '1').' '.$empName($e))
+            ->values();
+        $managerOptions = $leadCandidates->map(fn ($m) => [
+            'id' => $m->id,
+            'label' => $empName($m).($m->role ? ' · '.$m->role : ''),
+        ])->all();
         $companyOptions = $companies->map(fn ($c) => ['id' => $c->id, 'label' => $c->name])->all();
         $teamOptionsAll = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name.' · '.$companyName($t->company_id)])->all();
 
