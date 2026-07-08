@@ -1519,6 +1519,7 @@ class WorkforceApp extends Component
             $teamModel = $teamId ? Team::find($teamId) : null;
             $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
             $prevAccess = $e->access;
+            $prevRate = $e->rate;
             $granted = $this->grantableAccess($e, $this->editForm['access'] ?? $e->access);
             $e->update([
                 'first' => $this->editForm['first'] ?? $e->first,
@@ -1543,6 +1544,11 @@ class WorkforceApp extends Component
             ]);
             if ($granted !== $prevAccess) {
                 $this->audit('role.grant', $e->first.' '.$e->last.' (#'.$e->id.')', $prevAccess.' → '.$granted);
+            }
+            $newRate = (float) ($this->editForm['rate'] ?? $e->rate);
+            if (abs($newRate - (float) $prevRate) > 0.001) {
+                // a pay-rate change is money — always audited
+                $this->audit('rate.change', $e->first.' '.$e->last.' (#'.$e->id.')', '$'.$prevRate.' → $'.$newRate);
             }
         }
         $this->selectedEmp = null;
@@ -1745,18 +1751,11 @@ class WorkforceApp extends Component
         if (trim($this->newTeamName) === '' || ! $this->teamModal) {
             return;
         }
-        // A configured shift is optional; leads set it later. Only persist a
-        // shift leg when both ends are present (a half-set shift is ignored).
-        $shiftIn = $this->minOf24($this->teamShiftIn);
-        $shiftOut = $this->minOf24($this->teamShiftOut);
-        $satIn = $this->minOf24($this->teamSatIn);
-        $satOut = $this->minOf24($this->teamSatOut);
-        $shift = [
-            'shift_in' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftIn : null,
-            'shift_out' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftOut : null,
-            'sat_in' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satIn : null,
-            'sat_out' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satOut : null,
-        ];
+        // A configured shift is optional; leads set it later.
+        $shift = $this->validShiftPayload();
+        if ($shift === null) {
+            return;   // invalid pair — an error toast was shown, keep the modal open
+        }
         if ($this->editTeamId) {
             Team::where('id', $this->editTeamId)->update([
                 'name' => trim($this->newTeamName),
@@ -1802,10 +1801,14 @@ class WorkforceApp extends Component
 
     public function changeLead(string $teamId, string $leadId): void
     {
-        if (! $this->can('teams.manage', Team::find($teamId))) {
+        $t = Team::find($teamId);
+        if (! $t || ! $this->can('teams.manage', $t)) {
             return;
         }
+        $was = $t->lead;
         Team::where('id', $teamId)->update(['lead' => (int) $leadId]);
+        // grants crew_lead powers — leave a trail
+        $this->audit('team.lead', $t->name.' ('.$teamId.')', ($was ?? '—').' → '.$leadId);
     }
 
     // =================== site geofence ===================
@@ -1890,6 +1893,7 @@ class WorkforceApp extends Component
         $lng = trim($this->siteLng);
         $radius = (int) $this->siteRadius;
         $name = trim($this->siteName);
+        $wasGeo = ($site->lat ?? '—').','.($site->lng ?? '—').' r'.($site->radius_m ?? '—');
         $site->update([
             'name' => $name !== '' ? $name : $site->name,
             'city' => trim($this->siteCity),
@@ -1897,6 +1901,9 @@ class WorkforceApp extends Component
             'lng' => $lng !== '' ? (float) $lng : null,
             'radius_m' => $radius > 0 ? $radius : Geo::DEFAULT_RADIUS_M,
         ]);
+        // moving a geofence changes what counts as "on site" — leave a trail
+        $this->audit('site.geo', $site->name.' ('.$site->id.')',
+            $wasGeo.' → '.($site->lat ?? '—').','.($site->lng ?? '—').' r'.$site->radius_m);
         $this->siteModal = null;
         $this->showToast($this->dict()['pj_saved'].' ✓');
     }
@@ -2259,6 +2266,9 @@ class WorkforceApp extends Component
             $p->team_id = $p->team_id ?? $e->team_id;
             $p->company_id = $p->company_id ?? $e->company_id;
             $p->site_id = $p->site_id ?? $e->site_id;
+            if ($p->shift_in_snap === null) {
+                $p->stampShiftSnap();
+            }
             $p->save();
             $e->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min)]);
         } else {
@@ -2421,6 +2431,48 @@ class WorkforceApp extends Component
         $this->reset(['teamShiftIn', 'teamShiftOut', 'teamSatIn', 'teamSatOut']);
     }
 
+    /**
+     * Validate the four shift time fields into a save payload. Each pair must be
+     * either fully blank (clears the shift) or a same-day range (end after start).
+     * Anything else — half-set, or a midnight-crossing "22:00→06:00" night shift —
+     * returns null with an explanatory toast instead of silently saving nothing.
+     */
+    protected function validShiftPayload(): ?array
+    {
+        $pairs = [
+            'shift' => [$this->minOf24($this->teamShiftIn), $this->minOf24($this->teamShiftOut), trim($this->teamShiftIn) !== '' || trim($this->teamShiftOut) !== ''],
+            'sat' => [$this->minOf24($this->teamSatIn), $this->minOf24($this->teamSatOut), trim($this->teamSatIn) !== '' || trim($this->teamSatOut) !== ''],
+        ];
+        $out = [];
+        foreach ($pairs as $key => [$in, $end, $touched]) {
+            if ($in === null && $end === null) {
+                $out[$key.'_in'] = $out[$key.'_out'] = null;
+                if ($touched) {   // something was typed but didn't parse
+                    $this->showToast($this->tl('Enter both start and end times', 'Ingresa hora de inicio y fin', '출근·퇴근 시각을 모두 입력하세요'));
+
+                    return null;
+                }
+                continue;
+            }
+            if ($in === null || $end === null) {
+                $this->showToast($this->tl('Enter both start and end times', 'Ingresa hora de inicio y fin', '출근·퇴근 시각을 모두 입력하세요'));
+
+                return null;
+            }
+            if ($end <= $in) {
+                $this->showToast($this->tl('End must be after start (overnight shifts are not supported yet)',
+                    'El fin debe ser después del inicio (turnos nocturnos aún no soportados)',
+                    '퇴근이 출근보다 늦어야 합니다 (자정을 넘는 야간 시프트는 아직 지원되지 않아요)'));
+
+                return null;
+            }
+            $out[$key.'_in'] = $in;
+            $out[$key.'_out'] = $end;
+        }
+
+        return $out;
+    }
+
     /** Save the crew shift a field lead set from their phone (gated shifts.manage). */
     public function saveCrewShift(): void
     {
@@ -2428,16 +2480,11 @@ class WorkforceApp extends Component
         if (! $t || ! $this->can('shifts.manage', $t)) {
             return;
         }
-        $shiftIn = $this->minOf24($this->teamShiftIn);
-        $shiftOut = $this->minOf24($this->teamShiftOut);
-        $satIn = $this->minOf24($this->teamSatIn);
-        $satOut = $this->minOf24($this->teamSatOut);
-        $t->update([
-            'shift_in' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftIn : null,
-            'shift_out' => ($shiftIn !== null && $shiftOut !== null && $shiftOut > $shiftIn) ? $shiftOut : null,
-            'sat_in' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satIn : null,
-            'sat_out' => ($satIn !== null && $satOut !== null && $satOut > $satIn) ? $satOut : null,
-        ]);
+        $shift = $this->validShiftPayload();
+        if ($shift === null) {
+            return;   // invalid pair — an error toast was shown, keep the editor open
+        }
+        $t->update($shift);
         $this->audit('shifts.manage', $t->name.' (#'.$t->id.')',
             'shift '.($t->shift_in !== null ? Shift::fmtMin($t->shift_in).'–'.Shift::fmtMin($t->shift_out) : '—'));
         $this->closeCrewShift();
@@ -2637,6 +2684,7 @@ class WorkforceApp extends Component
             $p->team_id = $me->team_id;
             $p->company_id = $me->company_id;
             $p->site_id = $me->site_id;
+            $p->stampShiftSnap();   // freeze today's shift — later shift edits can't change earned pay
             $p->in_lat = $coords['lat'] ?? null;
             $p->in_lng = $coords['lng'] ?? null;
             $p->in_acc = $coords['acc'] ?? null;
@@ -2705,7 +2753,11 @@ class WorkforceApp extends Component
             // restamp today's open (not yet clocked-out) punch so the day reads as the new crew
             $p = $this->todayPunch($eid);
             if ($p->exists && $p->out_min === null) {
-                $p->update(['team_id' => $team->id, 'company_id' => $company?->id, 'site_id' => $company?->site_id]);
+                $p->team_id = $team->id;
+                $p->company_id = $company?->id;
+                $p->site_id = $company?->site_id;
+                $p->stampShiftSnap();   // the new crew's shift governs today
+                $p->save();
             }
         }
         $p = $this->todayPunch($eid);

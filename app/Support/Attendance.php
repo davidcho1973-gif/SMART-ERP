@@ -41,9 +41,15 @@ class Attendance
         $actOut = (int) $p->out_min;
         $saturday = Carbon::parse($p->work_date)->isSaturday();
 
-        // schedule: the crew the person clocked into that day (snapshot), if it has a shift
-        $team = $p->team_id ? Team::find($p->team_id) : null;
-        $shift = $team?->shiftFor($saturday);
+        // schedule: prefer the shift FROZEN on the punch at clock-in — editing a
+        // team's shift later must never rewrite already-earned paid hours. Only
+        // punches from before the snapshot existed fall back to the live team.
+        if ($p->shift_in_snap !== null && $p->shift_out_snap !== null) {
+            $shift = [(int) $p->shift_in_snap, (int) $p->shift_out_snap];
+        } else {
+            $team = $p->team_id ? Team::find($p->team_id) : null;
+            $shift = $team?->shiftFor($saturday);
+        }
 
         if ($shift !== null) {
             [$shiftIn, $shiftOut] = $shift;

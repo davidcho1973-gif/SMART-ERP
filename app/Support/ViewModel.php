@@ -546,6 +546,32 @@ class ViewModel
                 'saturday' => ($t->sat_in !== null && $t->sat_out !== null)
                     ? Shift::fmtMin($t->sat_in).' – '.Shift::fmtMin($t->sat_out) : null,
             ])->values()->all();
+            // pending correction requests the lead can decide from the phone —
+            // snapshotted to them as approver, or filed by their crew members
+            $leadMeId = $s['meEmployeeId'] ?? null;
+            $crewCorrections = AttendanceCorrection::where('status', 'pending')->orderBy('created_at')->get()
+                ->filter(function ($c) use ($leadMeId, $employees, $mobileLeadTeamIds) {
+                    if ((int) $c->employee_id === (int) $leadMeId) {
+                        return false;   // never their own request
+                    }
+                    if ($c->lead_id !== null && (int) $c->lead_id === (int) $leadMeId) {
+                        return true;
+                    }
+                    $worker = $employees->firstWhere('id', $c->employee_id);
+
+                    return $worker && in_array($worker->team_id, $mobileLeadTeamIds, true);
+                })
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'name' => ($w = $employees->firstWhere('id', $c->employee_id)) ? $empName($w) : '#'.$c->employee_id,
+                    'date' => Carbon::parse($c->work_date)->format('M j'),
+                    'isDelete' => $c->type === 'delete',
+                    'reqIn' => $c->req_in_min !== null ? Shift::fmtMin($c->req_in_min) : '—',
+                    'reqOut' => $c->req_out_min !== null ? Shift::fmtMin($c->req_out_min) : '—',
+                    'reason' => (string) ($c->reason ?? ''),
+                    'canDecide' => Corrections::canDecide($c, $leadMeId, false),
+                ])->values()->all();
+
             $crew = [
                 'date' => $crewDate,
                 'dateLabel' => Carbon::parse($crewDate)->format('D · M j'),
@@ -553,6 +579,7 @@ class ViewModel
                 'count' => count($crewRows),
                 'present' => count(array_filter($crewRows, fn ($r) => ! empty($r['hasPunch']))),
                 'teams' => $crewTeams,
+                'corrections' => $crewCorrections,
             ];
         }
 
@@ -803,7 +830,7 @@ class ViewModel
                 'initials' => $s['role'] === 'admin' ? 'HK' : 'JP',
                 'color' => $s['role'] === 'admin' ? '#E85D2A' : '#3B72E0',
             ],
-            'pageTitle' => $L['t_'.$s['screen']] ?? '', 'pageSub' => $L['s_'.$s['screen']] ?? '', 'today' => $L['today'],
+            'pageTitle' => $L['t_'.$s['screen']] ?? '', 'pageSub' => $L['s_'.$s['screen']] ?? '', 'today' => self::todayLabel($lang),
             // dashboard
             'dash' => [
                 'layout' => $s['dashLayout'], 'cnt' => $cnt, 'totalActive' => $totalActive, 'onsite' => $onsite, 'rate' => $rate,
@@ -894,5 +921,25 @@ class ViewModel
                 : null,
             'toast' => $s['toast'],
         ];
+    }
+
+    /** Top-bar date, computed live per language (Phoenix time — no DST, always MST). */
+    protected static function todayLabel(string $lang): string
+    {
+        $n = now();
+        $dowEn = $n->format('D');
+        if ($lang === 'ko') {
+            $dowKo = ['Mon' => '월', 'Tue' => '화', 'Wed' => '수', 'Thu' => '목', 'Fri' => '금', 'Sat' => '토', 'Sun' => '일'][$dowEn];
+
+            return $n->format('Y').'년 '.$n->format('n').'월 '.$n->format('j').'일 ('.$dowKo.') · MST';
+        }
+        if ($lang === 'es') {
+            $dowEs = ['Mon' => 'Lun', 'Tue' => 'Mar', 'Wed' => 'Mié', 'Thu' => 'Jue', 'Fri' => 'Vie', 'Sat' => 'Sáb', 'Sun' => 'Dom'][$dowEn];
+            $monEs = [1 => 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][(int) $n->format('n')];
+
+            return $dowEs.' · '.$n->format('j').' '.$monEs.' '.$n->format('Y').' · MST';
+        }
+
+        return $dowEn.' · '.$n->format('M j, Y').' · MST';
     }
 }

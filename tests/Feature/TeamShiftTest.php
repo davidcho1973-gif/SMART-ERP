@@ -160,7 +160,7 @@ class TeamShiftTest extends TestCase
         $this->assertSame(840, $t->sat_out);
     }
 
-    public function test_a_half_set_shift_is_not_persisted(): void
+    public function test_a_half_set_shift_is_rejected_with_an_error(): void
     {
         config(['workforce.demo' => true]);
         $this->seed(WorkforceSeeder::class);
@@ -169,13 +169,11 @@ class TeamShiftTest extends TestCase
             ->call('demo', 'admin')
             ->call('openTeamModal', 'c1')
             ->set('newTeamName', 'Half Crew')
-            ->set('teamShiftIn', '05:00')   // no out → ignored
-            ->call('saveTeam');
+            ->set('teamShiftIn', '05:00')   // no end time → explicit error, modal stays open
+            ->call('saveTeam')
+            ->assertSet('teamModal', 'c1');
 
-        $t = Team::where('name', 'Half Crew')->first();
-        $this->assertNotNull($t);
-        $this->assertNull($t->shift_in);
-        $this->assertNull($t->shift_out);
+        $this->assertNull(Team::where('name', 'Half Crew')->first());
     }
 
     public function test_manager_can_adjust_a_punch_paid_time(): void

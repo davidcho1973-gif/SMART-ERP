@@ -175,6 +175,7 @@ class ScanClock extends Component
             $p->team_id = $team?->id ?? $emp->team_id;
             $p->company_id = $company?->id ?? $emp->company_id;
             $p->site_id = $company?->site_id ?? $emp->site_id;
+            $p->stampShiftSnap();   // freeze today's shift — later shift edits can't change earned pay
             $p->in_lat = $coords['lat'] ?? null;
             $p->in_lng = $coords['lng'] ?? null;
             $p->in_acc = $coords['acc'] ?? null;

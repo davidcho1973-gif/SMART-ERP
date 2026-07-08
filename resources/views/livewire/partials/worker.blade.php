@@ -284,6 +284,32 @@
                             </div>
                         @endforeach
 
+                        {{-- crew members' correction requests — the lead decides right here --}}
+                        @if(!empty($crew['corrections']))
+                            <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 18px 0 8px;">{{ $L['w_crew_fixes'] }} <span style="color: #E85D2A;">{{ count($crew['corrections']) }}</span></div>
+                            <div style="background: #fff; border: 1px solid #F3D9CB; border-radius: 16px; overflow: hidden;">
+                                @foreach($crew['corrections'] as $c)
+                                    <div style="padding: 12px 16px; border-bottom: 1px solid #F2F0EA;">
+                                        <div style="display: flex; align-items: baseline; gap: 8px;">
+                                            <span style="flex: 1; font-weight: 600; font-size: 13.5px;">{{ $c['name'] }}</span>
+                                            <span style="font-size: 11.5px; color: #8A8880; font-family: 'Space Grotesk';">{{ $c['date'] }}</span>
+                                        </div>
+                                        <div style="margin-top: 4px; font-size: 12px; font-family: 'Space Grotesk';">
+                                            @if($c['isDelete'])<span style="color: #C0522B; font-weight: 700;">{{ $L['w_crew_fixDelete'] }}</span>
+                                            @else<span style="color: #16181D;">{{ $c['reqIn'] }} → {{ $c['reqOut'] }}</span>@endif
+                                        </div>
+                                        @if($c['reason'] !== '')<div style="margin-top: 3px; font-size: 11.5px; color: #8A8880;">“{{ $c['reason'] }}”</div>@endif
+                                        @if($c['canDecide'])
+                                            <div style="display: flex; gap: 8px; margin-top: 9px;">
+                                                <button wire:click="approveCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $L['w_crew_approve'] }}</button>
+                                                <button wire:click="rejectCorrection({{ $c['id'] }})" style="flex: 1; padding: 9px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #C0522B; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $L['w_crew_reject'] }}</button>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
                         {{-- today's crew attendance — actual vs paid, with a lead adjust button --}}
                         <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 18px 0 8px;">{{ $L['w_crew_today'] }}</div>
                         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">

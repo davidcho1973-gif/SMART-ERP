@@ -155,6 +155,18 @@ class Corrections
             $p->in_min = $applIn;
             $p->out_min = $applOut;
             $p->source = 'manual';
+            // an approved correction supersedes any earlier lead adjustment —
+            // a stale adj_* would silently override the corrected times in settle()
+            $p->adj_in_min = null;
+            $p->adj_out_min = null;
+            $p->adj_reason = null;
+            $p->adj_by = null;
+            if ($p->team_id === null) {
+                $p->team_id = Employee::find($c->employee_id)?->team_id;
+            }
+            if ($p->shift_in_snap === null) {
+                $p->stampShiftSnap();
+            }
             $p->save();
         }
 
