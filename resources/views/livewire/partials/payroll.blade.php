@@ -31,9 +31,12 @@
         <div style="display: grid; grid-template-columns: 1.8fr 1.1fr 0.9fr 0.9fr 1.2fr 1.2fr; gap: 8px; padding: 13px 20px; background: #FAFAF8; border-bottom: 1px solid #E4E2DB; font-size: 12px; font-weight: 600; color: #8A8880; min-width: 760px;">
             <span>{{ $L['e_name'] }}</span><span>{{ $L['p_rate'] }}</span><span style="text-align: right;">{{ $L['p_reg'] }}</span><span style="text-align: right;">{{ $L['p_ot'] }}</span><span style="text-align: right;">{{ $L['p_gross'] }}</span><span style="text-align: right;">{{ $L['p_net'] }}</span>
         </div>
+        @if(empty($pay['rows']))
+            <div style="padding: 34px; text-align: center; color: #A7A49B; font-size: 13.5px;">{{ $L['ts_none'] }}</div>
+        @endif
         @foreach($pay['rows'] as $p)
             <div wire:click="openPayDetail({{ $p['id'] }})" style="display: grid; grid-template-columns: 1.8fr 1.1fr 0.9fr 0.9fr 1.2fr 1.2fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; font-size: 13px; min-width: 760px; cursor: pointer;">
-                <span style="display: flex; align-items: center; gap: 10px;"><span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ $p['teamColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: 'Space Grotesk';">{{ $p['initials'] }}</span><span style="font-weight: 600;">{{ $p['name'] }}</span></span>
+                <span style="display: flex; align-items: center; gap: 10px;"><span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ $p['teamColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: 'Space Grotesk';">{{ $p['initials'] }}</span><span style="font-weight: 600;">{{ $p['name'] }}</span>@if(!empty($p['terminated']))<span style="font-size: 10px; font-weight: 700; color: #C0522B; background: #FBE9E7; padding: 2px 7px; border-radius: 6px;">{{ $L['e_terminated'] }}</span>@endif</span>
                 <span style="font-family: 'Space Grotesk'; color: #5A5D64;">{{ $p['rate'] }}/hr</span>
                 <span style="text-align: right; font-family: 'Space Grotesk';">{{ $p['reg'] }}</span>
                 <span style="text-align: right; font-family: 'Space Grotesk'; color: #1F9D6B;">{{ $p['ot'] }}</span>

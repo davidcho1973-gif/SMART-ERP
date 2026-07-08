@@ -2,13 +2,21 @@
 
 namespace App\Support;
 
+use App\Models\Employee;
+use App\Models\Punch;
+use Illuminate\Support\Carbon;
+
 /**
- * Bi-weekly USD payroll: 40h/week regular (80h/period), overtime beyond 80h at 1.5×,
- * no tax withholding (net = gross).
+ * Bi-weekly USD payroll. Overtime follows the FLSA workweek rule: each Mon–Sun
+ * week of the period caps at 40 regular hours, anything beyond pays 1.5× — the
+ * SAME rule the exported Excel register uses, so the screen, the recorded check
+ * and the register always agree. No tax withholding (net = gross).
  */
 class Payroll
 {
     public const PERIOD_REG_CAP = 80;
+
+    public const WEEK_REG_CAP = 40;
 
     /** Bi-weekly periods anchored on Mon Jun 15 2026 (matches the seeded period). */
     public const PERIOD_ANCHOR = '2026-06-15';
@@ -16,7 +24,7 @@ class Payroll
     /** @return array{0:string,1:string,2:string} [startYmd, endYmd, label] for the period containing today */
     public static function currentPeriod(): array
     {
-        $anchor = \Illuminate\Support\Carbon::parse(self::PERIOD_ANCHOR)->startOfDay();
+        $anchor = Carbon::parse(self::PERIOD_ANCHOR)->startOfDay();
         $today = now()->startOfDay();
         $days = (int) $anchor->diffInDays($today, false);
         $offset = (int) floor(max(0, $days) / 14) * 14;
@@ -33,7 +41,7 @@ class Payroll
      */
     public static function periodHoursFromPunches(int $employeeId, string $startYmd, string $endYmd): ?float
     {
-        $punches = \App\Models\Punch::where('employee_id', $employeeId)
+        $punches = Punch::where('employee_id', $employeeId)
             ->whereBetween('work_date', [$startYmd, $endYmd])
             ->whereNotNull('in_min')->whereNotNull('out_min')
             ->get();
@@ -42,6 +50,79 @@ class Payroll
         }
 
         return $punches->sum(fn ($p) => max(0, Attendance::paidHours($p)));
+    }
+
+    /**
+     * Weekly-40h (FLSA) reg/OT breakdown from punches for a whole roster in ONE
+     * query. Weeks are the period's own 7-day slices (period starts Monday, so
+     * a 14-day period is exactly two Mon–Sun workweeks).
+     *
+     * @param  array<int,int>  $empIds
+     * @return array<int,array{reg:float,ot:float,total:float}> keyed by employee id — only employees WITH punches appear
+     */
+    public static function periodBreakdowns(array $empIds, string $startYmd, string $endYmd): array
+    {
+        if ($empIds === []) {
+            return [];
+        }
+        $start = Carbon::parse($startYmd)->startOfDay();
+        $punches = Punch::whereIn('employee_id', $empIds)
+            ->whereBetween('work_date', [$startYmd, $endYmd])
+            ->whereNotNull('in_min')->whereNotNull('out_min')
+            ->get();
+
+        $weeks = [];   // [empId][weekIdx] = paid hours
+        foreach ($punches as $p) {
+            $idx = intdiv(max(0, (int) $start->diffInDays(Carbon::parse($p->work_date)->startOfDay())), 7);
+            $weeks[$p->employee_id][$idx] = ($weeks[$p->employee_id][$idx] ?? 0.0) + max(0.0, Attendance::paidHours($p));
+        }
+
+        $out = [];
+        foreach ($weeks as $empId => $byWeek) {
+            $reg = $ot = 0.0;
+            foreach ($byWeek as $wk) {
+                $reg += min($wk, self::WEEK_REG_CAP);
+                $ot += max(0.0, $wk - self::WEEK_REG_CAP);
+            }
+            $out[$empId] = ['reg' => round($reg, 2), 'ot' => round($ot, 2), 'total' => round($reg + $ot, 2)];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One employee's period breakdown. No punches → zeros in real mode (nobody
+     * is paid for unworked time); in demo mode the seeded `wh` figure fills in
+     * so the sample roster still shows a plausible payroll.
+     *
+     * @return array{reg:float,ot:float,total:float}
+     */
+    public static function breakdownFor(Employee $e, string $startYmd, string $endYmd): array
+    {
+        $b = self::periodBreakdowns([$e->id], $startYmd, $endYmd);
+        if (isset($b[$e->id])) {
+            return $b[$e->id];
+        }
+
+        return self::fallbackBreakdown($e);
+    }
+
+    /** The no-punches fallback: seeded wh in demo, zero in real mode. */
+    public static function fallbackBreakdown(Employee $e): array
+    {
+        if (config('workforce.demo')) {
+            $wh = (float) $e->wh;
+
+            return ['reg' => min($wh, self::PERIOD_REG_CAP), 'ot' => max(0.0, $wh - self::PERIOD_REG_CAP), 'total' => $wh];
+        }
+
+        return ['reg' => 0.0, 'ot' => 0.0, 'total' => 0.0];
+    }
+
+    /** Gross pay from a reg/OT breakdown: reg at 1×, overtime at 1.5×. */
+    public static function grossPay(array $b, float $rate): float
+    {
+        return $b['reg'] * $rate + $b['ot'] * $rate * 1.5;
     }
 
     /** Guess the scheduled shift from the punch-in time: 6–3 / 7–4 weekdays, 7–2 Saturdays. */
@@ -56,7 +137,11 @@ class Payroll
             : [420, 960];  // 7:00 AM – 4:00 PM
     }
 
-    /** Gross pay for a period given hours worked and hourly rate. */
+    /**
+     * Legacy period-80h helpers — kept ONLY for the demo `wh` fallback figures
+     * and the seeded pay-history mock. Real pay math goes through
+     * periodBreakdowns()/grossPay() (weekly 40h).
+     */
     public static function gross(int $wh, float $rate): float
     {
         $reg = min($wh, self::PERIOD_REG_CAP);

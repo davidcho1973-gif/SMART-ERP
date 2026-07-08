@@ -35,12 +35,6 @@ class ViewModel
         $isDemo = (bool) config('workforce.demo');
         $authUser = Auth::user();
         [$periodStart, $periodEnd, $periodLabel] = Payroll::currentPeriod();
-        $periodHours = fn (Employee $e) => Payroll::periodHoursFromPunches($e->id, $periodStart, $periodEnd);
-        $hoursFor = function (Employee $e) use ($periodHours) {
-            $h = $periodHours($e);
-
-            return $h !== null ? (int) round($h) : $e->wh;
-        };
         $payments = Payment::where('period_start', $periodStart)->get()->keyBy('employee_id');
 
         // ---- load domain ----
@@ -62,6 +56,16 @@ class ViewModel
         $siteScope = fn ($coll) => $s['site'] === 'all' ? $coll : $coll->filter(fn ($e) => $e->site_id === $s['site'])->values();
         $activeAll = $employees->filter(fn ($e) => $e->emp === 'active')->values();
         $scopedActive = $siteScope($activeAll);
+
+        // period pay math — weekly-40h FLSA breakdowns for the WHOLE roster in one
+        // punch query (terminated people included: days already worked still pay)
+        $breakdowns = Payroll::periodBreakdowns($employees->pluck('id')->all(), $periodStart, $periodEnd);
+        $bFor = fn (Employee $e) => $breakdowns[$e->id] ?? Payroll::fallbackBreakdown($e);
+        $grossFor = fn (Employee $e) => Payroll::grossPay($bFor($e), $e->rate);
+        // terminated mid-period with worked days → still owed; surfaced on payroll rows
+        $terminatedOwed = $employees->filter(
+            fn ($e) => $e->emp === 'terminated' && isset($breakdowns[$e->id]) && $breakdowns[$e->id]['total'] > 0
+        )->values();
 
         // ---- nav (managers have no payroll) ----
         $caps = (array) ($s['can'] ?? []);
@@ -105,7 +109,7 @@ class ViewModel
         $totalActive = $scopedActive->count();
         $onsite = $cnt['present'] + $cnt['late'];
         $rate = $totalActive ? (int) round($onsite / $totalActive * 100) : 0;
-        $periodPayNum = $scopedActive->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate));
+        $periodPayNum = $scopedActive->sum($grossFor);
         $avgH = $scopedActive->count()
             ? (int) round($scopedActive->sum(fn ($e) => $e->wh) / $scopedActive->count() / 2)
             : 0;
@@ -231,11 +235,11 @@ class ViewModel
         // per-site summary cards (site-centric roll-up)
         $offBySite = collect($offList)->groupBy('siteId')->map->count();
         $cardSites = $s['site'] === 'all' ? $visibleSites : $visibleSites->where('id', $s['site']);
-        $dashSiteCards = $cardSites->map(function ($st) use ($activeAll, $offBySite, $pendCorr, $hoursFor) {
+        $dashSiteCards = $cardSites->map(function ($st) use ($activeAll, $offBySite, $pendCorr, $grossFor) {
             $emps = $activeAll->filter(fn ($e) => $e->site_id === $st->id);
             $onsite = $emps->filter(fn ($e) => in_array($e->status, ['present', 'late'], true))->count();
             $total = $emps->count();
-            $pay = $emps->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate));
+            $pay = $emps->sum($grossFor);
 
             return [
                 'name' => $st->name, 'city' => $st->city,
@@ -412,18 +416,20 @@ class ViewModel
             : null;
 
         // ---- payroll ----
-        $payRows = $scopedActive->map(function ($e) use ($empName, $inits, $teamName, $teamColor, $hoursFor, $payments) {
-            $wh = $hoursFor($e);
-            $reg = Payroll::regHours($wh);
-            $ot = Payroll::otHours($wh);
-            $gross = Payroll::gross($wh, $e->rate);
+        // active roster + anyone terminated mid-period who still has worked days owed
+        $fmtH = fn (float $h) => rtrim(rtrim(number_format($h, 1, '.', ''), '0'), '.');
+        $payPeople = $siteScope($activeAll->concat($terminatedOwed)->values());
+        $payRows = $payPeople->map(function ($e) use ($empName, $inits, $teamName, $teamColor, $bFor, $payments, $fmtH) {
+            $b = $bFor($e);
+            $gross = Payroll::grossPay($b, $e->rate);
 
             return [
                 'id' => $e->id, 'name' => $empName($e), 'initials' => $inits($e),
                 'teamName' => $teamName($e->team_id), 'teamColor' => $teamColor($e->team_id),
-                'rate' => Money::rate($e->rate), 'reg' => (string) $reg, 'ot' => (string) $ot,
+                'rate' => Money::rate($e->rate), 'reg' => $fmtH($b['reg']), 'ot' => $fmtH($b['ot']),
                 'gross' => Money::usd($gross), 'net' => Money::usd($gross),
                 'paid' => $payments->has($e->id),
+                'terminated' => $e->emp === 'terminated',
             ];
         })->all();
 
@@ -457,11 +463,11 @@ class ViewModel
                             'paid' => number_format(max(0, $c['paid']), 1).'h', 'chips' => $chips,
                         ];
                     })->all();
-                    $sum = (int) round($periodHours($e) ?? 0);
+                    $b = $bFor($e);
                     $h = [
                         'days' => $days,
-                        'reg' => Payroll::regHours($sum), 'ot' => Payroll::otHours($sum),
-                        'gross' => Payroll::gross($sum, $e->rate),
+                        'reg' => $fmtH($b['reg']), 'ot' => $fmtH($b['ot']),
+                        'gross' => Payroll::grossPay($b, $e->rate),
                     ];
                 } else {
                     $h = Payroll::history($e->wh, $e->id, $e->rate, $tl);
@@ -483,7 +489,7 @@ class ViewModel
                 ];
             }
         }
-        $totalPayout = Money::usd($scopedActive->sum(fn ($e) => Payroll::gross($hoursFor($e), $e->rate)));
+        $totalPayout = Money::usd($payPeople->sum($grossFor));
 
         // recipient dropdown for the payroll-register export: quick pay-type buckets,
         // then drill down to a specific company or crew (site-scoped)
@@ -562,16 +568,14 @@ class ViewModel
             ]);
             $me->id = 0;
         }
-        $meWh = $hoursFor($me);
-        $wReg = Payroll::regHours($meWh);
-        $wOt = Payroll::otHours($meWh);
-        $wGross = Payroll::gross($meWh, $me->rate);
+        $meB = $me->id ? $bFor($me) : Payroll::fallbackBreakdown($me);
+        $wGross = Payroll::grossPay($meB, $me->rate);
         $worker = [
             'name' => $me->first.' '.$me->last, 'initials' => $inits($me),
             'teamName' => $teamName($me->team_id), 'teamColor' => $teamColor($me->team_id),
             'company' => $companyName($me->company_id), 'role' => $me->role, 'nat' => $me->nat,
             'empId' => $me->emp_id, 'phone' => $me->phone, 'email' => $me->email, 'issued' => $me->issued,
-            'rate' => Money::rate($me->rate), 'reg' => $wReg, 'ot' => $wOt, 'hours' => $meWh,
+            'rate' => Money::rate($me->rate), 'reg' => $fmtH($meB['reg']), 'ot' => $fmtH($meB['ot']), 'hours' => $fmtH($meB['total']),
             'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_'.$me->access] ?? $me->access,
         ];
 

@@ -7,4 +7,10 @@ return [
     | and mutating actions are gated by the authenticated user's access level.
     */
     'demo' => env('WORKFORCE_DEMO', false),
+
+    /*
+    | Payroll register footer (wire-payment block), '|'-separated lines.
+    | Empty → the built-in NAHSHON default. Always hidden in demo mode.
+    */
+    'bank_info' => env('PAYROLL_BANK_INFO', ''),
 ];

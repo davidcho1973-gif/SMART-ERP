@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -41,9 +42,12 @@ class WorkforceApp extends Component
     // ---- primary navigation / UI state ----
     public string $screen = 'login';
 
+    /** identity props are server-set ONLY — #[Locked] rejects client tampering */
+    #[Locked]
     public string $role = 'admin';
 
     /** the account's access ceiling — the highest view it may switch to */
+    #[Locked]
     public string $access = 'admin';
 
     public string $lang = 'en';
@@ -189,6 +193,7 @@ class WorkforceApp extends Component
     public ?string $crewShiftTeam = null;
 
     /** admin "view as → field lead": the crew-lead employee the preview is standing in for */
+    #[Locked]
     public ?int $previewEmpId = null;
 
     public ?string $editCompanyId = null;   // company modal in edit mode
@@ -527,8 +532,9 @@ class WorkforceApp extends Component
     /** The employee behind the worker-mobile view. */
     protected function meEmployeeId(): int
     {
-        // admin previewing "view as → field lead": stand in for that crew lead
-        if ($this->previewEmpId !== null) {
+        // admin/manager previewing "view as → field lead": stand in for that crew
+        // lead — display only, and never for a worker-ceiling account
+        if ($this->previewEmpId !== null && $this->access !== 'worker') {
             return $this->previewEmpId;
         }
         // any authenticated user linked to an employee sees their own record
@@ -901,6 +907,11 @@ class WorkforceApp extends Component
     /** The employee acting as the current user (display side — never provisions a record). */
     protected function actorId(): int
     {
+        // previewing the field-lead view never impersonates in comms/audit —
+        // an admin exploring the lead's screen still speaks as THEMSELVES
+        if ($this->previewEmpId !== null) {
+            return $this->selfEmployeeId() ?? $this->meEmployeeId();
+        }
         if ($this->role === 'worker') {
             return $this->meEmployeeId();
         }
@@ -911,7 +922,9 @@ class WorkforceApp extends Component
     /** The employee acting as the current user, provisioning a staff record if needed. */
     protected function actorEmployee(): ?Employee
     {
-        $id = $this->role === 'worker' ? $this->meEmployeeId() : ($this->ensureSelfEmployee() ?? $this->meEmployeeId());
+        $id = $this->previewEmpId !== null
+            ? ($this->ensureSelfEmployee() ?? $this->meEmployeeId())
+            : ($this->role === 'worker' ? $this->meEmployeeId() : ($this->ensureSelfEmployee() ?? $this->meEmployeeId()));
 
         return Employee::find($id);
     }
@@ -2532,19 +2545,21 @@ class WorkforceApp extends Component
         $e = Employee::find($this->payDetail);
         if ($e) {
             [$start, $end] = Payroll::currentPeriod();
-            $hours = Payroll::periodHoursFromPunches($e->id, $start, $end) ?? $e->wh;
-            $hours = (int) round($hours);
+            // weekly-40h FLSA breakdown — the same math the screen and the Excel register use
+            $b = Payroll::breakdownFor($e, $start, $end);
             Payment::updateOrCreate(
                 ['employee_id' => $e->id, 'period_start' => $start],
                 [
                     'period_end' => $end,
                     'check_no' => trim($this->checkNo),
                     'pay_date' => $this->payDate,
-                    'amount' => round(Payroll::gross($hours, $e->rate), 2),
-                    'reg_hours' => Payroll::regHours($hours),
-                    'ot_hours' => Payroll::otHours($hours),
+                    'amount' => round(Payroll::grossPay($b, $e->rate), 2),
+                    'reg_hours' => (int) round($b['reg']),
+                    'ot_hours' => (int) round($b['ot']),
                 ]
             );
+            $this->audit('payroll.pay', $e->first.' '.$e->last.' (#'.$e->id.')',
+                $start.'–'.$end.' · check '.trim($this->checkNo).' · $'.number_format(Payroll::grossPay($b, $e->rate), 2));
         }
         $this->dispatch('print-now');
         $this->showToast($this->dict()['pv_paidToast']);
@@ -2721,11 +2736,28 @@ class WorkforceApp extends Component
     public function togglePunchLunch(int $punchId): void
     {
         $p = Punch::find($punchId);
-        if (! $p || $p->employee_id !== $this->meEmployeeId() && ! $this->can('punch.manual', Employee::find($p->employee_id))) {
+        if (! $p) {
+            return;
+        }
+        $d = $this->dict();
+        $isSelf = $p->employee_id === $this->clockableEmployeeId();
+        $isManager = $this->can('punch.manual', Employee::find($p->employee_id));
+        if (! $isSelf && ! $isManager) {
+            return;
+        }
+        // the lunch hour is pay — a worker may only flip TODAY's own record.
+        // Older days go through the correction/lead-adjust flow like any other pay change.
+        if (! $isManager && $p->work_date !== now()->format('Y-m-d')) {
+            $this->showToast($this->tl('Past days need a correction request', 'Días pasados requieren corrección', '지난 날짜는 정정 요청으로 처리하세요'));
+
             return;
         }
         $p->update(['no_lunch' => ! $p->no_lunch]);
-        $d = $this->dict();
+        if ($isManager && ! $isSelf) {
+            $e = Employee::find($p->employee_id);
+            $this->audit('punch.lunch', $e ? $e->first.' '.$e->last.' (#'.$e->id.')' : '#'.$p->employee_id,
+                $p->work_date.' · no_lunch='.($p->no_lunch ? '1' : '0'));
+        }
         $this->showToast($p->no_lunch ? $d['lunchSkipToast'] : $d['lunchKeptToast']);
     }
 
@@ -2752,7 +2784,12 @@ class WorkforceApp extends Component
     public function submitEarly(): void
     {
         $d = $this->dict();
-        $p = $this->todayPunch($this->meEmployeeId());
+        // a clock-out write — only the authenticated person's own punch, never a preview
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $p = $this->todayPunch($eid);
         // early leave is a clock-out: only valid while on the clock (in, not yet out).
         // A completed day is locked, and there's nothing to leave early from before in.
         if ($p->in_min === null || $p->out_min !== null) {
@@ -2770,7 +2807,7 @@ class WorkforceApp extends Component
         $p->early_reason = $reason;
         $p->source = 'worker';
         $p->save();
-        Employee::where('id', $this->meEmployeeId())
+        Employee::where('id', $eid)
             ->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
         $this->clock = 'done';   // in + out recorded → day locked
         $this->earlyOpen = false;

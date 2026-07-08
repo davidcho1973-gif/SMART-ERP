@@ -18,10 +18,13 @@ class UserSeeder extends Seeder
 
         $isProd = app()->environment('production') && ! config('workforce.demo');
 
-        // Production requires ADMIN_PASSWORD to be set; otherwise the account is
-        // created with an unguessable random password and sign-in is via Google.
+        // Any DEPLOYED real-mode instance refuses the well-known fallback
+        // password: without ADMIN_PASSWORD the account gets an unguessable
+        // random one and sign-in is via Google. The known demo password only
+        // ever exists alongside fake demo data (or in local/test runs).
+        $allowKnownPassword = config('workforce.demo') || app()->environment('local', 'testing');
         $adminPassword = env('ADMIN_PASSWORD');
-        if ($isProd && ! $adminPassword) {
+        if (! $allowKnownPassword && ! $adminPassword) {
             $adminPassword = Str::password(32);
             $this->command?->warn('ADMIN_PASSWORD not set — admin account created for Google sign-in only.');
         }

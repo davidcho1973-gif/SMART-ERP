@@ -55,7 +55,7 @@ class PayrollExportController extends Controller
         }
 
         $weeks = $this->calendarWeeks($start, $end);
-        $employees = $this->recipients($request->query('recipient', 'hourly'), $siteParam !== 'all' ? $siteParam : null);
+        $employees = $this->recipients($request->query('recipient', 'hourly'), $siteParam !== 'all' ? $siteParam : null, $start, $end);
         $hoursByEmpDay = $this->paidHours($employees->pluck('id')->all(), $weeks);
 
         $companyNames = Company::pluck('name', 'id');
@@ -86,20 +86,7 @@ class PayrollExportController extends Controller
             'companyLine' => "NAHSHON MEP LLC\n1934 TRINITY CHASE DR.\nDACULA, GA 30019",
             'weeks' => $weeks,
             'workers' => $workers,
-            'bankInfo' => [
-                'PAYMENT BANK INFORMATION',
-                'Beneficiary: NAHSHON MEP LLC',
-                'Address: 1934 TRINITY CHASE DR',
-                'DACULA GA 30019',
-                'Contact Person: MUN SUP SHIN',
-                'Contact Number: +1 678 343 7510',
-                'BANK INFO: BANK OF AMERICA',
-                'ACCOUNT# 334080507882',
-                'ROUTING#: 061000052',
-                'ROUTING# FOR WIRE: 026009593',
-                'BANK ADDRESS: 3542 SATELLITE BLVD. DULUTH, GA 30096',
-                'TEL: 770.497.3100',
-            ],
+            'bankInfo' => $this->bankInfo(),
             'logo' => is_file($logoPath) ? (string) file_get_contents($logoPath) : null,
         ]);
 
@@ -112,14 +99,16 @@ class PayrollExportController extends Controller
     }
 
     /**
-     * Sun–Sat calendar weeks covering the period (like the original sheet, whose
-     * grid starts on the Sunday before the period). Capped at 4 weeks.
+     * Calendar weeks covering EXACTLY the settlement period. The grid starts on
+     * the period's own first day (a Monday — the FLSA workweek anchor), so no
+     * day from an adjacent period ever leaks into this register's hour sums and
+     * no boundary day can be paid twice across two registers. Capped at 4 weeks.
      *
      * @return array<int,array{month:string,monthEnd:string,days:array<int,array{num:int,dow:string,date:string}>}>
      */
     private function calendarWeeks(string $start, string $end): array
     {
-        $gridStart = Carbon::parse($start)->startOfWeek(Carbon::SUNDAY);
+        $gridStart = Carbon::parse($start);   // period start = workweek start
         $last = Carbon::parse($end);
         $weeks = [];
         $cursor = $gridStart->copy();
@@ -143,10 +132,21 @@ class PayrollExportController extends Controller
         return $weeks;
     }
 
-    /** @return \Illuminate\Support\Collection<int,Employee> */
-    private function recipients(?string $recipient, ?string $scopeSite)
+    /**
+     * Active roster — plus anyone terminated mid-period who still has punches in
+     * the window: days already worked are owed and must appear on the register.
+     *
+     * @return \Illuminate\Support\Collection<int,Employee>
+     */
+    private function recipients(?string $recipient, ?string $scopeSite, string $start, string $end)
     {
-        $q = Employee::query()->where('emp', 'active');
+        $workedIds = Punch::whereBetween('work_date', [$start, $end])
+            ->whereNotNull('in_min')->whereNotNull('out_min')
+            ->distinct()->pluck('employee_id');
+        $q = Employee::query()->where(function ($w) use ($workedIds) {
+            $w->where('emp', 'active')
+                ->orWhere(fn ($q2) => $q2->where('emp', 'terminated')->whereIn('id', $workedIds));
+        });
 
         $recipient = is_string($recipient) ? $recipient : 'hourly';
         if ($recipient === 'hourly') {
@@ -195,5 +195,39 @@ class PayrollExportController extends Controller
     private function ymd(mixed $v, string $fallback): string
     {
         return is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) ? $v : $fallback;
+    }
+
+    /**
+     * The register footer's wire-payment block. NEVER printed in demo mode —
+     * the demo/staging site is publicly reachable and must not leak account
+     * numbers. Override per-deployment with PAYROLL_BANK_INFO (lines split
+     * on '|'), e.g. "PAYMENT BANK INFORMATION|Beneficiary: …|ACCOUNT# …".
+     *
+     * @return array<int,string>
+     */
+    private function bankInfo(): array
+    {
+        if (config('workforce.demo')) {
+            return ['PAYMENT BANK INFORMATION', '(demo — hidden)'];
+        }
+        $env = (string) config('workforce.bank_info', '');
+        if ($env !== '') {
+            return array_values(array_filter(array_map('trim', explode('|', $env))));
+        }
+
+        return [
+            'PAYMENT BANK INFORMATION',
+            'Beneficiary: NAHSHON MEP LLC',
+            'Address: 1934 TRINITY CHASE DR',
+            'DACULA GA 30019',
+            'Contact Person: MUN SUP SHIN',
+            'Contact Number: +1 678 343 7510',
+            'BANK INFO: BANK OF AMERICA',
+            'ACCOUNT# 334080507882',
+            'ROUTING#: 061000052',
+            'ROUTING# FOR WIRE: 026009593',
+            'BANK ADDRESS: 3542 SATELLITE BLVD. DULUTH, GA 30096',
+            'TEL: 770.497.3100',
+        ];
     }
 }
