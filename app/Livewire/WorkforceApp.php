@@ -377,8 +377,14 @@ class WorkforceApp extends Component
      * (legacy values map via Access::canonical); demo personas map admin ⇒ owner,
      * manager ⇒ site_manager. An employee who leads a crew gains 'crew_lead'.
      */
+    /** request-scoped memo — Livewire re-instantiates per request, so this can't go stale */
+    protected ?array $actorRolesMemo = null;
+
     protected function actorRoles(): array
     {
+        if ($this->actorRolesMemo !== null) {
+            return $this->actorRolesMemo;
+        }
         if ($this->isDemo()) {
             $base = match ($this->role) {
                 'admin' => 'owner',
@@ -395,7 +401,7 @@ class WorkforceApp extends Component
             $roles[] = 'crew_lead';
         }
 
-        return $roles;
+        return $this->actorRolesMemo = $roles;
     }
 
     /** Site ids a site-scoped actor is confined to; null = unrestricted (D-3 hard scope). */
@@ -741,6 +747,7 @@ class WorkforceApp extends Component
         $fieldLead = $emp && Access::leadsTeams($emp) !== [] && ! in_array($canon, ['owner', 'hr_admin'], true);
         if ($canon === 'worker' || $fieldLead) {
             $this->access = 'worker';   // lock the view to mobile (no desktop switch)
+            $this->actorRolesMemo = null;
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
@@ -754,6 +761,7 @@ class WorkforceApp extends Component
                 $this->noLunchToday = $p->no_lunch;
             }
         } else {
+            $this->actorRolesMemo = null;
             $this->role = $this->access;
             $this->screen = 'dashboard';
             // the linked employee's registered language is the app default;
@@ -826,6 +834,7 @@ class WorkforceApp extends Component
             // both render the worker-mobile UI; 'lead' previews it as a field lead
             // (points the phone at a crew lead so the "우리 팀" tab appears)
             $this->selectedEmp = null;
+            $this->actorRolesMemo = null;
             $this->role = 'worker';
             $this->screen = 'worker';
             if ($target === 'lead') {
@@ -837,6 +846,7 @@ class WorkforceApp extends Component
             $this->syncWorkerClock();
         } else {
             $this->previewEmpId = null;
+            $this->actorRolesMemo = null;
             $this->role = $target;
             if (in_array($this->screen, ['worker', 'login'], true)) {
                 $this->screen = 'dashboard';
@@ -856,17 +866,20 @@ class WorkforceApp extends Component
         $this->access = $r; // demo persona sets the access ceiling
         if ($r === 'worker') {
             $this->reset(['selectedEmp']);
+            $this->actorRolesMemo = null;
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
             $this->lang = 'es';
             $this->syncWorkerClock();
         } elseif ($r === 'manager') {
+            $this->actorRolesMemo = null;
             $this->role = 'manager';
             $this->screen = 'dashboard';
             $this->lang = 'ko';
             $this->pinSiteToScope();
         } else {
+            $this->actorRolesMemo = null;
             $this->role = 'admin';
             $this->screen = 'dashboard';
             $this->lang = 'en';
@@ -1117,6 +1130,8 @@ class WorkforceApp extends Component
     {
         $me = Employee::find($this->actorId());
         if (! $me) {
+            $this->skipRender();
+
             return;
         }
         $total = Comms::totalUnread($me);
@@ -1124,7 +1139,13 @@ class WorkforceApp extends Component
         if (! $this->reportOpen && $this->lastPing !== null && $total > $this->lastPing) {
             $this->dispatch('comms-ping');   // Alpine plays the notification sound
         }
+        $unchanged = $this->lastPing === $total;
         $this->lastPing = $total;
+        // steady state: nothing new — skip the (expensive) full re-render entirely,
+        // so the poll costs a handful of unread queries instead of every screen
+        if ($unchanged) {
+            $this->skipRender();
+        }
     }
 
     // =================== voice daily report (dictate → AI-format → post) ===================
@@ -1268,6 +1289,7 @@ class WorkforceApp extends Component
         if (! $this->isDemo()) {
             return;
         }
+        $this->actorRolesMemo = null;
         $this->role = 'admin';
         $this->screen = 'dashboard';
         $this->showToast($this->dict()['googleBtn']);
@@ -2452,6 +2474,7 @@ class WorkforceApp extends Component
 
                     return null;
                 }
+
                 continue;
             }
             if ($in === null || $end === null) {

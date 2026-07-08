@@ -44,6 +44,7 @@ class ViewModel
         $employees = Employee::orderBy('id')->get();
 
         $teamById = $teams->keyBy('id');
+        Attendance::warmTeams($teams);   // settle() fallback reads teams without re-querying
         $companyById = $companies->keyBy('id');
         $siteById = $sites->keyBy('id');
 
@@ -522,12 +523,20 @@ class ViewModel
             'team' => $qrTeamModel->name ?? '—',
             'lead' => $qrLead ? $empName($qrLead) : '—',
         ];
-        $teamQrSvg = $qrTeamModel
-            ? RealQr::svg(url('/scan/'.$qrTeamModel->id))
-            : RealQr::svg(url('/'));
+        // QR svg + daily timesheet are attendance-screen work — skip them on the
+        // other six screens (every Livewire interaction re-renders, so this is hot)
+        $onAttendance = $s['screen'] === 'attendance';
+        $teamQrSvg = $onAttendance
+            ? ($qrTeamModel ? RealQr::svg(url('/scan/'.$qrTeamModel->id)) : RealQr::svg(url('/')))
+            : '';
 
         // ---- daily timesheet (company → team → worker; actual vs paid, reg/OT) ----
-        $timesheet = Timesheet::forDate($s['attDate'] ?? now()->format('Y-m-d'), $s['site'], $lang);
+        $timesheet = $onAttendance
+            ? Timesheet::forDate($s['attDate'] ?? now()->format('Y-m-d'), $s['site'], $lang)
+            : [
+                'date' => $s['attDate'] ?? now()->format('Y-m-d'), 'dateLabel' => '', 'rows' => [],
+                'count' => 0, 'present' => 0, 'regTotal' => '0.0h', 'otTotal' => '0.0h', 'regNum' => 0.0, 'otNum' => 0.0,
+            ];
 
         // ---- field-lead crew panel (mobile "우리 팀" tab) ----
         $crew = null;
@@ -897,7 +906,8 @@ class ViewModel
             // worker mobile
             'worker' => [
                 'me' => $worker, 'punchLog' => $punchLog, 'ruleNote' => $ruleNote,
-                'reasonOptions' => $reasonOptions, 'qrSvg' => RealQr::svg(url('/scan/'.$me->team_id)),
+                'reasonOptions' => $reasonOptions,
+                'qrSvg' => $s['role'] === 'worker' ? RealQr::svg(url('/scan/'.$me->team_id)) : '',
                 'correctionForm' => $correctionForm, 'canRequestCorrection' => $me->id > 0,
             ],
             'deskClock' => $deskClock,

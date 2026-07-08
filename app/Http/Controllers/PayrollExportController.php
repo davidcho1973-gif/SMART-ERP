@@ -181,6 +181,7 @@ class PayrollExportController extends Controller
             ->whereBetween('work_date', [$first, $last])
             ->whereNotNull('in_min')->whereNotNull('out_min')
             ->get();
+        Attendance::warmTeams(\App\Models\Team::all());   // one query instead of one per punch
 
         $out = [];
         foreach ($punches as $p) {

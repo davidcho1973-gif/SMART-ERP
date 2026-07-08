@@ -27,6 +27,37 @@ use Illuminate\Support\Carbon;
 class Attendance
 {
     /**
+     * Per-request team cache for the live-shift fallback: settling a whole
+     * roster/period would otherwise Team::find() once per punch. Callers that
+     * already hold the teams (ViewModel, Timesheet, export) warm it; entries
+     * are overwritten on every warm so staleness is bounded to one request.
+     *
+     * @var array<string,?Team>
+     */
+    protected static array $teamCache = [];
+
+    /** @param  iterable<Team>  $teams */
+    public static function warmTeams(iterable $teams): void
+    {
+        self::$teamCache = [];   // full refresh — also drops deleted teams under long-running workers
+        foreach ($teams as $t) {
+            self::$teamCache[$t->id] = $t;
+        }
+    }
+
+    protected static function team(?string $id): ?Team
+    {
+        if ($id === null) {
+            return null;
+        }
+        if (! array_key_exists($id, self::$teamCache)) {
+            self::$teamCache[$id] = Team::find($id);
+        }
+
+        return self::$teamCache[$id];
+    }
+
+    /**
      * @return array{
      *   paidIn:int, paidOut:int, paidInFmt:string, paidOutFmt:string,
      *   paid:float, shiftIn:?int, shiftOut:?int, source:string, adjusted:bool
@@ -47,8 +78,7 @@ class Attendance
         if ($p->shift_in_snap !== null && $p->shift_out_snap !== null) {
             $shift = [(int) $p->shift_in_snap, (int) $p->shift_out_snap];
         } else {
-            $team = $p->team_id ? Team::find($p->team_id) : null;
-            $shift = $team?->shiftFor($saturday);
+            $shift = self::team($p->team_id)?->shiftFor($saturday);
         }
 
         if ($shift !== null) {

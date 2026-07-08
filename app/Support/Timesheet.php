@@ -24,6 +24,7 @@ class Timesheet
         $teams = Team::all()->keyBy('id');
         $companies = Company::all()->keyBy('id');
         $sites = Site::all()->keyBy('id');
+        Attendance::warmTeams($teams);   // settle() below must not Team::find per worker
         $teamName = fn ($tid) => optional($teams->get($tid))->name ?? '—';
         $companyName = fn ($cid) => optional($companies->get($cid))->name ?? '—';
         $teamColor = fn ($tid) => optional($teams->get($tid))->color ?? '#9AA0A6';
