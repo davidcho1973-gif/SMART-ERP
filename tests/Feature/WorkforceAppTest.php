@@ -142,25 +142,23 @@ class WorkforceAppTest extends TestCase
             ->assertSet('lang', 'es');
     }
 
-    public function test_employee_with_stale_crew_is_repaired_on_edit(): void
+    public function test_unassigned_or_stale_crew_shows_as_unassigned_on_edit(): void
     {
+        // an invited/stale employee with no real crew must surface as "미배정"
+        // (empty selection) rather than silently defaulting to the first crew
         $emp = Employee::create([
             'emp_id' => 'N-STALE01', 'first' => 'Stale', 'last' => 'Record',
             'type' => 'manager', 'access' => 'manager', 'rate' => 0,
             'company_id' => 'cGONE', 'team_id' => 'tGONE', 'emp' => 'active',
         ]);
-        $firstTeam = Team::first();
 
         Livewire::test(WorkforceApp::class)
             ->call('selectEmp', $emp->id)
-            ->assertSet('editForm.team', $firstTeam->id)            // invalid crew coerced to a real one
-            ->assertSet('editForm.company', $firstTeam->company_id) // company derived
+            ->assertSet('editForm.team', '')      // unresolved crew → unassigned, no silent default
             ->call('saveEmp');
 
-        $emp->refresh();
-        $this->assertNotNull(Team::find($emp->team_id));
-        $this->assertNotNull(Company::find($emp->company_id));
-        $this->assertSame($firstTeam->company_id, $emp->company_id);
+        // saving an unassigned employee keeps them unassigned (null), not the first crew
+        $this->assertNull($emp->fresh()->team_id);
     }
 
     public function test_add_and_remove_company_involvement(): void
