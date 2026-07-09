@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
@@ -1607,53 +1608,105 @@ class WorkforceApp extends Component
         }
         $e = Employee::find($this->selectedEmp);
         if ($e) {
-            $type = $this->editForm['type'] ?? 'worker_local';
-            // the crew determines the company (a crew belongs to exactly one company);
-            // an empty selection means "미배정" and persists as null, not ''
-            $teamId = $this->editForm['team'] ?? $e->team_id;
-            $teamId = ($teamId === '' || $teamId === null) ? null : $teamId;
-            $teamModel = $teamId ? Team::find($teamId) : null;
-            $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
-            $prevAccess = $e->access;
-            $prevRate = $e->rate;
-            $granted = $this->grantableAccess($e, $this->editForm['access'] ?? $e->access);
-            $e->update([
-                'first' => $this->editForm['first'] ?? $e->first,
-                'last' => $this->editForm['last'] ?? $e->last,
-                'company_id' => $company,
-                'site_id' => optional(Company::find($company))->site_id ?? $e->site_id,
-                'team_id' => $teamId,
-                'role' => $this->editForm['role'] ?? $e->role,
-                'rate' => (float) ($this->editForm['rate'] ?? $e->rate),
-                'type' => $this->empTypeFromForm($type),
-                'pay_type' => in_array($this->editForm['pay_type'] ?? '', ['salary', 'hourly', 'both'], true)
-                    ? $this->editForm['pay_type']
-                    : $e->pay_type,
-                'lang' => in_array($this->editForm['lang'] ?? '', ['en', 'es', 'ko'], true)
-                    ? $this->editForm['lang']
-                    : $e->lang,
-                'issued' => $this->editForm['issued'] ?? $e->issued,
-                'phone' => $this->editForm['phone'] ?? $e->phone,
-                'email' => $this->editForm['email'] ?? $e->email,
-                'nat' => $this->editForm['nat'] ?? $e->nat,
-                'access' => $granted,
-            ] + $this->dispatchPayload(
-                (string) ($this->editForm['dispatch_to'] ?? ''),
-                (string) ($this->editForm['dispatch_from'] ?? ''),
-                (string) ($this->editForm['dispatch_until'] ?? ''),
-                (string) ($this->editForm['dispatch_note'] ?? ''),
-            ));
-            if ($granted !== $prevAccess) {
-                $this->audit('role.grant', $e->first.' '.$e->last.' (#'.$e->id.')', $prevAccess.' → '.$granted);
-            }
-            $newRate = (float) ($this->editForm['rate'] ?? $e->rate);
-            if (abs($newRate - (float) $prevRate) > 0.001) {
-                // a pay-rate change is money — always audited
-                $this->audit('rate.change', $e->first.' '.$e->last.' (#'.$e->id.')', '$'.$prevRate.' → $'.$newRate);
-            }
+            $this->applyEmpForm($e);
         }
         $this->selectedEmp = null;
         $this->showToast($this->dict()['e_save'].' ✓');
+    }
+
+    /** Persist the open drawer's editForm onto an employee (shared by save + approve). */
+    protected function applyEmpForm(Employee $e): void
+    {
+        $type = $this->editForm['type'] ?? 'worker_local';
+        // the crew determines the company (a crew belongs to exactly one company);
+        // an empty selection means "미배정" and persists as null, not ''
+        $teamId = $this->editForm['team'] ?? $e->team_id;
+        $teamId = ($teamId === '' || $teamId === null) ? null : $teamId;
+        $teamModel = $teamId ? Team::find($teamId) : null;
+        $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
+        $prevAccess = $e->access;
+        $prevRate = $e->rate;
+        $granted = $this->grantableAccess($e, $this->editForm['access'] ?? $e->access);
+        $e->update([
+            'first' => $this->editForm['first'] ?? $e->first,
+            'last' => $this->editForm['last'] ?? $e->last,
+            'company_id' => $company,
+            'site_id' => optional(Company::find($company))->site_id ?? $e->site_id,
+            'team_id' => $teamId,
+            'role' => $this->editForm['role'] ?? $e->role,
+            'rate' => (float) ($this->editForm['rate'] ?? $e->rate),
+            'type' => $this->empTypeFromForm($type),
+            'pay_type' => in_array($this->editForm['pay_type'] ?? '', ['salary', 'hourly', 'both'], true)
+                ? $this->editForm['pay_type']
+                : $e->pay_type,
+            'lang' => in_array($this->editForm['lang'] ?? '', ['en', 'es', 'ko'], true)
+                ? $this->editForm['lang']
+                : $e->lang,
+            'issued' => $this->editForm['issued'] ?? $e->issued,
+            'phone' => $this->editForm['phone'] ?? $e->phone,
+            'email' => $this->editForm['email'] ?? $e->email,
+            'nat' => $this->editForm['nat'] ?? $e->nat,
+            'access' => $granted,
+        ] + $this->dispatchPayload(
+            (string) ($this->editForm['dispatch_to'] ?? ''),
+            (string) ($this->editForm['dispatch_from'] ?? ''),
+            (string) ($this->editForm['dispatch_until'] ?? ''),
+            (string) ($this->editForm['dispatch_note'] ?? ''),
+        ));
+        if ($granted !== $prevAccess) {
+            $this->audit('role.grant', $e->first.' '.$e->last.' (#'.$e->id.')', $prevAccess.' → '.$granted);
+        }
+        $newRate = (float) ($this->editForm['rate'] ?? $e->rate);
+        if (abs($newRate - (float) $prevRate) > 0.001) {
+            // a pay-rate change is money — always audited
+            $this->audit('rate.change', $e->first.' '.$e->last.' (#'.$e->id.')', '$'.$prevRate.' → $'.$newRate);
+        }
+    }
+
+    /**
+     * Approve a self-service sign-up: apply the approver's finalized fields
+     * (rate/access/crew) from the open drawer, activate the record, and create the
+     * login account from the password the applicant chose during sign-up.
+     */
+    public function approveSignup(): void
+    {
+        $e = Employee::find($this->selectedEmp);
+        if (! $e || $e->emp !== 'pending' || ! $this->can('employees.register', $e)) {
+            return;
+        }
+        $this->applyEmpForm($e);
+        $e->refresh();
+        $email = trim((string) $e->email);
+        if ($email !== '' && ! empty($e->join_password) && ! User::where('email', $email)->exists()) {
+            $user = User::create([
+                'name' => trim($e->first.' '.$e->last) ?: $email,
+                'email' => $email,
+                'password' => 'pending-'.Str::random(24),   // placeholder, replaced below
+                'access' => $e->access,
+                'employee_id' => $e->id,
+            ]);
+            // the stored join_password is ALREADY a hash — write it raw so the
+            // model's 'hashed' cast doesn't double-hash it
+            DB::table('users')->where('id', $user->id)->update(['password' => $e->join_password]);
+        }
+        $e->update(['emp' => 'active', 'join_password' => null, 'activated_at' => null]);
+        $this->audit('signup.approve', trim($e->first.' '.$e->last).' (#'.$e->id.')', $email);
+        $this->selectedEmp = null;
+        $this->empFilter = 'active';
+        $this->showToast($this->dict()['sg_approved'].' ✓');
+    }
+
+    /** Reject a self-service sign-up — the pending record is discarded. */
+    public function rejectSignup(int $id): void
+    {
+        $e = Employee::find($id);
+        if (! $e || $e->emp !== 'pending' || ! $this->can('employees.register', $e)) {
+            return;
+        }
+        $this->audit('signup.reject', trim($e->first.' '.$e->last).' (#'.$e->id.')', (string) $e->email);
+        Employee::where('id', $id)->delete();
+        $this->selectedEmp = null;
+        $this->showToast($this->dict()['sg_rejected']);
     }
 
     /**
@@ -1969,6 +2022,7 @@ class WorkforceApp extends Component
         if (! $site) {
             return;
         }
+        $site->ensureJoinToken();   // mint the self-sign-up token so its QR/poster are ready
         $this->siteModal = $id;
         $this->siteName = $site->name;
         $this->siteCity = $site->city;

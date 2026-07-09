@@ -12,6 +12,7 @@
     <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
         <div style="display: inline-flex; gap: 2px; padding: 3px; background: #EAE8E1; border-radius: 10px;">
             <button wire:click="setEmpFilter('active')" style="{{ $Ui::pill($empFilter==='active') }}">{{ $L['e_filterActive'] }}</button>
+            <button wire:click="setEmpFilter('pending')" style="{{ $Ui::pill($empFilter==='pending') }}">{{ $L['e_filterPending'] }}@if(($emp['pendingCount'] ?? 0) > 0)<span style="margin-left:6px;font-size:11px;font-weight:700;color:#fff;background:#E85D2A;padding:1px 7px;border-radius:20px;">{{ $emp['pendingCount'] }}</span>@endif</button>
             <button wire:click="setEmpFilter('invited')" style="{{ $Ui::pill($empFilter==='invited') }}">{{ $L['e_filterInvited'] }}</button>
             <button wire:click="setEmpFilter('terminated')" style="{{ $Ui::pill($empFilter==='terminated') }}">{{ $L['e_filterTerminated'] }}</button>
             <button wire:click="setEmpFilter('all')" style="{{ $Ui::pill($empFilter==='all') }}">{{ $L['e_filterAll'] }}</button>
@@ -31,7 +32,7 @@
             <div wire:click="selectEmp({{ $e['id'] }})" style="display: grid; grid-template-columns: 1.7fr 1.5fr 0.9fr 1fr 1fr 1.6fr 0.8fr 0.9fr; gap: 8px; align-items: center; padding: 12px 20px; border-bottom: 1px solid #F2F0EA; cursor: pointer; font-size: 13px; min-width: 1160px; opacity: {{ $e['rowOpacity'] }};">
                 <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
                     <span style="display: inline-flex; width: 36px; height: 36px; border-radius: 50%; background: {{ $e['teamColor'] }}; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; font-family: 'Space Grotesk';">{{ $e['initials'] }}</span>
-                    <span style="min-width: 0; overflow: hidden;"><span style="display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['name'] }}@if(!empty($e['isInvited']))<span style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #8A6A2E; background: #FBF1DF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">{{ $L['e_invited'] }}</span>@endif@if(!empty($e['dispatched']))<span title="{{ $e['dispatchTo'] }}" style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #3B72E0; background: #EAF3FF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">🛫 {{ $L['e_dispatchBadge'] }}@if($e['dispatchTo']) · {{ \Illuminate\Support\Str::limit($e['dispatchTo'], 14) }}@endif</span>@endif</span><span style="display: block; font-size: 11px; color: #A7A49B; font-family: 'Space Grotesk'; white-space: nowrap;">{{ $e['empId'] }}</span></span>
+                    <span style="min-width: 0; overflow: hidden;"><span style="display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $e['name'] }}@if(!empty($e['isPending']))<span style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #C0641F; background: #FBF1DF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">⏳ {{ $L['e_pendingBadge'] }}</span>@endif@if(!empty($e['isInvited']))<span style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #8A6A2E; background: #FBF1DF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">{{ $L['e_invited'] }}</span>@endif@if(!empty($e['dispatched']))<span title="{{ $e['dispatchTo'] }}" style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #3B72E0; background: #EAF3FF; padding: 2px 7px; border-radius: 6px; vertical-align: middle;">🛫 {{ $L['e_dispatchBadge'] }}@if($e['dispatchTo']) · {{ \Illuminate\Support\Str::limit($e['dispatchTo'], 14) }}@endif</span>@endif</span><span style="display: block; font-size: 11px; color: #A7A49B; font-family: 'Space Grotesk'; white-space: nowrap;">{{ $e['empId'] }}</span></span>
                 </span>
                 <span style="display: flex; flex-wrap: wrap; gap: 4px;">
                     @foreach($e['companies'] as $i => $co)
@@ -79,6 +80,16 @@
                 </div>
             </div>
             <div style="padding: 24px 30px;">
+                @if(!empty($sel['isPending']))
+                    <div style="margin-bottom: 20px; padding: 16px; border: 1px solid #F3E3C9; border-radius: 12px; background: #FBF7EF;">
+                        <div style="font-size: 13px; font-weight: 800; color: #C0641F;">⏳ {{ $L['sg_reviewTitle'] }}</div>
+                        <div style="font-size: 12px; color: #8A8880; margin: 5px 0 13px; line-height: 1.5;">{{ $L['sg_reviewSub'] }}</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button wire:click="approveSignup" style="flex: 2; padding: 12px; border: none; border-radius: 11px; background: #1F9D6B; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">✓ {{ $L['sg_approve'] }}</button>
+                            <button wire:click="rejectSignup({{ $sel['id'] }})" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; color: #C0392B; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['sg_reject'] }}</button>
+                        </div>
+                    </div>
+                @endif
                 @if(!empty($sel['badgePhoto']))
                     <div style="margin-bottom: 20px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">

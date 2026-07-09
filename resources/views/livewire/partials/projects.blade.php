@@ -190,6 +190,18 @@
             </div>
             <label style="display: block; margin-top: 14px;"><span style="font-size: 12.5px; color: #8A8880;">{{ $L['pj_radiusM'] }}</span><input wire:model="siteRadius" type="number" min="10" placeholder="150" style="width: 100%; margin-top: 5px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
 
+            {{-- self-sign-up QR: workers scan this to register themselves at this site --}}
+            @if(!empty($projects['siteModal']['joinQrSvg']))
+                <div style="margin-top: 20px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8; display: flex; gap: 14px; align-items: center;">
+                    <div style="width: 84px; height: 84px; flex-shrink: 0; background: #fff; border: 1px solid #ECEAE3; border-radius: 10px; padding: 6px;">{!! $projects['siteModal']['joinQrSvg'] !!}</div>
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="font-size: 12px; font-weight: 700; color: #8A8880;">🛂 {{ $L['pj_joinTitle'] }}</div>
+                        <div style="font-size: 11px; color: #A7A49B; margin: 3px 0 9px; line-height: 1.45;">{{ $L['pj_joinSub'] }}</div>
+                        <a href="{{ $projects['siteModal']['joinPosterUrl'] }}" target="_blank" style="display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #16181D; padding: 7px 13px; border-radius: 9px; text-decoration: none;">🖨️ {{ $L['pj_joinPoster'] }}</a>
+                    </div>
+                </div>
+            @endif
+
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelSiteModal" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
                 <button wire:click="saveSiteGeo" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_saveEdit'] }}</button>

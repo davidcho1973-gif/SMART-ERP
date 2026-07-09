@@ -343,7 +343,12 @@ class ViewModel
             $pool = $pool->filter(fn ($e) => $e->emp === 'terminated');
         } elseif ($s['empFilter'] === 'invited') {
             $pool = $pool->filter(fn ($e) => $e->emp === 'active' && $e->activated_at === null);
+        } elseif ($s['empFilter'] === 'pending') {
+            $pool = $pool->filter(fn ($e) => $e->emp === 'pending');
+        } else {   // 'all' — hide pending sign-ups (they live under their own tab)
+            $pool = $pool->filter(fn ($e) => $e->emp !== 'pending');
         }
+        $pendingCount = $siteScope($employees)->filter(fn ($e) => $e->emp === 'pending')->count();
         $filtered = $pool->filter(function ($e) use ($s, $q) {
             $okTeam = $s['teamFilter'] === 'all' || $e->team_id === $s['teamFilter'];
             $hay = strtolower($e->first.' '.$e->last.' '.($e->ko ?? '').' '.$e->role.' '.$e->emp_id.' '.$e->nat);
@@ -375,6 +380,7 @@ class ViewModel
                 'badgeQr' => $e->badge_qr, 'badgePhoto' => $e->badge_photo,
                 'isTerminated' => $e->emp === 'terminated', 'isActive' => $e->emp === 'active',
                 'isInvited' => $e->emp === 'active' && $e->activated_at === null,
+                'isPending' => $e->emp === 'pending',
                 'rowOpacity' => $e->emp === 'terminated' ? '0.55' : '1',
                 'inT' => $e->in_t, 'term' => $e->term,
             ];
@@ -976,7 +982,7 @@ class ViewModel
             ],
             // employees
             'emp' => [
-                'rows' => $empRows, 'sel' => $sel, 'editForm' => $s['editForm'],
+                'rows' => $empRows, 'sel' => $sel, 'editForm' => $s['editForm'], 'pendingCount' => $pendingCount,
                 'delName' => $delRaw ? $empName($delRaw) : null, 'termName' => $termRaw ? $empName($termRaw) : null,
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
                 'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions, 'natOptions' => $natOptions,
@@ -1000,6 +1006,9 @@ class ViewModel
                 'siteModal' => $siteModal ? [
                     'id' => $siteModal->id,
                     'name' => trim($siteModal->name.($siteModal->city ? ' · '.$siteModal->city : '')),
+                    'joinUrl' => $siteModal->join_token ? url('/join/'.$siteModal->join_token) : '',
+                    'joinPosterUrl' => $siteModal->join_token ? url('/join/'.$siteModal->join_token.'/poster') : '',
+                    'joinQrSvg' => $siteModal->join_token ? RealQr::svg(url('/join/'.$siteModal->join_token), 132) : '',
                 ] : null,
                 'siteLat' => $s['siteLat'] ?? '', 'siteLng' => $s['siteLng'] ?? '', 'siteRadius' => $s['siteRadius'] ?? '',
                 'delSiteName' => $delSite ? trim($delSite->name.($delSite->city ? ' · '.$delSite->city : '')) : null,

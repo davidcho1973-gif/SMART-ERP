@@ -6,8 +6,8 @@
 <div class="wf-shell" style="display: flex; min-height: calc(100vh - 44px);">
     <aside class="wf-sidebar" style="width: 244px; flex-shrink: 0; background: #16181D; color: #fff; padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;">
         <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px;">
-            <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 9px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700;">N</span>
-            <div><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px; line-height: 1;">NAHSHON</div><div style="font-size: 11px; color: rgba(255,255,255,0.45);">MEP Workforce</div></div>
+            <img src="{{ asset('images/nahshon-mark.svg') }}" alt="NAHSHON MEP" style="width: 32px; height: 32px; display: block;"/>
+            <div><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 15px; line-height: 1;">NAHSHON <span style="color: #E5403E;">MEP</span></div><div style="font-size: 10px; color: rgba(255,255,255,0.4); letter-spacing: 0.08em; margin-top: 3px;">AUTOMATION · CONTROLS</div></div>
         </div>
         @foreach($nav as $item)
             <button wire:click="go('{{ $item['key'] }}')" style="{{ $Ui::navItem($item['active']) }}">
