@@ -29,8 +29,6 @@ class Timesheet
         $companyName = fn ($cid) => optional($companies->get($cid))->name ?? '—';
         $teamColor = fn ($tid) => optional($teams->get($tid))->color ?? '#9AA0A6';
 
-        $isToday = $date === now()->format('Y-m-d');
-        $isSat = Carbon::parse($date)->isSaturday();
         $dayPunches = Punch::where('work_date', $date)->get()->keyBy('employee_id');
 
         // everyone active on the roster — workers and managers/staff who clock in
@@ -47,16 +45,12 @@ class Timesheet
 
         foreach ($workers as $e) {
             $realPunch = $dayPunches->get($e->id);
-            // settle from the real punch; fall back to today's live status by
-            // synthesizing a transient punch (so it still uses the crew's shift)
+            // the punch table is the single source of truth. A live clock-in always
+            // saves a punch for the day, so we never synthesize attendance from the
+            // denormalized live-status fields (in_t/status) — those persist across
+            // days and would resurrect a stale clock-in after a rollover or after a
+            // past-date punch is voided (dashboard read punches, timesheet didn't).
             $p = ($realPunch && $realPunch->in_min !== null) ? $realPunch : null;
-            if ($p === null && $isToday && $e->in_t !== '—' && $e->in_t !== '') {
-                $p = new Punch([
-                    'work_date' => $date, 'team_id' => $e->team_id, 'no_lunch' => false,
-                    'in_min' => Shift::minOf($e->in_t),
-                    'out_min' => ($e->out_t !== '—' && $e->out_t !== '') ? Shift::minOf($e->out_t) : null,
-                ]);
-            }
             $hasIn = $p !== null && $p->in_min !== null;
             $settled = ($p !== null && $p->in_min !== null && $p->out_min !== null) ? Attendance::settle($p) : null;
 
