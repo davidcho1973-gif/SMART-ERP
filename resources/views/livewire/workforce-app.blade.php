@@ -41,13 +41,18 @@
         </div>
         <div style="flex: 1;"></div>
 
-        {{-- access-gated view switcher: only roles at or below the account's ceiling --}}
-        @if(! $isLogin && count($viewSwitch) > 1)
+        {{-- role display: 본사 어드민 switches personas; everyone else sees a single
+             static badge of their own granted role (현장 팀장 / 작업자) --}}
+        @if(! $isLogin && count($viewSwitch) >= 1)
         <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="font-size: 11px; opacity: 0.55; margin-right: 2px;">{{ $L['viewAs'] }}</span>
-            @foreach($viewSwitch as $v)
-                <button wire:click="viewAs('{{ $v['role'] }}')" style="{{ $Ui::tab($v['active']) }}">{{ $v['label'] }}</button>
-            @endforeach
+            @if($viewSwitchable)
+                <span style="font-size: 11px; opacity: 0.55; margin-right: 2px;">{{ $L['viewAs'] }}</span>
+                @foreach($viewSwitch as $v)
+                    <button wire:click="viewAs('{{ $v['role'] }}')" style="{{ $Ui::tab($v['active']) }}">{{ $v['label'] }}</button>
+                @endforeach
+            @else
+                <span style="{{ $Ui::tab(true) }}">{{ $viewSwitch[0]['label'] }}</span>
+            @endif
         </div>
         @endif
 

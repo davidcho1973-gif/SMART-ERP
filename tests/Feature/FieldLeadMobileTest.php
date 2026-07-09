@@ -53,8 +53,9 @@ class FieldLeadMobileTest extends TestCase
         Livewire::actingAs($minjun)
             ->test(WorkforceApp::class)
             ->assertSet('role', 'worker')       // manager pushed onto the phone app
-            ->assertSet('access', 'worker')     // and locked there (no desktop switch)
-            ->assertViewHas('isDesktopApp', false);
+            ->assertSet('access', 'manager')    // ceiling kept → top-bar badge reads 현장 팀장
+            ->assertViewHas('isDesktopApp', false)     // still locked to the phone
+            ->assertViewHas('viewSwitchable', false);  // single badge, no persona switch
     }
 
     public function test_owner_who_leads_a_team_keeps_the_desktop(): void
