@@ -11,6 +11,7 @@ class Employee extends Model
         'team_id', 'company_id', 'site_id', 'role', 'type', 'pay_type', 'lang', 'access',
         'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term', 'activated_at',
         'resign_on', 'resign_reason',
+        'dispatch_to', 'dispatch_from', 'dispatch_until', 'dispatch_note',
     ];
 
     protected $casts = [
@@ -18,6 +19,12 @@ class Employee extends Model
         'wh' => 'integer',
         'activated_at' => 'datetime',
     ];
+
+    /** Currently dispatched to another state (out-of-state assignment). */
+    public function isDispatched(): bool
+    {
+        return ! empty($this->dispatch_to);
+    }
 
     /** Invited but not yet logged in (no first authenticated session). */
     public function isInvited(): bool

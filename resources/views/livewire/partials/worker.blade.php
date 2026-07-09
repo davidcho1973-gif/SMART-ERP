@@ -34,6 +34,15 @@
                             <div style="flex: 1;"><div style="font-size: 12.5px; color: #8A8880;">{{ $L['w_hi'] }}</div><div style="font-size: 17px; font-weight: 700;">{{ $w['name'] }}</div></div>
                             <div style="display: flex; gap: 2px; padding: 3px; background: #EAE8E1; border-radius: 8px;"><button wire:click="setLang('es')" style="{{ $Ui::mLang($lang==='es') }}">ES</button><button wire:click="setLang('en')" style="{{ $Ui::mLang($lang==='en') }}">EN</button><button wire:click="setLang('ko')" style="{{ $Ui::mLang($lang==='ko') }}">KO</button></div>
                         </div>
+                        @if(!empty($w['dispatched']))
+                            <div style="background: #EAF3FF; border: 1px solid #CBDBF5; border-radius: 14px; padding: 11px 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 17px;">🛫</span>
+                                <div style="min-width: 0;">
+                                    <div style="font-size: 12.5px; font-weight: 800; color: #3B72E0;">{{ $L['w_dispatch'] }} · {{ $w['dispatchTo'] }}</div>
+                                    @if($w['dispatchRange'] || $w['dispatchNote'])<div style="font-size: 11px; color: #5A5D64; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $w['dispatchNote'] }}@if($w['dispatchRange']) · {{ $w['dispatchRange'] }}@endif</div>@endif
+                                </div>
+                            </div>
+                        @endif
                         <div style="background: #16181D; border-radius: 22px; padding: 24px; color: #fff; text-align: center;">
                             <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; background: {{ $statusPillBg }}; color: {{ $statusPillColor }}; padding: 6px 14px; border-radius: 20px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $statusPillColor }};"></span>{{ $clockDone ? $L['w_workDone'] : ($clockedIn ? $L['w_status_in'] : $L['w_status_out']) }}</div>
                             <div class="wk-bigtime" style="font-family: 'Space Grotesk'; font-size: 46px; font-weight: 700; margin-top: 16px;">{{ now()->format('g:i A') }}</div>
