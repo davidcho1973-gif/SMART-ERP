@@ -43,7 +43,7 @@ class SiteSignupTest extends TestCase
             ->set('phone', '(912) 555-0142')
             ->set('email', 'marcus@email.com')
             ->set('trade', 'Pipefitter')
-            ->set('password', 'Savannah1')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit')
             ->assertSet('submitted', true);
 
@@ -60,7 +60,7 @@ class SiteSignupTest extends TestCase
         $token = $this->token();
         Livewire::test(JoinForm::class, ['token' => $token])
             ->set('first', 'Marcus')->set('last', 'Lee')
-            ->set('email', 'marcus@email.com')->set('password', 'Savannah1')
+            ->set('email', 'marcus@email.com')->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit');
 
         // no user account exists → password login impossible
@@ -79,10 +79,23 @@ class SiteSignupTest extends TestCase
         Employee::create(['emp_id' => 'X1', 'first' => 'A', 'last' => 'B', 'email' => 'dupe@email.com', 'type' => 'worker', 'access' => 'worker', 'rate' => 0, 'emp' => 'active']);
 
         Livewire::test(JoinForm::class, ['token' => $token])
-            ->set('first', 'Marcus')->set('email', 'dupe@email.com')->set('password', 'Savannah1')
+            ->set('first', 'Marcus')->set('email', 'dupe@email.com')->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit')
             ->assertHasErrors('email')
             ->assertSet('submitted', false);
+    }
+
+    public function test_password_confirm_must_match(): void
+    {
+        $token = $this->token();
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Marcus')->set('email', 'marcus@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Different9')
+            ->call('submit')
+            ->assertHasErrors('passwordConfirm')
+            ->assertSet('submitted', false);
+
+        $this->assertNull(Employee::where('email', 'marcus@email.com')->first());
     }
 
     public function test_admin_approves_a_signup_and_the_account_can_log_in(): void
@@ -91,7 +104,7 @@ class SiteSignupTest extends TestCase
         Livewire::test(JoinForm::class, ['token' => $token])
             ->set('first', 'Marcus')->set('last', 'Lee')
             ->set('email', 'marcus@email.com')->set('trade', 'Pipefitter')
-            ->set('password', 'Savannah1')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit');
         $id = Employee::where('email', 'marcus@email.com')->value('id');
 
@@ -113,7 +126,7 @@ class SiteSignupTest extends TestCase
     {
         $token = $this->token();
         Livewire::test(JoinForm::class, ['token' => $token])
-            ->set('first', 'Spam')->set('email', 'spam@email.com')->set('password', 'Savannah1')
+            ->set('first', 'Spam')->set('email', 'spam@email.com')->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit');
         $id = Employee::where('email', 'spam@email.com')->value('id');
 
@@ -126,7 +139,7 @@ class SiteSignupTest extends TestCase
     {
         $token = $this->token();
         Livewire::test(JoinForm::class, ['token' => $token])
-            ->set('first', 'Marcus')->set('email', 'marcus@email.com')->set('password', 'Savannah1')
+            ->set('first', 'Marcus')->set('email', 'marcus@email.com')->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
             ->call('submit');
         $id = Employee::where('email', 'marcus@email.com')->value('id');
 
