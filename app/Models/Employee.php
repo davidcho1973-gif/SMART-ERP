@@ -10,6 +10,7 @@ class Employee extends Model
         'emp_id', 'badge_qr', 'badge_photo', 'first', 'last', 'ko', 'nat', 'code',
         'team_id', 'company_id', 'site_id', 'role', 'type', 'pay_type', 'lang', 'access',
         'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term', 'activated_at',
+        'resign_on', 'resign_reason',
     ];
 
     protected $casts = [
@@ -58,6 +59,22 @@ class Employee extends Model
     public function isTerminated(): bool
     {
         return $this->emp === 'terminated';
+    }
+
+    /** Has the worker filed a resignation notice still awaiting approval? */
+    public function hasPendingResignation(): bool
+    {
+        return $this->emp === 'active' && ! empty($this->resign_on);
+    }
+
+    public function leaves()
+    {
+        return $this->hasMany(Leave::class, 'employee_id');
+    }
+
+    public function absences()
+    {
+        return $this->hasMany(Absence::class, 'employee_id');
     }
 
     /** Display name — Korean when lang=ko and a Korean name exists. */
