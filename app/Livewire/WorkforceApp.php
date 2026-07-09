@@ -707,7 +707,7 @@ class WorkforceApp extends Component
             $p->in_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
-            $this->showToast($d['w_done_in']);
+            $this->showToast($this->clockToast('w_done_in', $geoOk));
         } else {
             $p->out_min = $nowMin;
             $p->source = 'self';
@@ -717,7 +717,7 @@ class WorkforceApp extends Component
             $p->out_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
-            $this->showToast($d['w_done_out']);
+            $this->showToast($this->clockToast('w_done_out', $geoOk));
         }
     }
 
@@ -727,6 +727,19 @@ class WorkforceApp extends Component
             'employee_id' => $employeeId,
             'work_date' => now()->format('Y-m-d'),
         ]);
+    }
+
+    /**
+     * Clock-confirmation toast, with a mandatory off-site warning appended when the
+     * fix was confidently outside the geofence. The punch is always kept (allow,
+     * never block) — the warning just makes sure the person sees it, same on the
+     * desktop self-clock as on the mobile app.
+     */
+    protected function clockToast(string $baseKey, ?bool $geoOk): string
+    {
+        $d = $this->dict();
+
+        return $geoOk === false ? $d[$baseKey].' · '.$d['w_offsiteWarn'] : $d[$baseKey];
     }
 
     protected function showToast(string $msg): void
@@ -2780,7 +2793,7 @@ class WorkforceApp extends Component
             $p->in_geo_ok = $geoOk;
             $p->save();
             $me?->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
-            $this->showToast($d['w_done_in']);
+            $this->showToast($this->clockToast('w_done_in', $geoOk));
         } else {
             // guard: no clock-out within minutes of clocking in — this soaks up
             // duplicate taps / double-fired GPS callbacks (which would otherwise
@@ -2802,7 +2815,7 @@ class WorkforceApp extends Component
             $p->out_geo_ok = $geoOk;
             $p->save();
             $me?->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
-            $this->showToast($d['w_done_out']);
+            $this->showToast($this->clockToast('w_done_out', $geoOk));
         }
     }
 
@@ -2853,7 +2866,9 @@ class WorkforceApp extends Component
         if ($p->in_min === null) {
             // not clocked in yet — one scan does both: assign + clock in
             $this->doClock($lat, $lng, $acc);
-            $this->showToast($team->name.' · '.$d['w_teamMoved'].' · '.$d['w_done_in']);
+            // keep doClock's off-site warning, which its toast would otherwise lose
+            $done = $this->clockToast('w_done_in', $this->todayPunch($eid)->in_geo_ok);
+            $this->showToast($team->name.' · '.$d['w_teamMoved'].' · '.$done);
         } else {
             $this->showToast($team->name.' · '.$d['w_teamMoved']);
         }

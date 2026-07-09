@@ -71,6 +71,30 @@ class GpsAttendanceTest extends TestCase
         $this->assertTrue($p->in_geo_ok);
     }
 
+    public function test_off_site_clock_shows_a_warning_toast(): void
+    {
+        $warn = trans('app.w_offsiteWarn', [], 'es');   // demo worker defaults to es
+
+        // mobile worker off-site → warning surfaced to the person clocking in
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')
+            ->call('doClock', 33.85, -112.15, 12.0)     // ~7km away, precise
+            ->assertSet('toast', fn ($t) => str_contains((string) $t, $warn));
+
+        // desktop admin off-site → same warning
+        $adminWarn = trans('app.w_offsiteWarn', [], 'en');
+        Employee::whereKey(103)->update(['site_id' => 's1']);
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')
+            ->call('doDeskClock', 33.85, -112.15, 12.0)
+            ->assertSet('toast', fn ($t) => str_contains((string) $t, $adminWarn));
+    }
+
+    public function test_on_site_clock_shows_no_warning(): void
+    {
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')
+            ->call('doClock', 33.7838, -112.15, 8.0)
+            ->assertSet('toast', fn ($t) => ! str_contains((string) $t, '⚠️'));
+    }
+
     public function test_desk_clock_without_location_is_recorded_but_unverified(): void
     {
         Employee::whereKey(103)->update(['site_id' => 's1']);

@@ -180,7 +180,8 @@ class ScanClock extends Component
             $p->in_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
-            $this->toast = $d['w_done_in'];
+            // allow but warn: an off-site QR clock-in still shows the person a notice
+            $this->toast = $geoOk === false ? $d['w_done_in'].' · '.$d['w_offsiteWarn'] : $d['w_done_in'];
         } else {
             // guard: no clock-out within minutes of clocking in (duplicate taps /
             // double-fired GPS callbacks / accidental immediate outs)
@@ -200,7 +201,7 @@ class ScanClock extends Component
             $p->out_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
-            $this->toast = $d['w_done_out'];
+            $this->toast = $geoOk === false ? $d['w_done_out'].' · '.$d['w_offsiteWarn'] : $d['w_done_out'];
         }
     }
 
