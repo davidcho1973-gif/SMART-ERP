@@ -20,6 +20,7 @@ use App\Services\BadgeAnalyzer;
 use App\Services\ReportFormatter;
 use App\Support\Access;
 use App\Support\Attendance;
+use App\Support\Attach;
 use App\Support\Comms;
 use App\Support\Corrections;
 use App\Support\Geo;
@@ -340,6 +341,9 @@ class WorkforceApp extends Component
     public ?int $commsChannel = null;
 
     public string $commsCompose = '';
+
+    /** a pending file attachment for the open channel (Livewire temp upload) */
+    public $commsFile = null;
 
     /** new-chat picker open (pick 1 → DM, several → group room) */
     public bool $commsNewDm = false;
@@ -1057,7 +1061,8 @@ class WorkforceApp extends Component
     public function sendMessage(): void
     {
         $body = trim($this->commsCompose);
-        if ($body === '' || ! $this->commsChannel) {
+        $hasFile = $this->commsFile !== null;
+        if (($body === '' && ! $hasFile) || ! $this->commsChannel) {
             return;
         }
         $me = $this->actorEmployee();
@@ -1070,13 +1075,40 @@ class WorkforceApp extends Component
 
             return;
         }
-        Message::create([
+        $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
+        if ($hasFile) {
+            if (! Attach::enabled()) {
+                $this->showToast($this->tl('File sharing is not set up yet', 'El envío de archivos no está configurado', '파일 공유가 아직 설정되지 않았어요'));
+
+                return;
+            }
+            $why = Attach::reject($this->commsFile);
+            if ($why !== null) {
+                $msg = match ($why) {
+                    'size' => $this->tl('File is too large', 'Archivo demasiado grande', '파일 용량이 너무 큽니다'),
+                    default => $this->tl('This file type is not allowed', 'Tipo de archivo no permitido', '허용되지 않는 파일 형식입니다'),
+                };
+                $this->showToast($msg);
+
+                return;
+            }
+            $stored = Attach::store($this->commsFile, (int) $ch->id);
+            $att = ['att_disk' => $stored['disk'], 'att_path' => $stored['path'], 'att_name' => $stored['name'], 'att_mime' => $stored['mime'], 'att_size' => $stored['size']];
+        }
+        Message::create(array_merge([
             'channel_id' => $ch->id,
             'sender_id' => $me->id,
             'body' => mb_substr($body, 0, 2000),
-        ]);
+        ], $att));
         $this->commsCompose = '';
+        $this->commsFile = null;
         Comms::markRead($ch, $me);
+    }
+
+    /** Clear a picked (not-yet-sent) attachment. */
+    public function clearCommsFile(): void
+    {
+        $this->commsFile = null;
     }
 
     /** Open/close the new-chat picker (pick 1 person → DM, several → a group room). */

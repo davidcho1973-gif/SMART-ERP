@@ -4,6 +4,8 @@
     $act = $C['active'];
 @endphp
 
+<style>@keyframes wfSpin { to { transform: rotate(360deg); } }</style>
+
 {{-- ============ INTERNAL COMMS ============ --}}
 {{-- desktop: list + thread side by side · mobile: one pane at a time (master-detail) --}}
 <div class="wf-comms {{ $C['mobilePane'] === 'thread' ? 'show-thread' : 'show-list' }}" style="display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: calc(100vh - 44px - 71px - 52px); min-height: 460px;">
@@ -207,11 +209,28 @@
                                 <span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: {{ $m['color'] }}; color: #fff; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">{{ $m['initials'] }}</span>
                             @endif
                         </span>
-                        <div style="max-width: 64%; display: flex; flex-direction: column; align-items: {{ $m['mine'] ? 'flex-end' : 'flex-start' }};">
+                        <div style="max-width: 64%; display: flex; flex-direction: column; gap: 4px; align-items: {{ $m['mine'] ? 'flex-end' : 'flex-start' }};">
                             @if(!$grouped)
                                 <div style="font-size: 11.5px; color: #8A8880; margin-bottom: 3px; padding: 0 3px;">{{ $m['mine'] ? '' : $m['senderName'] }}<span style="color: #B7B4AB;"> · {{ $m['time'] }}</span></div>
                             @endif
-                            <div style="padding: 9px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; {{ $m['mine'] ? 'background: #16181D; color: #fff; border-bottom-right-radius: 4px;' : 'background: #fff; color: #16181D; border: 1px solid #ECEAE3; border-bottom-left-radius: 4px;' }}">{{ $m['body'] }}</div>
+                            @if($m['hasFile'] && $m['isImage'])
+                                {{-- inline image preview — tap to open full size --}}
+                                <a href="{{ $m['fileUrl'] }}" target="_blank" rel="noopener" style="display: block; max-width: 240px; border-radius: 14px; overflow: hidden; border: 1px solid #ECEAE3;">
+                                    <img src="{{ $m['fileUrl'] }}" alt="{{ $m['fileName'] }}" loading="lazy" style="display: block; width: 100%; height: auto; max-height: 320px; object-fit: cover;">
+                                </a>
+                            @elseif($m['hasFile'])
+                                {{-- non-image file → download chip --}}
+                                <a href="{{ $m['fileUrl'] }}" style="display: flex; align-items: center; gap: 10px; max-width: 260px; padding: 10px 12px; border-radius: 13px; text-decoration: none; {{ $m['mine'] ? 'background: #23262E; border: 1px solid #2E323B;' : 'background: #fff; border: 1px solid #ECEAE3;' }}">
+                                    <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 9px; background: #E85D2A; color: #fff; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+                                    <span style="min-width: 0; flex: 1;">
+                                        <span style="display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; {{ $m['mine'] ? 'color: #fff;' : 'color: #16181D;' }}">{{ $m['fileName'] }}</span>
+                                        <span style="font-size: 11px; {{ $m['mine'] ? 'color: #A7A6AE;' : 'color: #A7A49B;' }}">{{ $m['fileSize'] }} · {{ $lab['download'] }}</span>
+                                    </span>
+                                </a>
+                            @endif
+                            @if($m['body'] !== '' && $m['body'] !== null)
+                                <div style="padding: 9px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; {{ $m['mine'] ? 'background: #16181D; color: #fff; border-bottom-right-radius: 4px;' : 'background: #fff; color: #16181D; border: 1px solid #ECEAE3; border-bottom-left-radius: 4px;' }}">{{ $m['body'] }}</div>
+                            @endif
                         </div>
                     </div>
                 @empty
@@ -221,22 +240,46 @@
 
             {{-- composer --}}
             @if($act['canPost'])
-                <form wire:submit.prevent="sendMessage" style="padding: 12px 16px; border-top: 1px solid #F0EEE8; display: flex; align-items: flex-end; gap: 10px; background: #fff;">
-                    @if($act['isGroup'] ?? false)
-                        {{-- voice daily report: dictate → AI-format → post --}}
-                        <button type="button" wire:click="openReport" title="{{ $lab['reportTitle'] }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 13px; border: 1.5px solid #E4E2DB; border-radius: 12px; background: #FAFAF8; color: #16181D; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg>
-                            <span class="wf-report-label">{{ $lab['report'] }}</span>
-                        </button>
+                <form wire:submit.prevent="sendMessage" style="padding: 12px 16px; border-top: 1px solid #F0EEE8; display: flex; flex-direction: column; gap: 9px; background: #fff;">
+                    @if($C['filesEnabled'])
+                        {{-- selected-attachment chip (before it's sent) --}}
+                        <div wire:loading.flex wire:target="commsFile" style="align-items: center; gap: 8px; font-size: 12.5px; color: #8A8880;">
+                            <span style="width: 13px; height: 13px; border: 2px solid #E4E2DB; border-top-color: #E85D2A; border-radius: 50%; display: inline-block; animation: wfSpin 0.7s linear infinite;"></span>{{ $lab['attaching'] }}
+                        </div>
+                        @if($commsFile)
+                            <div wire:loading.remove wire:target="commsFile" style="display: flex; align-items: center; gap: 9px; align-self: flex-start; max-width: 100%; padding: 7px 9px 7px 11px; border: 1px solid #E4E2DB; border-radius: 11px; background: #FAFAF8;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <span style="min-width: 0; font-size: 12.5px; font-weight: 600; color: #16181D; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $commsFile->getClientOriginalName() }}</span>
+                                <button type="button" wire:click="clearCommsFile" title="{{ $lab['removeFile'] }}" style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: none; border-radius: 6px; background: #EDEBE4; color: #8A8880; cursor: pointer; flex-shrink: 0;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        @endif
                     @endif
-                    <textarea wire:model="commsCompose" rows="1" placeholder="{{ $act['type'] === 'announcement' ? $lab['announce'] : $lab['compose'] }}"
-                        x-data x-init="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
-                        x-on:input="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
-                        x-on:keydown.enter.prevent="if(!$event.shiftKey){ $wire.sendMessage() }"
-                        style="flex: 1; resize: none; padding: 11px 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; outline: none; background: #FAFAF8; max-height: 120px;"></textarea>
-                    <button type="submit" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 16px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
-                        {{ $lab['send'] }}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                    </button>
+                    <div style="display: flex; align-items: flex-end; gap: 10px;">
+                        @if($act['isGroup'] ?? false)
+                            {{-- voice daily report: dictate → AI-format → post --}}
+                            <button type="button" wire:click="openReport" title="{{ $lab['reportTitle'] }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 13px; border: 1.5px solid #E4E2DB; border-radius: 12px; background: #FAFAF8; color: #16181D; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg>
+                                <span class="wf-report-label">{{ $lab['report'] }}</span>
+                            </button>
+                        @endif
+                        @if($C['filesEnabled'])
+                            {{-- attach a file (images · PDF · Office docs) --}}
+                            <label title="{{ $lab['attach'] }} — {{ $lab['attachHint'] }}" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1.5px solid #E4E2DB; border-radius: 12px; background: #FAFAF8; color: #16181D; cursor: pointer; flex-shrink: 0;">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <input type="file" wire:model="commsFile" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,.gif,.pdf,.xlsx,.docx,.pptx,image/*" style="display: none;">
+                            </label>
+                        @endif
+                        <textarea wire:model="commsCompose" rows="1" placeholder="{{ $act['type'] === 'announcement' ? $lab['announce'] : $lab['compose'] }}"
+                            x-data x-init="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
+                            x-on:input="$el.style.height='auto'; $el.style.height=Math.min($el.scrollHeight,120)+'px'"
+                            x-on:keydown.enter.prevent="if(!$event.shiftKey){ $wire.sendMessage() }"
+                            style="flex: 1; resize: none; padding: 11px 14px; border: 1.5px solid #E4E2DB; border-radius: 12px; font-size: 13.5px; font-family: inherit; outline: none; background: #FAFAF8; max-height: 120px;"></textarea>
+                        <button type="submit" style="display: inline-flex; align-items: center; gap: 6px; padding: 11px 16px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;">
+                            {{ $lab['send'] }}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        </button>
+                    </div>
                 </form>
             @else
                 <div style="padding: 15px 16px; border-top: 1px solid #F0EEE8; text-align: center; font-size: 12.5px; color: #A7A49B; background: #FBFAF7; display: flex; align-items: center; justify-content: center; gap: 7px;">
