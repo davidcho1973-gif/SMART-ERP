@@ -201,9 +201,11 @@ class ViewModel
 
         // repeat no-show escalation: workers with 3+ unexcused absences in the window
         $unexcWindow = $nowC->copy()->subDays(WorkerStatus::UNEXCUSED_WINDOW_DAYS)->format('Y-m-d');
+        // NB: HAVING must repeat the aggregate, not the SELECT alias — Postgres
+        // (production) rejects an alias in HAVING even though SQLite allows it.
         $unexcCounts = Absence::where('kind', 'unexcused')->where('work_date', '>=', $unexcWindow)
             ->selectRaw('employee_id, COUNT(*) as n')->groupBy('employee_id')
-            ->having('n', '>=', WorkerStatus::UNEXCUSED_ALERT)->pluck('n', 'employee_id');
+            ->havingRaw('COUNT(*) >= ?', [WorkerStatus::UNEXCUSED_ALERT])->pluck('n', 'employee_id');
         $repeatNoShow = collect($unexcCounts)->map(function ($n, $id) use ($employees, $empName, $siteScope) {
             $e = $employees->firstWhere('id', $id);
 
