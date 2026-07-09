@@ -106,6 +106,29 @@ class GpsAttendanceTest extends TestCase
         $this->assertNull($p->in_geo_ok);   // but recorded as unverified
     }
 
+    public function test_unverified_reason_nolocation_when_no_fix_captured(): void
+    {
+        Employee::whereKey(106)->update(['site_id' => 's1']);
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock', null, null, null);
+
+        $row = collect(\App\Support\Timesheet::forDate(now()->format('Y-m-d'), 'all', 'ko')['rows'])
+            ->firstWhere('id', 106);
+        $this->assertTrue($row['geoUnverified']);
+        $this->assertSame('nolocation', $row['geoReason']);   // ← Yushun Che's likely cause
+    }
+
+    public function test_unverified_reason_coarse_when_accuracy_too_poor(): void
+    {
+        Employee::whereKey(106)->update(['site_id' => 's1']);
+        // a fix came back but ±900 m — beyond the trust threshold
+        Livewire::test(WorkforceApp::class)->call('demo', 'worker')->call('doClock', 33.7838, -112.15, 900.0);
+
+        $row = collect(\App\Support\Timesheet::forDate(now()->format('Y-m-d'), 'all', 'ko')['rows'])
+            ->firstWhere('id', 106);
+        $this->assertTrue($row['geoUnverified']);
+        $this->assertSame('coarse', $row['geoReason']);
+    }
+
     public function test_worker_clock_in_outside_radius_is_recorded_but_flagged(): void
     {
         $today = now()->format('Y-m-d');
