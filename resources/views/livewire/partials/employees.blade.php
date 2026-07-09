@@ -128,6 +128,24 @@
                     </div>
                 </div>
 
+                {{-- owner-only: set a login password so this person can sign in with
+                     email + password (no Google needed) --}}
+                @if($can['usersPassword'] ?? false)
+                    <div style="margin-top: 22px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
+                        <div style="font-size: 12px; font-weight: 700; color: #8A8880; margin-bottom: 4px;">{{ $L['e_pwTitle'] }}</div>
+                        <div style="font-size: 11.5px; color: #A7A49B; margin-bottom: 12px;">{{ $L['e_pwNote'] }}</div>
+                        @if($sel['email'])
+                            <div style="font-size: 12px; color: #5A5D64; margin-bottom: 10px;">{{ $L['e_pwLoginId'] }}: <b style="font-family:'Space Grotesk';">{{ $sel['email'] }}</b></div>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="password" wire:model="empPassword" autocomplete="new-password" placeholder="{{ $L['e_pwPlaceholder'] }}" style="flex:1; padding:9px 11px; border:1px solid #E4E2DB; border-radius:9px; font-size:13.5px; background:#fff; color:#16181D; outline:none;"/>
+                                <button wire:click="setEmpPassword" style="padding:9px 18px; border:none; border-radius:9px; background:#16181D; color:#fff; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;">{{ $L['e_pwSet'] }}</button>
+                            </div>
+                        @else
+                            <div style="font-size: 12px; color: #C0522B;">{{ $L['e_pwNeedEmail'] }}</div>
+                        @endif
+                    </div>
+                @endif
+
                 {{-- company involvement (NAHSHON staffing several clients) --}}
                 <div style="margin-top: 22px; padding: 16px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
                     <div style="font-size: 12px; font-weight: 700; color: #8A8880; margin-bottom: 12px;">{{ $L['e_involveNote'] }}</div>
