@@ -69,6 +69,9 @@ class Access
 
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
+
+        // set a login password for an employee's account (for users without Google)
+        'users.password' => ['owner'],
     ];
 
     /** Normalize a stored access value (legacy or canonical) to a canonical role. */
