@@ -50,6 +50,16 @@
                 <div style="font-size: 11px; color: #A7A49B; margin-top: 4px;">{{ $L['j_emailHint'] }}</div>
                 @error('email')<div style="color:#C0392B;font-size:11.5px;margin-top:5px;">{{ $message }}</div>@enderror
 
+                {{-- password + confirm, right under email --}}
+                <label style="display: block; margin-top: 11px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_password'] }}</span>
+                    <input wire:model="password" type="password" autocomplete="new-password" style="width:100%;margin-top:5px;padding:11px 12px;border:1px solid #E4E2DB;border-radius:11px;font-size:14px;outline:none;"/></label>
+                <div style="font-size: 11px; color: #A7A49B; margin-top: 4px;">{{ $L['j_pwHint'] }}</div>
+                @error('password')<div style="color:#C0392B;font-size:11.5px;margin-top:5px;">{{ $message }}</div>@enderror
+
+                <label style="display: block; margin-top: 11px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_pwConfirm'] }}</span>
+                    <input wire:model="passwordConfirm" type="password" autocomplete="new-password" style="width:100%;margin-top:5px;padding:11px 12px;border:1px solid #E4E2DB;border-radius:11px;font-size:14px;outline:none;"/></label>
+                @error('passwordConfirm')<div style="color:#C0392B;font-size:11.5px;margin-top:5px;">{{ $message }}</div>@enderror
+
                 {{-- selfie --}}
                 <div style="margin-top: 14px;">
                     <span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_selfie'] }}</span>
@@ -74,11 +84,6 @@
 
                 <label style="display: block; margin-top: 14px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_trade'] }}</span>
                     <input wire:model="trade" placeholder="{{ $L['j_tradePh'] }}" style="width:100%;margin-top:5px;padding:11px 12px;border:1px solid #E4E2DB;border-radius:11px;font-size:14px;outline:none;"/></label>
-
-                <label style="display: block; margin-top: 11px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_password'] }}</span>
-                    <input wire:model="password" type="password" autocomplete="new-password" style="width:100%;margin-top:5px;padding:11px 12px;border:1px solid #E4E2DB;border-radius:11px;font-size:14px;outline:none;"/></label>
-                <div style="font-size: 11px; color: #A7A49B; margin-top: 4px;">{{ $L['j_pwHint'] }}</div>
-                @error('password')<div style="color:#C0392B;font-size:11.5px;margin-top:5px;">{{ $message }}</div>@enderror
 
                 <button wire:click="submit" wire:loading.attr="disabled" style="width: 100%; margin-top: 20px; padding: 14px; border: none; border-radius: 13px; background: #E85D2A; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;">{{ $L['j_submit'] }}</button>
                 <div style="font-size: 11px; color: #A7A49B; text-align: center; margin-top: 12px; line-height: 1.5;">{{ $L['j_footer'] }}</div>

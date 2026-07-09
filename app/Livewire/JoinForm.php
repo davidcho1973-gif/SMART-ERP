@@ -37,6 +37,8 @@ class JoinForm extends Component
 
     public string $password = '';
 
+    public string $passwordConfirm = '';
+
     /** base64 selfie captured on the device (optional but encouraged) */
     public string $selfie = '';
 
@@ -105,6 +107,11 @@ class JoinForm extends Component
 
             return;
         }
+        if ($this->password !== $this->passwordConfirm) {
+            $this->addError('passwordConfirm', $d['j_pwMismatch']);
+
+            return;
+        }
         // no double sign-ups: email or phone already on file (employee or user)
         $phone = trim($this->phone);
         $dup = Employee::where('email', $email)
@@ -136,7 +143,7 @@ class JoinForm extends Component
             'emp' => 'pending', 'term' => null, 'activated_at' => null,
         ]);
 
-        $this->reset(['first', 'last', 'phone', 'email', 'trade', 'password', 'selfie']);
+        $this->reset(['first', 'last', 'phone', 'email', 'trade', 'password', 'passwordConfirm', 'selfie']);
         $this->submitted = true;
     }
 
