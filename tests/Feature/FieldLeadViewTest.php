@@ -61,6 +61,25 @@ class FieldLeadViewTest extends TestCase
             ->assertViewHas('viewSwitchable', false);  // single 작업자 badge
     }
 
+    public function test_worker_promoted_to_crew_lead_sees_the_crew_tab_live(): void
+    {
+        $carlos = User::where('email', 'cmartinez@nahshon.io')->first();
+
+        // logs in as a plain worker: no crew tab, 작업자 badge
+        $c = Livewire::actingAs($carlos)
+            ->test(WorkforceApp::class)
+            ->assertViewHas('isFieldLead', false)
+            ->assertViewHas('viewSwitchable', false);
+
+        // an admin makes him the lead of a crew — the tab must appear on the next
+        // render, without Carlos logging out and back in
+        Team::whereKey('t1')->update(['lead' => 106]);
+
+        $c->call('$refresh')
+            ->assertViewHas('isFieldLead', true)   // "우리 팀" tab is now present
+            ->assertViewHas('crew', fn ($crew) => $crew !== null && count($crew['teams']) === 1);
+    }
+
     public function test_office_admin_can_switch_personas(): void
     {
         Livewire::actingAs(User::where('email', 'davidcho1973@gmail.com')->first())
