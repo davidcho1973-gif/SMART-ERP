@@ -46,7 +46,22 @@
                     @if(($deskClock['isDone'] ?? false))
                         <button type="button" disabled style="padding: 7px 14px; border: none; border-radius: 8px; background: #8A8880; color: rgba(255,255,255,0.85); font-size: 12.5px; font-weight: 600; cursor: not-allowed; opacity: 0.7;">{{ $deskClock['btnLabel'] }}</button>
                     @else
-                        <button wire:click="doDeskClock" style="padding: 8px 16px; border: none; border-radius: 8px; background: {{ $deskClock['isIn'] ? 'linear-gradient(180deg,#E25A4C,#D9483B)' : 'linear-gradient(180deg,#23B27C,#1F9D6B)' }}; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px {{ $deskClock['isIn'] ? 'rgba(217,72,59,0.3)' : 'rgba(31,157,107,0.35)' }};">{{ $deskClock['btnLabel'] }}</button>
+                        {{-- capture GPS on click (same as the mobile app) so a desk clock-in
+                             is geofence-verified; proceeds even if permission is denied (coords → null) --}}
+                        <button type="button" x-data="{ busy: false }" :disabled="busy" :style="busy ? { opacity: '0.6' } : {}"
+                            @click="
+                                if (busy) return;
+                                busy = true;
+                                const go = (la, ln, ac) => $wire.doDeskClock(la, ln, ac).finally(() => busy = false);
+                                if (navigator.geolocation) {
+                                    navigator.geolocation.getCurrentPosition(
+                                        p => go(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+                                        () => go(null, null, null),
+                                        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                                    );
+                                } else { go(null, null, null); }
+                            "
+                            style="padding: 8px 16px; border: none; border-radius: 8px; background: {{ $deskClock['isIn'] ? 'linear-gradient(180deg,#E25A4C,#D9483B)' : 'linear-gradient(180deg,#23B27C,#1F9D6B)' }}; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px {{ $deskClock['isIn'] ? 'rgba(217,72,59,0.3)' : 'rgba(31,157,107,0.35)' }};">{{ $deskClock['btnLabel'] }}</button>
                     @endif
                 </div>
             @endif
