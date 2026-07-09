@@ -120,6 +120,8 @@ class WorkforceApp extends Component
 
     public string $regAccess = 'worker';
 
+    public string $regNat = 'LOCAL';        // nationality: LOCAL | 한국인 (from the 직원 구분 default)
+
     // real registration inputs (prefilled by the demo OCR, always editable)
     public string $regFirst = '';
 
@@ -1352,11 +1354,15 @@ class WorkforceApp extends Component
         $this->editForm = [
             'first' => $e->first, 'last' => $e->last, 'company' => $companyId,
             'team' => $teamId, 'role' => $e->role, 'rate' => $e->rate,
-            'type' => $e->type === 'manager' ? 'manager' : ($e->lang === 'ko' ? 'worker_ko' : 'worker_local'),
+            'type' => match ($e->type) {
+                'manager' => $e->nat === '한국인' || $e->lang === 'ko' ? 'manager_ko' : 'manager_local',
+                'third_party' => 'third_party',
+                default => $e->nat === '한국인' || $e->lang === 'ko' ? 'worker_ko' : 'worker_local',
+            },
             'pay_type' => in_array($e->pay_type, ['salary', 'hourly', 'both'], true) ? $e->pay_type : 'hourly',
             'lang' => in_array($e->lang, ['en', 'es', 'ko'], true) ? $e->lang : 'es',
             'issued' => $e->issued, 'phone' => $e->phone, 'email' => $e->email,
-            'nat' => $e->nat, 'access' => $e->access,
+            'nat' => in_array($e->nat, ['LOCAL', '한국인'], true) ? $e->nat : '', 'access' => $e->access,
         ];
     }
 
@@ -1551,7 +1557,7 @@ class WorkforceApp extends Component
                 'team_id' => $teamId,
                 'role' => $this->editForm['role'] ?? $e->role,
                 'rate' => (float) ($this->editForm['rate'] ?? $e->rate),
-                'type' => $type === 'manager' ? 'manager' : 'worker',
+                'type' => $this->empTypeFromForm($type),
                 'pay_type' => in_array($this->editForm['pay_type'] ?? '', ['salary', 'hourly', 'both'], true)
                     ? $this->editForm['pay_type']
                     : $e->pay_type,
@@ -2183,14 +2189,27 @@ class WorkforceApp extends Component
         }
     }
 
+    /** Map a form "직원 구분" id (worker_local · worker_ko · manager_ko · manager_local · third_party) → stored Employee.type. */
+    protected function empTypeFromForm(string $v): string
+    {
+        return match ($v) {
+            'manager_ko', 'manager_local', 'manager' => 'manager',
+            'third_party' => 'third_party',
+            default => 'worker',
+        };
+    }
+
     public function setRegType(string $v): void
     {
         $this->regType = $v;
-        $this->regAccess = $v === 'manager' ? 'manager' : 'worker';
-        // sensible default: managers & Korean staff are salaried, local workers hourly
-        $this->regPayType = ($v === 'manager' || $v === 'worker_ko') ? 'salary' : 'hourly';
-        // suggested app language — still freely changeable in the language select
-        $this->regLang = $v === 'worker_local' ? 'es' : 'ko';
+        $isMgr = in_array($v, ['manager_ko', 'manager_local'], true);
+        $isKo = in_array($v, ['worker_ko', 'manager_ko'], true);
+        $this->regAccess = $isMgr ? 'manager' : 'worker';
+        // sensible default: managers & Korean staff are salaried, local/third-party hourly
+        $this->regPayType = ($isMgr || $isKo) ? 'salary' : 'hourly';
+        // suggested app language + nationality — both still freely changeable
+        $this->regLang = $isKo ? 'ko' : 'es';
+        $this->regNat = $isKo ? '한국인' : 'LOCAL';
     }
 
     public function setRegAccess(string $lvl): void
@@ -2229,10 +2248,10 @@ class WorkforceApp extends Component
         Employee::create([
             'emp_id' => $empId,
             'first' => trim($this->regFirst), 'last' => trim($this->regLast),
-            'nat' => '', 'code' => '',
+            'nat' => in_array($this->regNat, ['LOCAL', '한국인'], true) ? $this->regNat : '', 'code' => '',
             'team_id' => $team?->id, 'company_id' => $companyId, 'site_id' => $siteId,
             'role' => trim($this->regRoleTitle),
-            'type' => $this->regType === 'manager' ? 'manager' : 'worker',
+            'type' => $this->empTypeFromForm($this->regType),
             'pay_type' => in_array($this->regPayType, ['salary', 'hourly', 'both'], true) ? $this->regPayType : 'hourly',
             'lang' => in_array($this->regLang, ['en', 'es', 'ko'], true) ? $this->regLang : 'es',
             'access' => $this->grantableAccess(null, $this->regAccess),

@@ -320,7 +320,14 @@ class ViewModel
         $typeOptions = [
             ['id' => 'worker_local', 'label' => $L['b_tWorkerLocal']],
             ['id' => 'worker_ko', 'label' => $L['b_tWorkerKo']],
-            ['id' => 'manager', 'label' => $L['b_tManager']],
+            ['id' => 'manager_ko', 'label' => $L['b_tManagerKo']],
+            ['id' => 'manager_local', 'label' => $L['b_tManagerLocal']],
+            ['id' => 'third_party', 'label' => $L['b_tThirdParty']],
+        ];
+        $natOptions = [
+            ['id' => '', 'label' => $L['b_natPick']],
+            ['id' => 'LOCAL', 'label' => $L['b_natLocal']],
+            ['id' => '한국인', 'label' => $L['b_natKo']],
         ];
         $payTypeOptions = [
             ['id' => 'salary', 'label' => $L['b_ptSalary']],
@@ -838,7 +845,7 @@ class ViewModel
                 'rows' => $empRows, 'sel' => $sel, 'editForm' => $s['editForm'],
                 'delName' => $delRaw ? $empName($delRaw) : null, 'termName' => $termRaw ? $empName($termRaw) : null,
                 'teamChips' => $scopedTeams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name, 'color' => $t->color, 'active' => $s['teamFilter'] === $t->id])->all(),
-                'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions,
+                'companyOptions' => $companyOptions, 'teamOptionsAll' => $teamOptionsAll, 'typeOptions' => $typeOptions, 'natOptions' => $natOptions,
                 'payTypeOptions' => $payTypeOptions, 'langOptions' => $langOptions,
                 'inviteRoleOptions' => $inviteRoleOptions, 'inviteSiteOptions' => $inviteSiteOptions,
                 'inviteCompanyOptions' => $inviteCompanyOptions,

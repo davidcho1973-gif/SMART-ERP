@@ -112,7 +112,8 @@ class WorkforceAppTest extends TestCase
         $c = Livewire::test(WorkforceApp::class);
         $c->call('setRegType', 'worker_ko')->assertSet('regLang', 'ko');
         $c->call('setRegType', 'worker_local')->assertSet('regLang', 'es');
-        $c->call('setRegType', 'manager')->assertSet('regLang', 'ko');
+        $c->call('setRegType', 'manager_ko')->assertSet('regLang', 'ko');
+        $c->call('setRegType', 'manager_local')->assertSet('regLang', 'es');
     }
 
     public function test_edit_drawer_saves_the_selected_language(): void
