@@ -181,6 +181,24 @@ class ViewModel
 
         $teamStats = $teamStats->all();
 
+        // whole-board roll-up merged into the attendance card header (replaces the
+        // separate KPI cards): on-site count + one aggregate status tally
+        $boardTally = [];
+        $boardOnsite = 0;
+        $boardTotal = 0;
+        foreach ($teamStats as $ts) {
+            $boardOnsite += $ts['present'];
+            $boardTotal += $ts['total'];
+            foreach ($ts['tally'] as $k => $n) {
+                $boardTally[$k] = ($boardTally[$k] ?? 0) + $n;
+            }
+        }
+        $dashSummary = [
+            'onsite' => $boardOnsite, 'total' => $boardTotal,
+            'pct' => $boardTotal ? (int) round($boardOnsite / $boardTotal * 100) : 0,
+            'tally' => $boardTally,
+        ];
+
         // repeat no-show escalation: workers with 3+ unexcused absences in the window
         $unexcWindow = $nowC->copy()->subDays(WorkerStatus::UNEXCUSED_WINDOW_DAYS)->format('Y-m-d');
         $unexcCounts = Absence::where('kind', 'unexcused')->where('work_date', '>=', $unexcWindow)
@@ -922,6 +940,7 @@ class ViewModel
                 'siteCards' => $dashSiteCards,
                 'repeatNoShow' => $repeatNoShow, 'noShowThreshold' => WorkerStatus::UNEXCUSED_ALERT,
                 'pendLeaves' => $pendLeaves, 'pendResign' => $pendResign,
+                'summary' => $dashSummary,
             ],
             // employees
             'emp' => [

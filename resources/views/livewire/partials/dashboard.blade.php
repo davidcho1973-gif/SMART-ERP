@@ -2,42 +2,6 @@
 {{-- ============ DASHBOARD · Command (A) + site cards (C) ============ --}}
 <div style="display: flex; flex-direction: column; gap: 16px;">
 
-    {{-- ---- KPI strip (auto-wraps on mobile, never clipped) ---- --}}
-    <div class="wf-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px;">
-        {{-- on site now (hero) --}}
-        <div style="background: #16181D; color: #fff; border-radius: 16px; padding: 18px;">
-            <div style="font-size: 12px; color: rgba(255,255,255,0.6);">{{ $L['d_onsite'] }}</div>
-            <div style="font-family: 'Space Grotesk'; font-size: 32px; font-weight: 700; margin-top: 4px; line-height: 1;">{{ $d['onsite'] }}<span style="font-size: 16px; color: rgba(255,255,255,0.4);"> / {{ $d['totalActive'] }}</span></div>
-            <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px;"><span style="flex: 1; height: 6px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ $d['rate'] }}%; background: #E85D2A; border-radius: 4px;"></span></span><span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600;">{{ $d['rate'] }}%</span></div>
-        </div>
-        {{-- present · late · absent --}}
-        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px;">
-            <div style="font-size: 12px; color: #8A8880;">{{ $L['d_present'] }} · {{ $L['d_late'] }} · {{ $L['d_absent'] }}</div>
-            <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 8px; font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700;">
-                <span style="color: #1F9D6B;">{{ $d['cnt']['present'] }}</span><span style="color: #E8A33D;">{{ $d['cnt']['late'] }}</span><span style="color: #D9483B;">{{ $d['cnt']['absent'] }}</span>
-            </div>
-            <div style="font-size: 11px; color: #A7A49B; margin-top: 6px;">{{ $d['cnt']['off'] }} {{ $L['d_off'] }}</div>
-        </div>
-        {{-- GPS off-site --}}
-        <div style="background: #fff; border: 1px solid {{ $d['offCount'] > 0 ? '#F3D9CB' : '#E4E2DB' }}; border-radius: 16px; padding: 18px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;"><span style="font-size: 12px; color: #8A8880;">{{ $L['d_offToday'] }}</span><span style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #FBE9E7; color: #C0522B;">GPS</span></div>
-            <div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; margin-top: 8px; color: {{ $d['offCount'] > 0 ? '#C0522B' : '#16181D' }};">{{ $d['offCount'] }}</div>
-            <div style="font-size: 11px; color: #A7A49B; margin-top: 6px;">{{ $L['d_outRadius'] }}</div>
-        </div>
-        {{-- correction requests --}}
-        <div style="background: #fff; border: 1px solid {{ $d['pendCount'] > 0 ? '#F3E2C2' : '#E4E2DB' }}; border-radius: 16px; padding: 18px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;"><span style="font-size: 12px; color: #8A8880;">{{ $L['d_corrTitle'] }}</span>@if($d['pendCount'] > 0)<span style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #FBF1DF; color: #8A6A2E;">{{ $L['d_review'] }}</span>@endif</div>
-            <div style="font-family: 'Space Grotesk'; font-size: 30px; font-weight: 700; margin-top: 8px; color: {{ $d['pendCount'] > 0 ? '#8A6A2E' : '#16181D' }};">{{ $d['pendCount'] }}</div>
-            <div style="font-size: 11px; color: #A7A49B; margin-top: 6px;">{{ $L['d_awaiting'] }}</div>
-        </div>
-        {{-- est payroll --}}
-        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px;">
-            <div style="font-size: 12px; color: #8A8880;">{{ $L['d_payroll'] }}</div>
-            <div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; margin-top: 8px;">{{ $d['periodPay'] }}</div>
-            <div style="font-size: 11px; color: #A7A49B; margin-top: 6px;">{{ $d['payPeriod'] }}</div>
-        </div>
-    </div>
-
     {{-- ---- per-site cards ---- --}}
     @if(!empty($d['siteCards']))
         <div>
@@ -75,8 +39,31 @@
     <div class="wf-2col" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px;">
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
             <div style="font-weight: 700; font-size: 15px;">{{ $L['d_byteam'] }}</div>
+
+            {{-- merged summary: on-site count + one aggregate status tally (was the KPI strip) --}}
+            @php $sm = $d['summary']; @endphp
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; padding: 14px 16px; background: #16181D; border-radius: 14px; color: #fff;">
+                <div style="flex-shrink: 0;">
+                    <div style="font-size: 11px; color: rgba(255,255,255,0.55);">{{ $L['d_onsite'] }}</div>
+                    <div style="font-family: 'Space Grotesk'; font-size: 26px; font-weight: 700; line-height: 1; margin-top: 3px;">{{ $sm['onsite'] }}<span style="font-size: 14px; color: rgba(255,255,255,0.4);"> / {{ $sm['total'] }}</span></div>
+                </div>
+                <div style="flex: 1; min-width: 90px; display: flex; align-items: center; gap: 8px;">
+                    <span style="flex: 1; height: 6px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ $sm['pct'] }}%; background: #E85D2A; border-radius: 4px;"></span></span>
+                    <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 700;">{{ $sm['pct'] }}%</span>
+                </div>
+                {{-- status breakdown chips (only non-zero) --}}
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; width: 100%;">
+                    @foreach([['working','#4ADE80','st_working'],['done','#B9BCC4','st_done'],['early','#F4C168','st_early'],['unexcused','#F98F80','st_absentee'],['absent','#F98F80','st_absentee'],['leave','#8FB4F5','st_leave'],['missing','#F4C168','st_missing']] as [$sk,$cc,$lk])
+                        @if(($sm['tally'][$sk] ?? 0) > 0)
+                            <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.08);"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ $cc }};"></span>{{ $L[$lk] }} <b style="font-family: 'Space Grotesk';">{{ $sm['tally'][$sk] }}</b></span>
+                        @endif
+                    @endforeach
+                    @if(($sm['tally']['off'] ?? 0) > 0)<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);"><span style="width: 7px; height: 7px; border-radius: 50%; background: #6B6E76;"></span>{{ $L['d_off'] }} <b style="font-family: 'Space Grotesk';">{{ $sm['tally']['off'] }}</b></span>@endif
+                </div>
+            </div>
+
             {{-- one colour per status, used on every chip below --}}
-            <div style="display: flex; flex-wrap: wrap; gap: 9px 12px; margin: 10px 0 6px; padding-bottom: 13px; border-bottom: 1px solid #F0EEE8;">
+            <div style="display: flex; flex-wrap: wrap; gap: 9px 12px; margin: 12px 0 6px; padding-bottom: 13px; border-bottom: 1px solid #F0EEE8;">
                 @foreach([['#1F9D6B','st_working'],['#5A5D64','st_done'],['#E8A33D','st_early'],['#D9483B','st_absentee'],['#3B72E0','st_leave'],['#B7B4AB','st_missing'],['#A7A49B','st_resigned']] as [$cc,$k])
                     <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #5A5D64; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $cc }};"></span>{{ $L[$k] }}</span>
                 @endforeach
