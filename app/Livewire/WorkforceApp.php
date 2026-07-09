@@ -2724,12 +2724,10 @@ class WorkforceApp extends Component
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
         $site = $me->site_id ? Site::find($me->site_id) : null;
-        // 4) sanitize coordinates; a too-coarse fix can't confirm "on site"
+        // 4) sanitize coordinates; verify() withholds a verdict when the fix is too
+        //    coarse or its accuracy circle straddles the fence (no false off-site)
         $coords = Geo::coords($lat, $lng, $acc);
-        [, $geoOk] = Geo::verifySite($site, $coords['lat'] ?? null, $coords['lng'] ?? null);
-        if ($geoOk === true && ($coords['acc'] === null || $coords['acc'] > Geo::MAX_TRUSTED_ACC_M)) {
-            $geoOk = null;   // inside the radius, but the fix is too imprecise to trust
-        }
+        [, $geoOk] = Geo::verify($site, $coords);
         if ($p->in_min === null) {
             // first clock-in of the day
             $this->clock = 'in';
