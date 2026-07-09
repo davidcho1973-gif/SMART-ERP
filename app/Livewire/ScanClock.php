@@ -142,10 +142,8 @@ class ScanClock extends Component
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
         $coords = Geo::coords($lat, $lng, $acc);
-        [, $geoOk] = Geo::verifySite($this->scannedSite(), $coords['lat'] ?? null, $coords['lng'] ?? null);
-        if ($geoOk === true && ($coords['acc'] === null || $coords['acc'] > Geo::MAX_TRUSTED_ACC_M)) {
-            $geoOk = null;   // too imprecise to confirm on-site
-        }
+        // withhold the verdict on a coarse fix or one straddling the fence (no false off-site)
+        [, $geoOk] = Geo::verify($this->scannedSite(), $coords);
         if ($p->in_min === null) {
             // scanning a crew's QR IS the day's team assignment: the scanned crew
             // becomes today's crew (stamped on the punch) and the person's current
