@@ -2,17 +2,20 @@
 
 namespace App\Support;
 
+use App\Models\Absence;
 use App\Models\Assignment;
 use App\Models\AttendanceCorrection;
 use App\Models\AuditLog;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Leave;
 use App\Models\Message;
 use App\Models\Payment;
 use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
+use App\Support\WorkerStatus;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
@@ -123,15 +126,43 @@ class ViewModel
                 return $c && $c->site_id === $s['site'];
             })->values();
 
-        $teamStats = $scopedTeams->map(function ($t) use ($scopedActive, $companyName) {
-            $list = $scopedActive->filter(fn ($e) => $e->team_id === $t->id);
-            $pres = $list->filter(fn ($e) => in_array($e->status, ['present', 'late']))->count();
+        // ---- attendance board: worker-level status per crew (dashboard) ----
+        $today = now()->format('Y-m-d');
+        $nowC = now();
+        $todayPunches = Punch::where('work_date', $today)->get()->keyBy('employee_id');
+        $todayLeaves = Leave::where('status', 'approved')
+            ->where('start_date', '<=', $today)->where('end_date', '>=', $today)
+            ->get()->keyBy('employee_id');
+        $todayAbsences = Absence::where('work_date', $today)->get()->keyBy('employee_id');
+
+        // roster for the board: active workers + still-assigned recent leavers
+        $boardPeople = $siteScope(
+            $employees->filter(fn ($e) => $e->team_id !== null && in_array($e->emp, ['active', 'terminated'], true))->values()
+        );
+
+        $teamStats = $scopedTeams->map(function ($t) use ($boardPeople, $companyName, $teamById, $todayPunches, $todayLeaves, $todayAbsences, $today, $nowC, $empName, $tl) {
+            $team = $teamById->get($t->id);
+            $list = $boardPeople->filter(fn ($e) => $e->team_id === $t->id)->values();
+            $tally = [];
+            $workers = $list->map(function ($e) use ($team, $todayPunches, $todayLeaves, $todayAbsences, $today, $nowC, $empName, $tl, &$tally) {
+                $st = WorkerStatus::resolve($e, $team, $todayPunches->get($e->id), $todayLeaves->get($e->id), $todayAbsences->get($e->id), $today, $nowC, $tl);
+                $tally[$st['key']] = ($tally[$st['key']] ?? 0) + 1;
+
+                return [
+                    'id' => $e->id, 'name' => $empName($e), 'initials' => $e->initials(),
+                    'status' => $st, 'pendingResign' => $e->hasPendingResignation(),
+                ];
+            })->sortBy(fn ($w) => $w['status']['order'].$w['name'])->values()->all();
+
+            $working = ($tally['working'] ?? 0);
+            $active = $list->filter(fn ($e) => $e->emp === 'active')->count();
 
             return [
                 'id' => $t->id, 'name' => $t->name, 'companyId' => $t->company_id,
                 'company' => $companyName($t->company_id), 'color' => $t->color,
-                'total' => $list->count(), 'present' => $pres,
-                'pct' => $list->count() ? (int) round($pres / $list->count() * 100) : 0,
+                'total' => $active, 'present' => $working,
+                'pct' => $active ? (int) round($working / $active * 100) : 0,
+                'workers' => $workers, 'tally' => $tally,
             ];
         })->values();
 
@@ -149,6 +180,21 @@ class ViewModel
         })->sortBy('company')->values()->all();
 
         $teamStats = $teamStats->all();
+
+        // repeat no-show escalation: workers with 3+ unexcused absences in the window
+        $unexcWindow = $nowC->copy()->subDays(WorkerStatus::UNEXCUSED_WINDOW_DAYS)->format('Y-m-d');
+        $unexcCounts = Absence::where('kind', 'unexcused')->where('work_date', '>=', $unexcWindow)
+            ->selectRaw('employee_id, COUNT(*) as n')->groupBy('employee_id')
+            ->having('n', '>=', WorkerStatus::UNEXCUSED_ALERT)->pluck('n', 'employee_id');
+        $repeatNoShow = collect($unexcCounts)->map(function ($n, $id) use ($employees, $empName, $siteScope) {
+            $e = $employees->firstWhere('id', $id);
+
+            return $e ? ['id' => $id, 'name' => $empName($e), 'siteId' => $e->site_id, 'count' => (int) $n] : null;
+        })->filter()->values();
+        if ($s['site'] !== 'all') {
+            $repeatNoShow = $repeatNoShow->filter(fn ($r) => $r['siteId'] === $s['site'])->values();
+        }
+        $repeatNoShow = $repeatNoShow->all();
 
         $recentPunches = Punch::orderByDesc('updated_at')->limit(4)->get();
         if ($recentPunches->isNotEmpty()) {
@@ -839,6 +885,7 @@ class ViewModel
                 'offCount' => $offCount, 'offList' => array_slice($offList, 0, 5),
                 'pendCount' => $pendCount, 'pendList' => $pendCorr->take(4)->all(),
                 'siteCards' => $dashSiteCards,
+                'repeatNoShow' => $repeatNoShow, 'noShowThreshold' => WorkerStatus::UNEXCUSED_ALERT,
             ],
             // employees
             'emp' => [

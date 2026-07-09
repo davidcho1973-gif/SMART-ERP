@@ -33,6 +33,7 @@ class WorkerStatus
     private const DEFAULT_START_MIN = 360;
 
     /**
+     * @param  ?callable  $tl  fn(string $en, string $es, string $ko): string — localizes the label+detail
      * @return array{key:string,label:string,color:string,bg:string,dot:string,detail:string,order:int}
      */
     public static function resolve(
@@ -42,15 +43,17 @@ class WorkerStatus
         ?Leave $leave,
         ?Absence $absence,
         string $ymd,
-        Carbon $now
+        Carbon $now,
+        ?callable $tl = null
     ): array {
+        $t = $tl ?? fn ($en, $es, $ko) => $ko;   // default Korean (company's primary language)
         $isToday = $ymd === $now->format('Y-m-d');
         $sat = Carbon::parse($ymd)->isSaturday();
 
         // 1) terminated — the record is closed
         if ($e->emp === 'terminated') {
-            return self::make('terminated', '퇴사', '#8A8880', '#ECEBE6', '#A7A49B',
-                $e->term ? '퇴사 · '.$e->term : '퇴사', 9);
+            return self::make('terminated', $t('Former', 'Baja', '퇴사'), '#8A8880', '#ECEBE6', '#A7A49B',
+                $t('Left', 'Baja', '퇴사').($e->term ? ' · '.$e->term : ''), 9);
         }
 
         // 2) approved leave covering the day
@@ -58,55 +61,57 @@ class WorkerStatus
             $range = self::fmtDate($leave->start_date).' – '.self::fmtDate($leave->end_date);
             $why = $leave->reason ? ' · '.$leave->reason : '';
 
-            return self::make('leave', '휴가중', '#3B72E0', '#E9F1FB', '#3B72E0',
-                '휴가 '.$range.$why, 5);
+            return self::make('leave', $t('On leave', 'De permiso', '휴가중'), '#3B72E0', '#E9F1FB', '#3B72E0',
+                $t('Leave', 'Permiso', '휴가').' '.$range.$why, 5);
         }
 
         // 3) an explicit absence record for the day
         if ($absence) {
             if ($absence->kind === 'unexcused') {
-                return self::make('unexcused', '결근', '#C0392B', '#FBE9E7', '#D9483B',
-                    '무단 결근'.($absence->reason ? ' · '.$absence->reason : ' · 연락 두절'), 8);
+                return self::make('unexcused', $t('Absent', 'Ausente', '결근'), '#C0392B', '#FBE9E7', '#D9483B',
+                    $t('No-call no-show', 'Falta sin aviso', '무단 결근').($absence->reason ? ' · '.$absence->reason : ' · '.$t('no contact', 'sin contacto', '연락 두절')), 8);
             }
 
-            return self::make('absent', '결근', '#C0392B', '#FBE9E7', '#D9483B',
-                '결근'.($absence->reason ? ' · '.$absence->reason : ''), 7);
+            return self::make('absent', $t('Absent', 'Ausente', '결근'), '#C0392B', '#FBE9E7', '#D9483B',
+                $t('Absent', 'Ausente', '결근').($absence->reason ? ' · '.$absence->reason : ''), 7);
         }
 
         // 4) a punch exists → working / early-leave / done
         if ($punch && $punch->in_min !== null) {
             if ($punch->out_min === null) {
-                return self::make('working', '근무중', '#1F9D6B', '#E7F4EE', '#1F9D6B',
-                    Shift::fmtMin($punch->in_min).' 출근'.($e->role ? ' · '.$e->role : ''), 1);
+                return self::make('working', $t('Working', 'Trabajando', '근무중'), '#1F9D6B', '#E7F4EE', '#1F9D6B',
+                    Shift::fmtMin($punch->in_min).' '.$t('in', 'entrada', '출근').($e->role ? ' · '.$e->role : ''), 1);
             }
             if ($punch->early_reason) {
-                return self::make('early', '조퇴', '#C17A1A', '#FBF1DF', '#E8A33D',
-                    '조퇴 · '.Shift::fmtMin($punch->out_min).' · 사유: '.$punch->early_reason, 3);
+                return self::make('early', $t('Left early', 'Salió antes', '조퇴'), '#C17A1A', '#FBF1DF', '#E8A33D',
+                    $t('Left early', 'Salió antes', '조퇴').' · '.Shift::fmtMin($punch->out_min).' · '.$t('reason', 'motivo', '사유').': '.$punch->early_reason, 3);
             }
 
-            return self::make('done', '퇴근', '#5A5D64', '#EFEFEC', '#5A5D64',
-                Shift::fmtMin($punch->out_min).' 퇴근', 2);
+            return self::make('done', $t('Clocked out', 'Salió', '퇴근'), '#5A5D64', '#EFEFEC', '#5A5D64',
+                Shift::fmtMin($punch->out_min).' '.$t('out', 'salida', '퇴근'), 2);
         }
 
         // 5) no punch. On a non-scheduled day the person is simply off.
         if (! self::scheduledDay($team, $ymd)) {
-            return self::make('off', '휴무', '#9AA0A6', '#F4F3EF', '#B7B4AB', '', 6);
+            return self::make('off', $t('Off', 'Libre', '휴무'), '#9AA0A6', '#F4F3EF', '#B7B4AB', '', 6);
         }
 
         // scheduled day, no punch: past day → 무단결근 (end-of-day close should have
         // recorded it, but derive it too so the board is correct immediately);
         // today → 미출근 (before cutoff neutral, after cutoff a warning)
         if (! $isToday) {
-            return self::make('unexcused', '결근', '#C0392B', '#FBE9E7', '#D9483B', '무단 결근 · 미기록', 8);
+            return self::make('unexcused', $t('Absent', 'Ausente', '결근'), '#C0392B', '#FBE9E7', '#D9483B',
+                $t('No-call no-show · unrecorded', 'Falta sin registrar', '무단 결근 · 미기록'), 8);
         }
         $cutoff = self::cutoffMin($team, $sat);
         $nowMin = $now->hour * 60 + $now->minute;
         if ($nowMin >= $cutoff) {
-            return self::make('missing', '미출근', '#C0522B', '#FBEDE7', '#E8A33D',
-                Shift::fmtMin($cutoff).' 지나도 미출근', 4);
+            return self::make('missing', $t('Not in', 'Sin fichar', '미출근'), '#C0522B', '#FBEDE7', '#E8A33D',
+                Shift::fmtMin($cutoff).' '.$t('past, not in', 'pasó, sin fichar', '지나도 미출근'), 4);
         }
 
-        return self::make('pending', '미출근', '#9AA0A6', '#F4F3EF', '#B7B4AB', '출근 전', 6);
+        return self::make('pending', $t('Not in', 'Sin fichar', '미출근'), '#9AA0A6', '#F4F3EF', '#B7B4AB',
+            $t('before shift', 'antes del turno', '출근 전'), 6);
     }
 
     /** Is the crew scheduled to work this day? Sun never; Sat only with a Sat shift; Mon–Fri always. */

@@ -74,19 +74,42 @@
     {{-- ---- attendance by crew  +  needs attention ---- --}}
     <div class="wf-2col" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px;">
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
-            <div style="font-weight: 700; font-size: 15px; margin-bottom: 6px;">{{ $L['d_byteam'] }}</div>
+            <div style="font-weight: 700; font-size: 15px;">{{ $L['d_byteam'] }}</div>
+            {{-- one colour per status, used on every chip below --}}
+            <div style="display: flex; flex-wrap: wrap; gap: 9px 12px; margin: 10px 0 6px; padding-bottom: 13px; border-bottom: 1px solid #F0EEE8;">
+                @foreach([['#1F9D6B','st_working'],['#5A5D64','st_done'],['#E8A33D','st_early'],['#D9483B','st_absentee'],['#3B72E0','st_leave'],['#B7B4AB','st_missing'],['#A7A49B','st_resigned']] as [$cc,$k])
+                    <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #5A5D64; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{ $cc }};"></span>{{ $L[$k] }}</span>
+                @endforeach
+            </div>
             @forelse($d['companyStats'] as $co)
-                <div style="margin-top: 14px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 8px; border-bottom: 2px solid #EFECE6;">
-                        <span style="font-size: 13.5px; font-weight: 700; color: #16181D;">{{ $co['company'] }}</span>
-                        <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600; color: #1F9D6B;">{{ $co['present'] }}/{{ $co['total'] }} · {{ $co['pct'] }}%</span>
+                <div style="margin-top: 15px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 7px; border-bottom: 2px solid #EFECE6;">
+                        <span style="font-size: 13.5px; font-weight: 800; color: #16181D;">{{ $co['company'] }}</span>
+                        <span style="font-family: 'Space Grotesk'; font-size: 12px; font-weight: 700; color: #1F9D6B;">{{ $co['present'] }} {{ $L['st_working'] }} / {{ $co['total'] }}</span>
                     </div>
                     @foreach($co['teams'] as $tm)
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 6px; border-bottom: 1px solid #F5F3EE;">
-                            <span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $tm['color'] }}; flex-shrink: 0;"></span>
-                            <span style="flex: 1; min-width: 60px; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $tm['name'] }}</span>
-                            <span style="flex: 1.4; height: 7px; background: #F0EEE8; border-radius: 5px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ $tm['pct'] }}%; background: {{ $tm['color'] }}; border-radius: 5px;"></span></span>
-                            <span style="font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 600; width: 44px; text-align: right; flex-shrink: 0;">{{ $tm['present'] }}/{{ $tm['total'] }}</span>
+                        <div style="margin-top: 11px;">
+                            {{-- team header + colour-count tally: read the crew at a glance --}}
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="width: 9px; height: 9px; border-radius: 3px; background: {{ $tm['color'] }}; flex-shrink: 0;"></span>
+                                <span style="font-size: 13px; font-weight: 700;">{{ $tm['name'] }}</span>
+                                <span style="display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end;">
+                                    @foreach([['working','#E7F4EE','#1F9D6B'],['leave','#E9F1FB','#3B72E0'],['early','#FBF1DF','#C17A1A'],['unexcused','#FBE9E7','#C0392B'],['absent','#FBE9E7','#C0392B'],['missing','#FBEDE7','#C0522B']] as [$sk,$bg,$fg])
+                                        @if(($tm['tally'][$sk] ?? 0) > 0)<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; font-family: 'Space Grotesk'; padding: 2px 7px; border-radius: 7px; background: {{ $bg }}; color: {{ $fg }};">● {{ $tm['tally'][$sk] }}</span>@endif
+                                    @endforeach
+                                </span>
+                            </div>
+                            @foreach($tm['workers'] as $w)
+                                @php $st = $w['status']; @endphp
+                                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 4px 8px 17px; border-bottom: 1px solid #F5F3EE;">
+                                    <span style="width: 27px; height: 27px; border-radius: 50%; background: {{ $st['key']==='terminated' ? '#C7C4BB' : $tm['color'] }}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; font-family: 'Space Grotesk'; flex-shrink: 0;">{{ $w['initials'] }}</span>
+                                    <span style="flex: 1; min-width: 0;">
+                                        <span style="font-size: 13px; font-weight: 600; {{ $st['key']==='terminated' ? 'color:#A7A49B;text-decoration:line-through;text-decoration-color:#D8D5CD;' : '' }}">{{ $w['name'] }}</span>@if($w['pendingResign'] && $st['key']!=='terminated')<span style="margin-left: 6px; font-size: 10px; font-weight: 700; color: #8A6A2E; background: #FBF1DF; padding: 1px 6px; border-radius: 5px;">{{ $L['st_resignPending'] }}</span>@endif
+                                        @if($st['detail'])<span style="display: block; font-size: 11px; margin-top: 1px; color: {{ in_array($st['key'],['early','unexcused','absent','missing','leave']) ? $st['color'] : '#9A968C' }};">{{ $st['detail'] }}</span>@endif
+                                    </span>
+                                    <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; background: {{ $st['bg'] }}; color: {{ $st['color'] }};"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ $st['dot'] }};"></span>{{ $st['label'] }}</span>
+                                </div>
+                            @endforeach
                         </div>
                     @endforeach
                 </div>
@@ -99,7 +122,7 @@
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                 <div style="font-weight: 700; font-size: 15px;">{{ $L['d_attn'] }}</div>
-                @php $attn = $d['pendCount'] + $d['offCount']; @endphp
+                @php $attn = $d['pendCount'] + $d['offCount'] + count($d['repeatNoShow']); @endphp
                 @if($attn > 0)
                     <button wire:click="go('attendance')" style="font-size: 11.5px; font-weight: 700; color: #C0522B; background: #FBE9E7; border: none; padding: 3px 10px; border-radius: 999px; cursor: pointer;">{{ $attn }} · {{ $L['d_review'] }}</button>
                 @endif
@@ -110,6 +133,16 @@
                     <span style="font-size: 12.5px;">{{ $L['d_allClear'] }}</span>
                 </div>
             @else
+                @foreach($d['repeatNoShow'] as $r)
+                    {{-- repeat no-call-no-show (무단결근 N회) → resignation review --}}
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #F2F0EA;">
+                        <span style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #FBE0DC; color: #B02A1B; flex-shrink: 0;">{{ $L['d_noShow'] }}</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $r['name'] }}</div>
+                            <div style="font-size: 11.5px; color: #C0392B;">{{ $L['d_noShowMsg'] }} · <b>{{ $r['count'] }}{{ $L['d_noShowTimes'] }}</b> ({{ $d['noShowThreshold'] }}{{ $L['d_noShowTimes'] }}+)</div>
+                        </div>
+                    </div>
+                @endforeach
                 @foreach($d['pendList'] as $p)
                     <div style="display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #F2F0EA;">
                         <span style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #FBF1DF; color: #8A6A2E; flex-shrink: 0;">{{ $p['isDelete'] ? $L['d_delReq'] : $L['d_reqFix'] }}</span>
