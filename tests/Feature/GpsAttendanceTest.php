@@ -45,6 +45,43 @@ class GpsAttendanceTest extends TestCase
         $this->assertSame(8.0, (float) $p->in_acc);
     }
 
+    public function test_desk_clock_captures_and_flags_off_site_gps(): void
+    {
+        // office/admin self clock-ins used to capture no location at all
+        Employee::whereKey(103)->update(['site_id' => 's1']);
+        $today = now()->format('Y-m-d');
+
+        // clocking in from home (~7 km away) with a precise fix → flagged off-site
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')
+            ->call('doDeskClock', 33.85, -112.15, 12.0);
+
+        $p = Punch::where('employee_id', 103)->where('work_date', $today)->first();
+        $this->assertNotNull($p);
+        $this->assertFalse($p->in_geo_ok);
+        $this->assertSame(33.85, (float) $p->in_lat);
+    }
+
+    public function test_desk_clock_on_site_is_geo_ok(): void
+    {
+        Employee::whereKey(103)->update(['site_id' => 's1']);
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')
+            ->call('doDeskClock', 33.7838, -112.15, 8.0);
+
+        $p = Punch::where('employee_id', 103)->where('work_date', now()->format('Y-m-d'))->first();
+        $this->assertTrue($p->in_geo_ok);
+    }
+
+    public function test_desk_clock_without_location_is_recorded_but_unverified(): void
+    {
+        Employee::whereKey(103)->update(['site_id' => 's1']);
+        Livewire::test(WorkforceApp::class)->call('demo', 'admin')
+            ->call('doDeskClock', null, null, null);   // permission denied / no GPS chip
+
+        $p = Punch::where('employee_id', 103)->where('work_date', now()->format('Y-m-d'))->first();
+        $this->assertNotNull($p->in_min);   // still clocked in — never blocked
+        $this->assertNull($p->in_geo_ok);   // but recorded as unverified
+    }
+
     public function test_worker_clock_in_outside_radius_is_recorded_but_flagged(): void
     {
         $today = now()->format('Y-m-d');

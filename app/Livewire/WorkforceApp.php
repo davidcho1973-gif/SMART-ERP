@@ -668,7 +668,7 @@ class WorkforceApp extends Component
     }
 
     /** Clock the current admin/manager in or out (records a real punch, one in/out per day). */
-    public function doDeskClock(): void
+    public function doDeskClock(float|string|null $lat = null, float|string|null $lng = null, float|string|null $acc = null): void
     {
         if (! $this->canDeskClock()) {
             return;
@@ -691,16 +691,30 @@ class WorkforceApp extends Component
             return;
         }
         $nowMin = (int) now()->format('H') * 60 + (int) now()->format('i');
+        // geofence-verify the desk clock exactly like the mobile app. Office/admin
+        // self clock-ins used to capture no location at all, so clocking in from
+        // home went through unflagged. Never blocks — a denied/coarse fix is null.
+        $site = $emp->site_id ? Site::find($emp->site_id) : null;
+        $coords = Geo::coords($lat, $lng, $acc);
+        [, $geoOk] = Geo::verify($site, $coords);
         if ($p->in_min === null) {
             $p->in_min = $nowMin;
             $p->out_min = null;
             $p->source = 'self';
+            $p->in_lat = $coords['lat'] ?? null;
+            $p->in_lng = $coords['lng'] ?? null;
+            $p->in_acc = $coords['acc'] ?? null;
+            $p->in_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'present', 'in_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_in']);
         } else {
             $p->out_min = $nowMin;
             $p->source = 'self';
+            $p->out_lat = $coords['lat'] ?? null;
+            $p->out_lng = $coords['lng'] ?? null;
+            $p->out_acc = $coords['acc'] ?? null;
+            $p->out_geo_ok = $geoOk;
             $p->save();
             $emp->update(['status' => 'off', 'out_t' => Shift::fmtMin($nowMin)]);
             $this->showToast($d['w_done_out']);

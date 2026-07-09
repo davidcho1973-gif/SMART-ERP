@@ -54,6 +54,11 @@
                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2"/></svg>
                                     {{ $L['ts_offsite'] }}@if($r['geoDist'] !== null) ({{ $r['geoDist'] }}m)@endif
                                 </span>
+                            @elseif(!empty($r['geoUnverified']))
+                                <span title="{{ $L['ts_unverifiedHint'] }}" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #F1EFE9; color: #8A8880; vertical-align: middle;">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2"/><line x1="4" y1="3" x2="20" y2="21"/></svg>
+                                    {{ $L['ts_unverified'] }}
+                                </span>
                             @endif
                         </td>
                         <td style="padding: 11px 14px; font-family: 'Space Grotesk';">{{ $r['actIn'] }}</td>
