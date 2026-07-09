@@ -85,13 +85,25 @@ class ViewModel
             'unread' => $k === 'comms' ? $commsUnread : 0,
         ], $navKeys);
 
-        // field lead on the mobile app: crews they lead → extra "우리 팀" tab
+        // Field-lead mobile experience: an admin previewing the lead persona
+        // (previewEmpId set), OR a real non-office account on the phone (a 'manager'
+        // view ceiling). Both get the extra "우리 팀" crew tab — even when the lead
+        // currently has no crew members.
+        $previewLead = ($s['previewEmpId'] ?? null) !== null;
+        $isFieldLead = $s['role'] === 'worker'
+            && ($previewLead || ($s['access'] ?? 'worker') === 'manager');
         $mobileLeadTeamIds = [];
-        if ($s['role'] === 'worker') {
+        if ($isFieldLead) {
             $meId = $s['meEmployeeId'] ?? null;
             $mobileLeadTeamIds = $meId ? $teams->where('lead', $meId)->pluck('id')->all() : [];
+            // a field lead wired to no crew still manages their own team, if any
+            if ($mobileLeadTeamIds === [] && $meId) {
+                $me = $employees->firstWhere('id', $meId);
+                if ($me && $me->team_id && $teamById->get($me->team_id)) {
+                    $mobileLeadTeamIds = [$me->team_id];
+                }
+            }
         }
-        $isFieldLead = $mobileLeadTeamIds !== [];
 
         $mKeys = $isFieldLead ? ['home', 'work', 'crew', 'pay', 'me'] : ['home', 'work', 'pay', 'me'];
         $mobileTabs = array_map(fn ($k) => [
@@ -849,9 +861,7 @@ class ViewModel
         // Access hierarchy: which views this account may switch to (rank ≤ ceiling).
         // The middle rung is the field-lead mobile preview ('lead'), which replaced
         // the old desktop "manager" view — clicking it shows the crew-lead phone UI.
-        $rank = ['worker' => 1, 'lead' => 2, 'manager' => 2, 'admin' => 3];
         $access = $s['access'] ?? 'admin';
-        $previewLead = ($s['previewEmpId'] ?? null) !== null;
         $roleLabels = ['admin' => $L['roleAdmin'], 'lead' => $L['roleFieldLead'], 'worker' => $L['roleWorker']];
         $activeView = fn ($r) => match ($r) {
             'admin' => $s['role'] === 'admin',
@@ -859,12 +869,20 @@ class ViewModel
             'worker' => $s['role'] === 'worker' && ! $previewLead,
             default => false,
         };
-        $viewSwitch = [];
-        foreach (['admin', 'lead', 'worker'] as $r) {
-            if (($rank[$r] ?? 0) <= ($rank[$access] ?? 3)) {
-                $viewSwitch[] = ['role' => $r, 'label' => $roleLabels[$r], 'active' => $activeView($r)];
-            }
-        }
+        // Only 본사 어드민 (owner/hr_admin → 'admin' ceiling) may switch personas.
+        // Everyone else sees a single static badge of their own granted role, so
+        // the top bar never offers a tier above their permission: a 현장 팀장 sees
+        // 현장 팀장, a 작업자 sees 작업자.
+        $switchRoles = match ($access) {
+            'admin' => ['admin', 'lead', 'worker'],
+            'manager' => ['lead'],     // field lead → 현장 팀장 only
+            default => ['worker'],     // plain worker → 작업자 only
+        };
+        $viewSwitchable = count($switchRoles) > 1;
+        $viewSwitch = array_map(fn ($r) => [
+            'role' => $r, 'label' => $roleLabels[$r],
+            'active' => $viewSwitchable ? $activeView($r) : true,
+        ], $switchRoles);
 
         // Desktop self clock-in/out (any admin/manager, even before an employee
         // record is linked — the record is auto-created on first clock).
@@ -1010,7 +1028,7 @@ class ViewModel
             'deskClock' => $deskClock,
             'comms' => $comms,
             'bellOpen' => (bool) ($s['bellOpen'] ?? false),
-            'viewSwitch' => $viewSwitch,
+            'viewSwitch' => $viewSwitch, 'viewSwitchable' => $viewSwitchable,
             'access' => $access,
             'isDemo' => $isDemo,
             'authName' => $authUser?->name,

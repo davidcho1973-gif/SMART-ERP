@@ -752,25 +752,35 @@ class WorkforceApp extends Component
             $linked->update(['activated_at' => now()]);
         }
         $canon = Access::canonical($u->access);
-        // the access prop is the VIEW ceiling (admin·manager·worker screens);
-        // real capabilities always come from the stored role via actorRoles()
-        $this->access = match ($canon) {
-            'owner', 'hr_admin' => 'admin',
-            'site_manager', 'company_admin' => 'manager',
-            default => 'worker',
-        };
         $emp = $u->employee_id ? Employee::find($u->employee_id) : null;
-        // a crew lead works the field from their phone: anyone who leads a team
-        // gets the worker-mobile app (with a crew panel), not the desktop — except
-        // the top office roles (owner/hr_admin), who keep the admin desktop.
-        $fieldLead = $emp && Access::leadsTeams($emp) !== [] && ! in_array($canon, ['owner', 'hr_admin'], true);
-        if ($canon === 'worker' || $fieldLead) {
-            $this->access = 'worker';   // lock the view to mobile (no desktop switch)
-            $this->actorRolesMemo = null;
+        // Only the top office roles (owner/hr_admin) run the admin desktop. Every
+        // other account is a mobile user. A FIELD LEAD — any site/company/crew
+        // role, OR anyone wired as a crew's lead — gets the worker-mobile app WITH
+        // the "우리 팀" crew panel, even when their crew has no members yet; a plain
+        // worker gets it without. The access prop is only the VIEW ceiling (it
+        // drives the top-bar role badge); real capabilities come from actorRoles().
+        // Keeping a field lead at 'manager' makes the badge read 현장 팀장 (not
+        // 작업자), while both mobile views stay locked to the phone.
+        $isOffice = in_array($canon, ['owner', 'hr_admin'], true);
+        $fieldLead = ! $isOffice && (
+            in_array($canon, ['site_manager', 'company_admin', 'crew_lead'], true)
+            || ($emp && Access::leadsTeams($emp) !== [])
+        );
+        $this->access = $isOffice ? 'admin' : ($fieldLead ? 'manager' : 'worker');
+        $this->actorRolesMemo = null;
+        if ($isOffice) {
+            $this->role = 'admin';
+            $this->screen = 'dashboard';
+            // the linked employee's registered language is the app default
+            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true) ? $emp->lang : 'en';
+            $this->pinSiteToScope();
+        } else {
             $this->role = 'worker';
             $this->screen = 'worker';
             $this->mobileTab = 'home';
-            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true) ? $emp->lang : 'es';
+            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true)
+                ? $emp->lang
+                : ($fieldLead ? 'ko' : 'es');
             Comms::ensureRooms();   // worker home board reads announcements + their rooms
             // restore today's clock state from the punch record (out · in · done)
             $p = $this->todayPunch($this->meEmployeeId());
@@ -779,16 +789,6 @@ class WorkforceApp extends Component
                 $this->clockInTime = Shift::fmtMin($p->in_min);
                 $this->noLunchToday = $p->no_lunch;
             }
-        } else {
-            $this->actorRolesMemo = null;
-            $this->role = $this->access;
-            $this->screen = 'dashboard';
-            // the linked employee's registered language is the app default;
-            // fall back to the old role-based guess when there is no record
-            $this->lang = in_array($emp?->lang, ['en', 'es', 'ko'], true)
-                ? $emp->lang
-                : ($canon === 'site_manager' ? 'ko' : 'en');
-            $this->pinSiteToScope();
         }
     }
 
