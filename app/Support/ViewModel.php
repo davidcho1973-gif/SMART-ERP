@@ -86,16 +86,19 @@ class ViewModel
         ], $navKeys);
 
         // Field-lead mobile experience: an admin previewing the lead persona
-        // (previewEmpId set), OR a real non-office account on the phone (a 'manager'
-        // view ceiling). Both get the extra "우리 팀" crew tab — even when the lead
-        // currently has no crew members.
+        // (previewEmpId set), a non-office account on the phone (a 'manager' view
+        // ceiling), OR anyone who leads a crew RIGHT NOW. The live lead check means
+        // a worker who is newly made a crew's lead sees the "우리 팀" tab appear on
+        // the next render — no re-login needed. The tab shows even with 0 members.
+        $onMobile = $s['role'] === 'worker';
+        $meId = $s['meEmployeeId'] ?? null;
+        $leadsCrewNow = ($onMobile && $meId) ? $teams->where('lead', $meId)->pluck('id')->all() : [];
         $previewLead = ($s['previewEmpId'] ?? null) !== null;
-        $isFieldLead = $s['role'] === 'worker'
-            && ($previewLead || ($s['access'] ?? 'worker') === 'manager');
+        $isFieldLead = $onMobile
+            && ($previewLead || ($s['access'] ?? 'worker') === 'manager' || $leadsCrewNow !== []);
         $mobileLeadTeamIds = [];
         if ($isFieldLead) {
-            $meId = $s['meEmployeeId'] ?? null;
-            $mobileLeadTeamIds = $meId ? $teams->where('lead', $meId)->pluck('id')->all() : [];
+            $mobileLeadTeamIds = $leadsCrewNow;
             // a field lead wired to no crew still manages their own team, if any
             if ($mobileLeadTeamIds === [] && $meId) {
                 $me = $employees->firstWhere('id', $meId);
@@ -872,8 +875,10 @@ class ViewModel
         // Only 본사 어드민 (owner/hr_admin → 'admin' ceiling) may switch personas.
         // Everyone else sees a single static badge of their own granted role, so
         // the top bar never offers a tier above their permission: a 현장 팀장 sees
-        // 현장 팀장, a 작업자 sees 작업자.
-        $switchRoles = match ($access) {
+        // 현장 팀장, a 작업자 sees 작업자. A worker just promoted to crew lead shows
+        // the 현장 팀장 badge live, even though their login-time ceiling is 'worker'.
+        $badgeTier = ($access === 'worker' && $leadsCrewNow !== []) ? 'manager' : $access;
+        $switchRoles = match ($badgeTier) {
             'admin' => ['admin', 'lead', 'worker'],
             'manager' => ['lead'],     // field lead → 현장 팀장 only
             default => ['worker'],     // plain worker → 작업자 only
