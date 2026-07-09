@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CommsFileController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\TimesheetExportController;
@@ -22,6 +23,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
 // Opened when a worker scans a posted crew/site QR with their phone.
 Route::get('/scan/{team}', ScanClock::class)->middleware('auth');
+
+// Internal-comms attachment — streamed only to members of the channel.
+Route::get('/comms/file/{message}', CommsFileController::class)->middleware('auth');
 
 // Public self-service sign-up opened from a printed site QR (no auth).
 Route::get('/join/{token}', JoinForm::class);
