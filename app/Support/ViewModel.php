@@ -233,26 +233,9 @@ class ViewModel
         }
         $pendCount = $pendCorr->count();
 
-        // per-site summary cards (site-centric roll-up)
-        $offBySite = collect($offList)->groupBy('siteId')->map->count();
-        $cardSites = $s['site'] === 'all' ? $visibleSites : $visibleSites->where('id', $s['site']);
-        $dashSiteCards = $cardSites->map(function ($st) use ($activeAll, $offBySite, $pendCorr, $grossFor) {
-            $emps = $activeAll->filter(fn ($e) => $e->site_id === $st->id);
-            $onsite = $emps->filter(fn ($e) => in_array($e->status, ['present', 'late'], true))->count();
-            $total = $emps->count();
-            $pay = $emps->sum($grossFor);
-
-            return [
-                'name' => $st->name, 'city' => $st->city,
-                'onsite' => $onsite, 'total' => $total,
-                'pct' => $total ? (int) round($onsite / $total * 100) : 0,
-                'crews' => $emps->pluck('team_id')->filter()->unique()->count(),
-                'off' => (int) ($offBySite[$st->id] ?? 0),
-                'fixes' => $pendCorr->where('siteId', $st->id)->count(),
-                'pay' => Money::usd($pay),
-                'hasGeo' => $st->lat !== null,
-            ];
-        })->values()->all();
+        // per-site summary cards — hidden on the dashboard by request; the
+        // dashboard leads with the top KPI row + attendance-by-crew instead
+        $dashSiteCards = [];
 
         // ---- employees ----
         $q = strtolower(trim($s['search']));
