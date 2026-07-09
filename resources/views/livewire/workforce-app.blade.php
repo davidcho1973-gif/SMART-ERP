@@ -32,8 +32,8 @@
     {{-- ===== DEMO CONTROL BAR ===== --}}
     <div class="wf-topbar" style="position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: rgba(22,24,29,0.96); color: #fff; backdrop-filter: blur(8px); flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: 0.02em;">
-            <span style="display: inline-flex; width: 26px; height: 26px; border-radius: 7px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 15px; font-weight: 700;">N</span>
-            <span style="font-family: 'Space Grotesk'; font-size: 15px;">NAHSHON MEP</span>
+            <img src="{{ asset('images/nahshon-mark.svg') }}" alt="NAHSHON MEP" style="width: 26px; height: 26px; display: block;"/>
+            <span style="font-family: 'Space Grotesk'; font-size: 15px;">NAHSHON <span style="color: #E5403E;">MEP</span></span>
             <span class="wf-tagline" style="font-size: 11px; opacity: 0.5; font-weight: 400;">{{ $L['tagline'] }}</span>
             @if(! $isLogin && $isDesktopApp)
                 <span class="wf-topdate" style="display: inline-flex; align-items: center; gap: 7px; margin-left: 8px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.78); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.13); padding: 5px 12px; border-radius: 8px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #4ADE80;"></span>{{ $today }}</span>

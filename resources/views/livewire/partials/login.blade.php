@@ -4,8 +4,8 @@
 
         {{-- logo --}}
         <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 22px;">
-            <span style="display: inline-flex; width: 52px; height: 52px; border-radius: 14px; background: #E85D2A; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-size: 28px; font-weight: 700; color: #fff;">N</span>
-            <span style="font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700; letter-spacing: 0.01em;">NAHSHON MEP</span>
+            <img src="{{ asset('images/nahshon-mark.svg') }}" alt="NAHSHON MEP" style="width: 52px; height: 52px; display: block;"/>
+            <span style="font-family: 'Space Grotesk'; font-size: 18px; font-weight: 700; letter-spacing: 0.01em;">NAHSHON <span style="color: #E5403E;">MEP</span></span>
         </div>
 
         <h2 style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; text-align: center;">{{ $L['signInTitle'] }}</h2>
