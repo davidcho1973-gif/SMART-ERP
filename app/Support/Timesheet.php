@@ -75,7 +75,7 @@ class Timesheet
 
             // off-site flag: any punch leg recorded outside the site geofence.
             // Distance is recomputed from stored coords for the reviewer badge.
-            [$geoOff, $geoDist] = self::geoReview($realPunch, $sites->get($e->site_id));
+            [$geoOff, $geoDist, $geoUnverified] = self::geoReview($realPunch, $sites->get($e->site_id));
 
             // the punch snapshot (crew/company at clock time) wins over the
             // person's CURRENT crew — moving teams later must not rewrite this day
@@ -101,7 +101,7 @@ class Timesheet
                 'onDuty' => $p !== null && $p->in_min !== null && $p->out_min === null,
                 'adjusted' => $settled['adjusted'] ?? false,
                 'shiftLabel' => $dayShift,
-                'geoOff' => $geoOff, 'geoDist' => $geoDist,
+                'geoOff' => $geoOff, 'geoDist' => $geoDist, 'geoUnverified' => $geoUnverified,
             ];
         }
 
@@ -116,7 +116,7 @@ class Timesheet
     protected static function geoReview(?Punch $p, ?Site $site): array
     {
         if (! $p) {
-            return [false, null];
+            return [false, null, false];
         }
         $off = false;
         $dist = null;
@@ -129,8 +129,16 @@ class Timesheet
                 }
             }
         }
+        // "unverified": the site HAS a geofence but a clock leg could not be
+        // confirmed on-site (null verdict — location denied, unavailable, or too
+        // coarse). Not off-site, but not proven on-site either.
+        $hasFence = $site && $site->lat !== null && $site->lng !== null;
+        $unverified = ! $off && $hasFence && (
+            ($p->in_min !== null && $p->in_geo_ok !== true)
+            || ($p->out_min !== null && $p->out_geo_ok !== true)
+        );
 
-        return [$off, $dist !== null ? (int) round($dist) : null];
+        return [$off, $dist !== null ? (int) round($dist) : null, $unverified];
     }
 
     /** Assemble the timesheet return payload. */
