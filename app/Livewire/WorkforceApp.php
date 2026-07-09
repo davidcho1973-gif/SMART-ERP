@@ -15,6 +15,7 @@ use App\Models\Payment;
 use App\Models\Punch;
 use App\Models\Site;
 use App\Models\Team;
+use App\Models\User;
 use App\Services\BadgeAnalyzer;
 use App\Services\ReportFormatter;
 use App\Support\Access;
@@ -102,6 +103,9 @@ class WorkforceApp extends Component
     public string $loginEmail = '';
 
     public string $loginPassword = '';
+
+    /** owner-typed login password for the open employee (set-password panel) */
+    public string $empPassword = '';
 
     // ---- badge wizard ----
     public string $bstep = 'front';
@@ -1624,6 +1628,55 @@ class WorkforceApp extends Component
         }
         $this->selectedEmp = null;
         $this->showToast($this->dict()['e_save'].' ✓');
+    }
+
+    /**
+     * Owner-only: set a login password for an employee's account so they can sign
+     * in with email + password (no Google needed — e.g. an owner with no Gmail).
+     * Creates the User if absent, else updates it; the User's 'hashed' cast hashes.
+     */
+    public function setEmpPassword(): void
+    {
+        $d = $this->dict();
+        if (! $this->can('users.password')) {
+            return;   // owner only
+        }
+        $e = Employee::find($this->selectedEmp);
+        if (! $e) {
+            return;
+        }
+        $email = trim((string) $e->email);
+        if ($email === '') {
+            $this->showToast($d['e_pwNeedEmail']);   // give them a login email first
+
+            return;
+        }
+        if (strlen($this->empPassword) < 8) {
+            $this->showToast($d['e_pwTooShort']);
+
+            return;
+        }
+        $user = User::where('email', $email)->first();
+        $name = trim($e->first.' '.$e->last);
+        if ($user) {
+            $user->update([
+                'password' => $this->empPassword,   // hashed by the model cast
+                'access' => $e->access,
+                'employee_id' => $e->id,
+                'name' => $name !== '' ? $name : $user->name,
+            ]);
+        } else {
+            User::create([
+                'name' => $name !== '' ? $name : $email,
+                'email' => $email,
+                'password' => $this->empPassword,
+                'access' => $e->access,
+                'employee_id' => $e->id,
+            ]);
+        }
+        $this->audit('user.password_set', $name.' (#'.$e->id.')', $email);
+        $this->empPassword = '';
+        $this->showToast($d['e_pwDone'].' ✓');
     }
 
     public function askDelete(int $id): void
@@ -3431,6 +3484,7 @@ class WorkforceApp extends Component
                 'attendanceAdjust' => Access::allows($this->actorRoles(), 'attendance.adjust'),
                 'shiftsManage' => Access::allows($this->actorRoles(), 'shifts.manage'),
                 'rolesAssign' => $this->can('roles.assign'),
+                'usersPassword' => Access::allows($this->actorRoles(), 'users.password'),
                 'auditView' => $this->correctionsGlobal(),
                 'assignableRoles' => Access::assignable($this->primaryRole()),
             ],
