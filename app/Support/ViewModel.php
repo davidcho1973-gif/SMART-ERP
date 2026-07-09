@@ -367,6 +367,7 @@ class ViewModel
                 'companies' => $companyList, 'phone' => $e->phone, 'email' => $e->email,
                 'role' => $e->role, 'rate' => $e->rate,
                 'statusLabel' => $L['st_'.$e->status], 'statusColor' => $stColor[$e->status], 'statusBg' => $stBg[$e->status],
+                'dispatched' => $e->isDispatched(), 'dispatchTo' => (string) ($e->dispatch_to ?? ''),
                 'typeLabel' => $e->type === 'manager' ? $L['e_manager'] : $L['e_worker'],
                 'payTypeLabel' => $L['b_pt'.ucfirst($e->pay_type ?? 'hourly')] ?? '',
                 'payTypeCalc' => in_array($e->pay_type, ['hourly', 'both'], true),
@@ -722,6 +723,9 @@ class ViewModel
             'empId' => $me->emp_id, 'phone' => $me->phone, 'email' => $me->email, 'issued' => $me->issued,
             'rate' => Money::rate($me->rate), 'reg' => $fmtH($meB['reg']), 'ot' => $fmtH($meB['ot']), 'hours' => $fmtH($meB['total']),
             'gross' => Money::usd($wGross), 'net' => Money::usd($wGross), 'access' => $L['access_'.$me->access] ?? $me->access,
+            'dispatched' => $me->isDispatched(), 'dispatchTo' => (string) ($me->dispatch_to ?? ''),
+            'dispatchNote' => (string) ($me->dispatch_note ?? ''),
+            'dispatchRange' => trim(((string) ($me->dispatch_from ?? '')).(($me->dispatch_from || $me->dispatch_until) ? ' – ' : '').((string) ($me->dispatch_until ?? ''))),
         ];
 
         // authenticated user with no linked employee (e.g. admin previewing the

@@ -81,6 +81,15 @@ class WorkforceApp extends Component
 
     public string $invCompany = '';
 
+    /** out-of-state dispatch (파견) for an invited employee */
+    public string $invDispatchTo = '';
+
+    public string $invDispatchFrom = '';
+
+    public string $invDispatchUntil = '';
+
+    public string $invDispatchNote = '';
+
     public string $teamFilter = 'all';
 
     public string $search = '';
@@ -144,6 +153,15 @@ class WorkforceApp extends Component
     public string $regPhone = '';
 
     public string $regEmail = '';
+
+    /** out-of-state dispatch (파견) for a newly registered employee */
+    public string $regDispatchTo = '';
+
+    public string $regDispatchFrom = '';
+
+    public string $regDispatchUntil = '';
+
+    public string $regDispatchNote = '';
 
     /** NFC UID captured by Web NFC or typed manually */
     public string $nfcUidManual = '';
@@ -1408,6 +1426,8 @@ class WorkforceApp extends Component
             'lang' => in_array($e->lang, ['en', 'es', 'ko'], true) ? $e->lang : 'es',
             'issued' => $e->issued, 'phone' => $e->phone, 'email' => $e->email,
             'nat' => in_array($e->nat, ['LOCAL', '한국인'], true) ? $e->nat : '', 'access' => $e->access,
+            'dispatch_to' => (string) ($e->dispatch_to ?? ''), 'dispatch_from' => (string) ($e->dispatch_from ?? ''),
+            'dispatch_until' => (string) ($e->dispatch_until ?? ''), 'dispatch_note' => (string) ($e->dispatch_note ?? ''),
         ];
     }
 
@@ -1562,10 +1582,11 @@ class WorkforceApp extends Component
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0,
             'emp' => 'active', 'term' => null,
             'activated_at' => null,   // invited — flips to active on first login
-        ]);
+        ] + $this->dispatchPayload($this->invDispatchTo, $this->invDispatchFrom, $this->invDispatchUntil, $this->invDispatchNote));
         $this->audit('employee.invite', trim($e->first.' '.$e->last).' (#'.$e->id.')', $email.' · '.$granted);
         $this->inviteOpen = false;
         $this->empFilter = 'active';
+        $this->reset(['invFirst', 'invLast', 'invEmail', 'invPhone', 'invDispatchTo', 'invDispatchFrom', 'invDispatchUntil', 'invDispatchNote']);
         $this->showToast($d['inv_sent']);
     }
 
@@ -1616,7 +1637,12 @@ class WorkforceApp extends Component
                 'email' => $this->editForm['email'] ?? $e->email,
                 'nat' => $this->editForm['nat'] ?? $e->nat,
                 'access' => $granted,
-            ]);
+            ] + $this->dispatchPayload(
+                (string) ($this->editForm['dispatch_to'] ?? ''),
+                (string) ($this->editForm['dispatch_from'] ?? ''),
+                (string) ($this->editForm['dispatch_until'] ?? ''),
+                (string) ($this->editForm['dispatch_note'] ?? ''),
+            ));
             if ($granted !== $prevAccess) {
                 $this->audit('role.grant', $e->first.' '.$e->last.' (#'.$e->id.')', $prevAccess.' → '.$granted);
             }
@@ -2313,6 +2339,26 @@ class WorkforceApp extends Component
         $this->regAccess = $lvl;
     }
 
+    /**
+     * Normalize the 파견 (out-of-state dispatch) form inputs into employee columns.
+     * An empty destination clears the whole dispatch (not currently dispatched).
+     */
+    protected function dispatchPayload(string $to, string $from, string $until, string $note): array
+    {
+        $to = trim($to);
+        if ($to === '') {
+            return ['dispatch_to' => null, 'dispatch_from' => null, 'dispatch_until' => null, 'dispatch_note' => null];
+        }
+        $ymd = fn (string $v) => preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($v)) ? trim($v) : null;
+
+        return [
+            'dispatch_to' => $to,
+            'dispatch_from' => $ymd($from),
+            'dispatch_until' => $ymd($until),
+            'dispatch_note' => trim($note) ?: null,
+        ];
+    }
+
     public function finishBadge(): void
     {
         if (! $this->can('employees.register', Team::find($this->regTeam))) {
@@ -2357,13 +2403,13 @@ class WorkforceApp extends Component
             'badge_qr' => trim($this->backQrValue) ?: null,
             'badge_photo' => $this->facePhotoData ?: null,
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0, 'emp' => 'active', 'term' => null,
-        ]);
+        ] + $this->dispatchPayload($this->regDispatchTo, $this->regDispatchFrom, $this->regDispatchUntil, $this->regDispatchNote));
         $this->screen = 'employees';
         $this->bstep = 'front';
         $this->scanF = $this->scanB = $this->scanN = 'idle';
         $this->reset(['regFirst', 'regLast', 'regCoName', 'regRoleTitle', 'regIssued',
             'regRate', 'regPhone', 'regEmail', 'nfcUidManual', 'badgePhoto', 'backQrValue', 'backQrPhoto', 'backManual',
-            'facePhotoData', 'faceBox']);
+            'facePhotoData', 'faceBox', 'regDispatchTo', 'regDispatchFrom', 'regDispatchUntil', 'regDispatchNote']);
         $this->showToast($d['b_finish'].' ✓');
     }
 
@@ -3048,10 +3094,20 @@ class WorkforceApp extends Component
         $this->statusSheet = '';
     }
 
+    /**
+     * The employee filing a self-report. A field worker/lead is their punch
+     * identity; a desktop admin/staff is their self record (created on first use),
+     * so admins can report their own 휴가/퇴사/결근 too.
+     */
+    protected function selfReportEmployeeId(): ?int
+    {
+        return $this->clockableEmployeeId() ?? $this->ensureSelfEmployee();
+    }
+
     /** Report an excused absence for TODAY (call-in) — takes effect immediately. */
     public function reportAbsent(): void
     {
-        $eid = $this->clockableEmployeeId();
+        $eid = $this->selfReportEmployeeId();
         if ($eid === null) {
             return;
         }
@@ -3075,7 +3131,7 @@ class WorkforceApp extends Component
     /** File a leave request (휴가 신청) — pending until a lead/manager approves. */
     public function saveLeave(): void
     {
-        $eid = $this->clockableEmployeeId();
+        $eid = $this->selfReportEmployeeId();
         if ($eid === null) {
             return;
         }
@@ -3098,7 +3154,7 @@ class WorkforceApp extends Component
     /** File a resignation notice (퇴사 신청) — pending until admin approves. */
     public function saveResign(): void
     {
-        $eid = $this->clockableEmployeeId();
+        $eid = $this->selfReportEmployeeId();
         if ($eid === null) {
             return;
         }

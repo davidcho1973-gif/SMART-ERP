@@ -65,8 +65,35 @@
                     @endif
                 </div>
             @endif
+
+            {{-- self-report status (휴가·퇴사·결근) for admins/staff, same as the mobile app --}}
+            @if($deskClock['show'] ?? false)
+                <div x-data="{ open: false }" @click.outside="open = false" style="position: relative;">
+                    <button @click="open = !open" type="button" style="display: flex; align-items: center; gap: 7px; background: #fff; border: 1px solid #E4E2DB; border-radius: 10px; padding: 8px 13px; font-size: 12.5px; font-weight: 700; color: #C0641F; cursor: pointer;">
+                        <span>🗓️</span>{{ $L['w_st_title'] }}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div x-show="open" x-transition style="position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: 300px; background: #fff; border: 1px solid #E4E2DB; border-radius: 14px; box-shadow: 0 12px 30px rgba(22,24,29,0.14); padding: 12px;" x-cloak>
+                        <div style="font-size: 11px; color: #A7A49B; padding: 2px 4px 10px;">{{ $L['w_st_sub'] }}</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                            @unless($deskClock['isIn'] ?? false)
+                                <button @click="open = false" wire:click="openStatusSheet('absent')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 6px; border-radius: 12px; border: 1.5px solid #F3CFC9; background: #FDF6F5; cursor: pointer; font-size: 12px; font-weight: 700; color: #16181D;">
+                                    <span style="width: 28px; height: 28px; border-radius: 8px; background: #FBE9E7; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></span>{{ $L['w_st_absent'] }}
+                                </button>
+                            @endunless
+                            <button @click="open = false" wire:click="openStatusSheet('leave')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 6px; border-radius: 12px; border: 1.5px solid #CBDBF5; background: #F6F9FE; cursor: pointer; font-size: 12px; font-weight: 700; color: #16181D;">
+                                <span style="width: 28px; height: 28px; border-radius: 8px; background: #E9F1FB; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2"><path d="M3 8h18M7 3v3M17 3v3M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/></svg></span>{{ $L['w_st_leave'] }}
+                            </button>
+                            <button @click="open = false" wire:click="openStatusSheet('resign')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 6px; border-radius: 12px; border: 1.5px solid #DDD9CF; background: #FAFAF8; cursor: pointer; font-size: 12px; font-weight: 700; color: #16181D;">
+                                <span style="width: 28px; height: 28px; border-radius: 8px; background: #ECEBE6; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6E76" stroke-width="2"><path d="M16 17l5-5-5-5M21 12H9M13 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/></svg></span>{{ $L['w_st_resign'] }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            @endif
             {{-- bell and date now live in the top bar (next to the language switcher / logo) --}}
         </div>
+        @include('livewire.partials.status-sheets')
 
         <div class="wf-content" style="flex: 1; padding: 26px 30px; overflow: auto;">
             @if($screen === 'dashboard')

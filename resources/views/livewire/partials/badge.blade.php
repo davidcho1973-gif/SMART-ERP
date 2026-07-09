@@ -202,6 +202,7 @@
                     </div>
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_phone'] }}</span><input wire:model.blur="regPhone" placeholder="(480) 555-0000" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
                     <label><span style="font-size: 12.5px; color: #8A8880;">{{ $L['b_email'] }}</span><input wire:model.blur="regEmail" placeholder="name@nahshon.io" style="width: 100%; margin-top: 6px; padding: 11px 13px; border: 1px solid #E4E2DB; border-radius: 10px; font-size: 14px; outline: none;"/></label>
+                    @include('livewire.partials.dispatch-fields', ['mTo' => 'regDispatchTo', 'mFrom' => 'regDispatchFrom', 'mUntil' => 'regDispatchUntil', 'mNote' => 'regDispatchNote'])
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 26px;">
                     <button wire:click="backToBack" style="padding: 14px 20px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['b_back'] }}</button>
