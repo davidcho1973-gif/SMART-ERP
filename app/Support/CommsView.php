@@ -101,6 +101,11 @@ class CommsView
                         'color' => $colorOf($sender),
                         'body' => $m->body,
                         'time' => self::shortTime($m->created_at),
+                        'hasFile' => $m->hasFile(),
+                        'isImage' => $m->isImage(),
+                        'fileName' => $m->att_name,
+                        'fileSize' => $m->hasFile() ? \App\Support\Attach::human($m->att_size) : '',
+                        'fileUrl' => $m->hasFile() ? url('/comms/file/'.$m->id) : '',
                     ];
                 })->all();
 
@@ -229,6 +234,7 @@ class CommsView
 
         return [
             'me' => ['id' => $me->id, 'name' => $me->displayName($lang), 'initials' => $me->initials()],
+            'filesEnabled' => \App\Support\Attach::enabled(),
             'groups' => $groups,
             'active' => $active,
             'bell' => $bell,
@@ -291,6 +297,11 @@ class CommsView
                 'compose' => self::tl($lang, 'Write a message…', 'Escribe un mensaje…', '메시지 입력…'),
                 'announce' => self::tl($lang, 'Post announcement…', 'Publicar anuncio…', '공지 작성…'),
                 'send' => self::tl($lang, 'Send', 'Enviar', '보내기'),
+                'attach' => self::tl($lang, 'Attach a file', 'Adjuntar archivo', '파일 첨부'),
+                'attachHint' => self::tl($lang, 'Images 10 MB · documents 25 MB', 'Imágenes 10 MB · documentos 25 MB', '이미지 10MB · 문서 25MB'),
+                'download' => self::tl($lang, 'Download', 'Descargar', '내려받기'),
+                'attaching' => self::tl($lang, 'Attaching…', 'Adjuntando…', '첨부 중…'),
+                'removeFile' => self::tl($lang, 'Remove', 'Quitar', '제거'),
                 'empty' => self::tl($lang, 'No messages yet — say hello.', 'Aún no hay mensajes.', '아직 메시지가 없어요.'),
                 'bellEmpty' => self::tl($lang, 'All caught up', 'Todo al día', '새 알림이 없어요'),
                 'bellTitle' => self::tl($lang, 'Notifications', 'Notificaciones', '알림'),
