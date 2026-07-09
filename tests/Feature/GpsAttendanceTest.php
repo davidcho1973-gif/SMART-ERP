@@ -229,7 +229,7 @@ class GpsAttendanceTest extends TestCase
             ->call('demo', 'admin')
             ->call('openSiteModal', 's3')          // s3 has no geofence
             ->assertSet('siteLat', '')
-            ->assertSet('siteRadius', '150');       // Geo::DEFAULT_RADIUS_M
+            ->assertSet('siteRadius', '500');       // Geo::DEFAULT_RADIUS_M
     }
 
     public function test_attendance_records_show_offsite_badge(): void
