@@ -62,7 +62,7 @@
                                                 navigator.geolocation.getCurrentPosition(
                                                     p => go(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
                                                     () => go(null, null, null),
-                                                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                                                    { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
                                                 );
                                             } else { go(null, null, null); }
                                         "
@@ -142,7 +142,7 @@
                                         navigator.geolocation.getCurrentPosition(
                                             p => send(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
                                             () => send(null, null, null),
-                                            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+                                            { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
                                     } else { send(null, null, null); }
                                 },
                                 stop() {

@@ -75,7 +75,7 @@ class Timesheet
 
             // off-site flag: any punch leg recorded outside the site geofence.
             // Distance is recomputed from stored coords for the reviewer badge.
-            [$geoOff, $geoDist, $geoUnverified] = self::geoReview($realPunch, $sites->get($e->site_id));
+            [$geoOff, $geoDist, $geoUnverified, $geoReason] = self::geoReview($realPunch, $sites->get($e->site_id));
 
             // the punch snapshot (crew/company at clock time) wins over the
             // person's CURRENT crew — moving teams later must not rewrite this day
@@ -101,7 +101,7 @@ class Timesheet
                 'onDuty' => $p !== null && $p->in_min !== null && $p->out_min === null,
                 'adjusted' => $settled['adjusted'] ?? false,
                 'shiftLabel' => $dayShift,
-                'geoOff' => $geoOff, 'geoDist' => $geoDist, 'geoUnverified' => $geoUnverified,
+                'geoOff' => $geoOff, 'geoDist' => $geoDist, 'geoUnverified' => $geoUnverified, 'geoReason' => $geoReason,
             ];
         }
 
@@ -111,12 +111,13 @@ class Timesheet
     /**
      * Off-site review for a punch: was any leg recorded outside the site geofence?
      *
-     * @return array{0: bool, 1: int|null} [off-site flag, worst distance in metres]
+     * @return array{0: bool, 1: int|null, 2: bool, 3: string|null}
+     *         [off-site flag, worst distance (m), unverified flag, unverified reason]
      */
     protected static function geoReview(?Punch $p, ?Site $site): array
     {
         if (! $p) {
-            return [false, null, false];
+            return [false, null, false, null];
         }
         $off = false;
         $dist = null;
@@ -130,15 +131,30 @@ class Timesheet
             }
         }
         // "unverified": the site HAS a geofence but a clock leg could not be
-        // confirmed on-site (null verdict — location denied, unavailable, or too
-        // coarse). Not off-site, but not proven on-site either.
+        // confirmed on-site (null verdict). Report WHY, from the failing leg:
+        //  · nolocation — no coordinate captured (permission denied or GPS timeout)
+        //  · coarse     — a fix came back but its accuracy is too poor to trust
+        //  · straddle   — the accuracy circle overlaps the fence (near the edge)
         $hasFence = $site && $site->lat !== null && $site->lng !== null;
-        $unverified = ! $off && $hasFence && (
-            ($p->in_min !== null && $p->in_geo_ok !== true)
-            || ($p->out_min !== null && $p->out_geo_ok !== true)
-        );
+        $unverified = false;
+        $reason = null;
+        if ($hasFence && ! $off) {
+            foreach ([['in_min', 'in_geo_ok', 'in_lat', 'in_acc'], ['out_min', 'out_geo_ok', 'out_lat', 'out_acc']] as [$minC, $okC, $latC, $accC]) {
+                if ($p->$minC !== null && $p->$okC !== true) {
+                    $unverified = true;
+                    if ($p->$latC === null) {
+                        $reason = 'nolocation';
+                    } elseif ($p->$accC === null || $p->$accC > Geo::MAX_TRUSTED_ACC_M) {
+                        $reason = 'coarse';
+                    } else {
+                        $reason = 'straddle';
+                    }
+                    break;
+                }
+            }
+        }
 
-        return [$off, $dist !== null ? (int) round($dist) : null, $unverified];
+        return [$off, $dist !== null ? (int) round($dist) : null, $unverified, $reason];
     }
 
     /** Assemble the timesheet return payload. */
