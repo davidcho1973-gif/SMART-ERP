@@ -1359,12 +1359,9 @@ class WorkforceApp extends Component
         $this->selectedEmp = $id;
         $this->reset(['newAssignCompany', 'newAssignTeam']);
         $this->newAssignRelation = '파견';
-        // repair a stale/invalid team (e.g. left over from cleared demo ids) so the
-        // drawer shows a real selection and a plain Save persists it
-        $teamId = $e->team_id;
-        if ($teamId !== null && ! Team::find($teamId)) {
-            $teamId = Team::first()?->id;
-        }
+        // show the true team; an unset/stale team_id resolves to "미배정" (empty
+        // option) rather than silently defaulting to the first crew in the list
+        $teamId = ($e->team_id !== null && Team::find($e->team_id)) ? $e->team_id : '';
         $teamModel = $teamId ? Team::find($teamId) : null;
         $companyId = $teamModel?->company_id
             ?? (($e->company_id && Company::find($e->company_id)) ? $e->company_id : null);
@@ -1559,8 +1556,10 @@ class WorkforceApp extends Component
         $e = Employee::find($this->selectedEmp);
         if ($e) {
             $type = $this->editForm['type'] ?? 'worker_local';
-            // the crew determines the company (a crew belongs to exactly one company)
+            // the crew determines the company (a crew belongs to exactly one company);
+            // an empty selection means "미배정" and persists as null, not ''
             $teamId = $this->editForm['team'] ?? $e->team_id;
+            $teamId = ($teamId === '' || $teamId === null) ? null : $teamId;
             $teamModel = $teamId ? Team::find($teamId) : null;
             $company = $teamModel?->company_id ?? ($this->editForm['company'] ?? $e->company_id);
             $prevAccess = $e->access;

@@ -51,7 +51,7 @@ class ViewModel
         $companyById = $companies->keyBy('id');
         $siteById = $sites->keyBy('id');
 
-        $teamName = fn ($tid) => optional($teamById->get($tid))->name ?? '—';
+        $teamName = fn ($tid) => optional($teamById->get($tid))->name ?? $L['e_unassigned'];
         $companyName = fn ($cid) => optional($companyById->get($cid))->name ?? '—';
         $teamColor = fn ($tid) => optional($teamById->get($tid))->color ?? '#9AA0A6';
         $empName = fn (Employee $e) => $e->displayName($lang);
@@ -381,7 +381,10 @@ class ViewModel
             'label' => $empName($m).($m->role ? ' · '.$m->role : ''),
         ])->all();
         $companyOptions = $companies->map(fn ($c) => ['id' => $c->id, 'label' => $c->name])->all();
-        $teamOptionsAll = $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name.' · '.$companyName($t->company_id)])->all();
+        $teamOptionsAll = array_merge(
+            [['id' => '', 'label' => $L['e_unassigned']]],
+            $teams->map(fn ($t) => ['id' => $t->id, 'label' => $t->name.' · '.$companyName($t->company_id)])->all()
+        );
 
         // company-involvement assignments for the open employee (NAHSHON staffing many clients)
         $empAssignments = [];
