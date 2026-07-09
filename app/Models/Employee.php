@@ -11,8 +11,14 @@ class Employee extends Model
         'team_id', 'company_id', 'site_id', 'role', 'type', 'pay_type', 'lang', 'access',
         'rate', 'issued', 'phone', 'email', 'status', 'in_t', 'out_t', 'wh', 'emp', 'term', 'activated_at',
         'resign_on', 'resign_reason',
-        'dispatch_to', 'dispatch_from', 'dispatch_until', 'dispatch_note',
+        'dispatch_to', 'dispatch_from', 'dispatch_until', 'dispatch_note', 'join_password',
     ];
+
+    /** A self-service sign-up awaiting an approver (cannot log in or clock yet). */
+    public function isPendingSignup(): bool
+    {
+        return $this->emp === 'pending';
+    }
 
     protected $casts = [
         'rate' => 'float',
