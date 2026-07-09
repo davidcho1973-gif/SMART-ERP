@@ -2389,11 +2389,30 @@ class WorkforceApp extends Component
         $was = ($p->in_min !== null ? Shift::fmtMin($p->in_min) : '—')
             .' → '.($p->out_min !== null ? Shift::fmtMin($p->out_min) : '—');
         $p->delete();
-        if ($this->attDate === now()->format('Y-m-d')) {
-            $e->update(['status' => 'off', 'in_t' => '—', 'out_t' => '—']);
-        }
+        // resync the denormalized live-status cache to TODAY's punch — voiding a
+        // PAST punch must still clear a stale 'present' left over from a day the
+        // worker forgot to clock out, or the employee list keeps showing 근무중
+        $this->resyncLiveStatus($e);
         $this->audit('punch.void', $e->first.' '.$e->last.' (#'.$e->id.')', $this->attDate.' · '.$was);
         $this->showToast($this->dict()['ts_voided']);
+    }
+
+    /**
+     * Rewrite an employee's denormalized live-status cache (status/in_t/out_t) to
+     * match their punch for TODAY. Called after edits that can leave it stale — a
+     * void, a manual correction — so every surface that reads the cache agrees with
+     * the punch table. No today punch → "off / — / —".
+     */
+    protected function resyncLiveStatus(Employee $e): void
+    {
+        $p = Punch::where('employee_id', $e->id)->where('work_date', now()->format('Y-m-d'))->first();
+        if ($p === null || $p->in_min === null) {
+            $e->update(['status' => 'off', 'in_t' => '—', 'out_t' => '—']);
+        } elseif ($p->out_min !== null) {
+            $e->update(['status' => 'off', 'in_t' => Shift::fmtMin($p->in_min), 'out_t' => Shift::fmtMin($p->out_min)]);
+        } else {
+            $e->update(['status' => 'present', 'in_t' => Shift::fmtMin($p->in_min), 'out_t' => '—']);
+        }
     }
 
     /**
