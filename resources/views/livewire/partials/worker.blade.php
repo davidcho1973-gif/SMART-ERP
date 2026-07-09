@@ -91,6 +91,29 @@
                                 <button wire:click="openEarly" style="margin-top: 10px; width: 100%; padding: 13px; border: 1px solid rgba(255,255,255,0.22); border-radius: 16px; background: transparent; color: #F4C168; font-size: 15px; font-weight: 600; cursor: pointer;">{{ $L['w_early'] }}</button>
                             @endif
                         </div>
+
+                        {{-- self-report exceptions (결근·휴가·퇴사): kept separate so the clock stays the hero --}}
+                        <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 15px 16px; margin-top: 14px;">
+                            <div style="font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 7px;">🗓️ {{ $L['w_st_title'] }}</div>
+                            <div style="font-size: 11px; color: #9A968C; margin-top: 2px; margin-bottom: 11px;">{{ $L['w_st_sub'] }}</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                                @unless($clockedIn)
+                                    <button wire:click="openStatusSheet('absent')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 6px; border-radius: 13px; border: 1.5px solid #F3CFC9; background: #FDF6F5; cursor: pointer;">
+                                        <span style="width: 30px; height: 30px; border-radius: 9px; background: #FBE9E7; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+                                        <span style="font-size: 12.5px; font-weight: 700;">{{ $L['w_st_absent'] }}</span>
+                                    </button>
+                                @endunless
+                                <button wire:click="openStatusSheet('leave')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 6px; border-radius: 13px; border: 1.5px solid #CBDBF5; background: #F6F9FE; cursor: pointer;">
+                                    <span style="width: 30px; height: 30px; border-radius: 9px; background: #E9F1FB; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2"><path d="M3 8h18M7 3v3M17 3v3M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/></svg></span>
+                                    <span style="font-size: 12.5px; font-weight: 700;">{{ $L['w_st_leave'] }} <span style="font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: #E9F1FB; color: #3B72E0;">{{ $L['w_st_appr'] }}</span></span>
+                                </button>
+                                <button wire:click="openStatusSheet('resign')" style="display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 6px; border-radius: 13px; border: 1.5px solid #DDD9CF; background: #FAFAF8; cursor: pointer;">
+                                    <span style="width: 30px; height: 30px; border-radius: 9px; background: #ECEBE6; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6E76" stroke-width="2"><path d="M16 17l5-5-5-5M21 12H9M13 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/></svg></span>
+                                    <span style="font-size: 12.5px; font-weight: 700;">{{ $L['w_st_resign'] }} <span style="font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: #ECEBE6; color: #6B6E76;">{{ $L['w_st_appr'] }}</span></span>
+                                </button>
+                            </div>
+                        </div>
+
                         {{-- team-QR scanner: camera + BarcodeDetector; the scanned crew becomes today's crew --}}
                         <div x-data="{
                                 open: false, unsupported: false, stream: null, timer: null, det: null, sending: false,
@@ -459,6 +482,49 @@
                         <div style="display: flex; gap: 10px; margin-top: 16px;">
                             <button wire:click="closeCorrection" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['w_cancel'] }}</button>
                             <button wire:click="submitCorrection" style="flex: 1; padding: 13px; border: none; border-radius: 12px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['w_fixSend'] }}</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+            {{-- self-report sheets: 결근 (즉시) · 휴가/퇴사 (신청→승인) --}}
+            @if($statusSheet === 'absent')
+                <div style="position: absolute; inset: 0; z-index: 60; background: rgba(22,24,29,0.45); display: flex; align-items: flex-end;">
+                    <div style="width: 100%; background: #fff; border-radius: 22px 22px 0 0; padding: 22px 20px 28px;">
+                        <div style="font-size: 17px; font-weight: 800;">{{ $L['w_st_absentT'] }}</div>
+                        <div style="font-size: 12.5px; color: #8A8880; margin: 4px 0 14px;">{{ $L['w_st_absentTs'] }}</div>
+                        <label style="display: block;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_reason'] }}</span><input wire:model="absentReason" placeholder="{{ $L['w_st_reasonPh'] }}" style="width: 100%; margin-top: 5px; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none;"/></label>
+                        <div style="display: flex; gap: 10px; margin-top: 18px;">
+                            <button wire:click="closeStatusSheet" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['w_cancel'] }}</button>
+                            <button wire:click="reportAbsent" style="flex: 1.3; padding: 13px; border: none; border-radius: 12px; background: #C0392B; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer;">{{ $L['w_st_report'] }}</button>
+                        </div>
+                    </div>
+                </div>
+            @elseif($statusSheet === 'leave')
+                <div style="position: absolute; inset: 0; z-index: 60; background: rgba(22,24,29,0.45); display: flex; align-items: flex-end;">
+                    <div style="width: 100%; background: #fff; border-radius: 22px 22px 0 0; padding: 22px 20px 28px;">
+                        <div style="font-size: 17px; font-weight: 800;">{{ $L['w_st_leaveT'] }}</div>
+                        <div style="font-size: 12.5px; color: #8A8880; margin: 4px 0 14px;">{{ $L['w_st_leaveTs'] }}</div>
+                        <div style="display: flex; gap: 10px;">
+                            <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_start'] }}</span><input wire:model="leaveStart" type="date" style="width: 100%; margin-top: 5px; padding: 11px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                            <label style="flex: 1;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_end'] }}</span><input wire:model="leaveEnd" type="date" style="width: 100%; margin-top: 5px; padding: 11px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                        </div>
+                        <label style="display: block; margin-top: 11px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_reason'] }}</span><input wire:model="leaveReason" placeholder="{{ $L['w_st_leavePh'] }}" style="width: 100%; margin-top: 5px; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none;"/></label>
+                        <div style="display: flex; gap: 10px; margin-top: 18px;">
+                            <button wire:click="closeStatusSheet" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['w_cancel'] }}</button>
+                            <button wire:click="saveLeave" style="flex: 1.3; padding: 13px; border: none; border-radius: 12px; background: #3B72E0; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer;">{{ $L['w_st_send'] }}</button>
+                        </div>
+                    </div>
+                </div>
+            @elseif($statusSheet === 'resign')
+                <div style="position: absolute; inset: 0; z-index: 60; background: rgba(22,24,29,0.45); display: flex; align-items: flex-end;">
+                    <div style="width: 100%; background: #fff; border-radius: 22px 22px 0 0; padding: 22px 20px 28px;">
+                        <div style="font-size: 17px; font-weight: 800;">{{ $L['w_st_resignT'] }}</div>
+                        <div style="font-size: 12.5px; color: #8A8880; margin: 4px 0 14px;">{{ $L['w_st_resignTs'] }}</div>
+                        <label style="display: block;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_lastDay'] }}</span><input wire:model="resignOn" type="date" style="width: 100%; margin-top: 5px; padding: 11px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none; font-family: 'Space Grotesk';"/></label>
+                        <label style="display: block; margin-top: 11px;"><span style="font-size: 11.5px; color: #8A8880;">{{ $L['w_st_reason'] }}</span><input wire:model="resignReason" placeholder="{{ $L['w_st_resignPh'] }}" style="width: 100%; margin-top: 5px; padding: 12px; border: 1px solid #E4E2DB; border-radius: 12px; font-size: 14px; outline: none;"/></label>
+                        <div style="display: flex; gap: 10px; margin-top: 18px;">
+                            <button wire:click="closeStatusSheet" style="flex: 1; padding: 13px; border: 1px solid #E4E2DB; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">{{ $L['w_cancel'] }}</button>
+                            <button wire:click="saveResign" style="flex: 1.3; padding: 13px; border: none; border-radius: 12px; background: #6B6E76; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer;">{{ $L['w_st_send'] }}</button>
                         </div>
                     </div>
                 </div>

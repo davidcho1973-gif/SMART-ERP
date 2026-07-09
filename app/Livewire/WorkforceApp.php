@@ -2,9 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Models\Absence;
 use App\Models\Assignment;
 use App\Models\AttendanceCorrection;
 use App\Models\AuditLog;
+use App\Models\Leave;
 use App\Models\Channel;
 use App\Models\Company;
 use App\Models\Employee;
@@ -270,6 +272,21 @@ class WorkforceApp extends Component
 
     /** per-date lunch overrides keyed by day label */
     public array $lunchOv = [];
+
+    // ---- worker self-report of a non-working status (결근 · 휴가 · 퇴사) ----
+    public string $statusSheet = '';   // '' | absent | leave | resign
+
+    public string $absentReason = '';
+
+    public string $leaveStart = '';
+
+    public string $leaveEnd = '';
+
+    public string $leaveReason = '';
+
+    public string $resignOn = '';
+
+    public string $resignReason = '';
 
     // ---- attendance-correction requests (worker files · lead/HR approves) ----
     public bool $correctionOpen = false;
@@ -2911,6 +2928,92 @@ class WorkforceApp extends Component
     public function printQr(): void
     {
         $this->dispatch('print-now');
+    }
+
+    // =============== worker self-report: 결근 · 휴가 · 퇴사 ===============
+
+    /** Open one of the self-report sheets (absent | leave | resign), prefilled. */
+    public function openStatusSheet(string $kind): void
+    {
+        if (! in_array($kind, ['absent', 'leave', 'resign'], true)) {
+            return;
+        }
+        $this->reset(['absentReason', 'leaveStart', 'leaveEnd', 'leaveReason', 'resignOn', 'resignReason']);
+        if ($kind === 'leave') {
+            $this->leaveStart = $this->leaveEnd = now()->format('Y-m-d');
+        }
+        $this->statusSheet = $kind;
+    }
+
+    public function closeStatusSheet(): void
+    {
+        $this->statusSheet = '';
+    }
+
+    /** Report an excused absence for TODAY (call-in) — takes effect immediately. */
+    public function reportAbsent(): void
+    {
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $today = now()->format('Y-m-d');
+        // can't be absent on a day you already clocked into
+        if (Punch::where('employee_id', $eid)->where('work_date', $today)->whereNotNull('in_min')->exists()) {
+            $this->showToast($this->tl('You already clocked in today', 'Ya fichaste hoy', '오늘 이미 출근 기록이 있어요'));
+
+            return;
+        }
+        Absence::updateOrCreate(
+            ['employee_id' => $eid, 'work_date' => $today],
+            ['kind' => 'excused', 'reason' => trim($this->absentReason) ?: null, 'source' => 'worker', 'marked_by' => $eid],
+        );
+        Employee::where('id', $eid)->update(['status' => 'absent']);
+        $this->audit('attendance.absent', '#'.$eid, $today.' · '.$this->tl('self-reported', 'auto-reportado', '본인 보고').($this->absentReason ? ' · '.trim($this->absentReason) : ''));
+        $this->statusSheet = '';
+        $this->showToast($this->tl('Absence reported', 'Ausencia registrada', '결근 보고 완료'));
+    }
+
+    /** File a leave request (휴가 신청) — pending until a lead/manager approves. */
+    public function saveLeave(): void
+    {
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $s = trim($this->leaveStart);
+        $e = trim($this->leaveEnd);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $s) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $e) || $e < $s) {
+            $this->showToast($this->tl('Check the leave dates', 'Revisa las fechas', '휴가 기간을 확인하세요'));
+
+            return;
+        }
+        Leave::create([
+            'employee_id' => $eid, 'start_date' => $s, 'end_date' => $e,
+            'reason' => trim($this->leaveReason) ?: null, 'status' => 'pending',
+        ]);
+        $this->audit('leave.request', '#'.$eid, $s.' – '.$e.($this->leaveReason ? ' · '.trim($this->leaveReason) : ''));
+        $this->statusSheet = '';
+        $this->showToast($this->tl('Leave requested · awaiting approval', 'Permiso solicitado · pendiente', '휴가 신청 완료 · 승인 대기'));
+    }
+
+    /** File a resignation notice (퇴사 신청) — pending until admin approves. */
+    public function saveResign(): void
+    {
+        $eid = $this->clockableEmployeeId();
+        if ($eid === null) {
+            return;
+        }
+        $on = trim($this->resignOn);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $on)) {
+            $this->showToast($this->tl('Pick your last working day', 'Elige tu último día', '마지막 근무일을 선택하세요'));
+
+            return;
+        }
+        Employee::where('id', $eid)->update(['resign_on' => $on, 'resign_reason' => trim($this->resignReason) ?: null]);
+        $this->audit('resign.request', '#'.$eid, $on.($this->resignReason ? ' · '.trim($this->resignReason) : ''));
+        $this->statusSheet = '';
+        $this->showToast($this->tl('Resignation filed · awaiting approval', 'Renuncia enviada · pendiente', '퇴사 신청 완료 · 승인 대기'));
     }
 
     // =================== attendance corrections ===================
