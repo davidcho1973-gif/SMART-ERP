@@ -196,6 +196,22 @@ class ViewModel
         }
         $repeatNoShow = $repeatNoShow->all();
 
+        // pending leave requests + resignation notices awaiting a decision
+        $siteFilter = fn ($coll) => $s['site'] === 'all' ? $coll : $coll->filter(fn ($r) => $r['siteId'] === $s['site'])->values();
+        $fmtMD = fn ($ymd) => preg_match('/^\d{4}-(\d{2})-(\d{2})$/', $ymd, $m) ? $m[1].'/'.$m[2] : $ymd;
+        $pendLeaves = $siteFilter(Leave::where('status', 'pending')->orderBy('start_date')->get()
+            ->map(function ($l) use ($employees, $empName, $fmtMD) {
+                $e = $employees->firstWhere('id', $l->employee_id);
+
+                return $e ? ['id' => $l->id, 'name' => $empName($e), 'teamId' => $e->team_id, 'siteId' => $e->site_id,
+                    'range' => $fmtMD($l->start_date).' – '.$fmtMD($l->end_date), 'reason' => (string) ($l->reason ?? '')] : null;
+            })->filter()->values());
+        $pendResign = $siteFilter($employees->filter(fn ($e) => $e->emp === 'active' && ! empty($e->resign_on))
+            ->map(fn ($e) => ['id' => $e->id, 'name' => $empName($e), 'teamId' => $e->team_id, 'siteId' => $e->site_id,
+                'on' => $fmtMD($e->resign_on), 'reason' => (string) ($e->resign_reason ?? '')])->values());
+        $pendLeaves = $pendLeaves->all();
+        $pendResign = $pendResign->all();
+
         $recentPunches = Punch::orderByDesc('updated_at')->limit(4)->get();
         if ($recentPunches->isNotEmpty()) {
             $recent = $recentPunches->map(function ($pn) use ($employees, $empName, $tl) {
@@ -617,6 +633,24 @@ class ViewModel
                     'canDecide' => Corrections::canDecide($c, $leadMeId, false),
                 ])->values()->all();
 
+            // pending leave requests from crew members (lead approves on the phone)
+            $crewLeaves = Leave::where('status', 'pending')->orderBy('start_date')->get()
+                ->filter(function ($l) use ($employees, $mobileLeadTeamIds, $leadMeId) {
+                    if ((int) $l->employee_id === (int) $leadMeId) {
+                        return false;
+                    }
+                    $w = $employees->firstWhere('id', $l->employee_id);
+
+                    return $w && in_array($w->team_id, $mobileLeadTeamIds, true);
+                })
+                ->map(function ($l) use ($employees, $empName) {
+                    $w = $employees->firstWhere('id', $l->employee_id);
+                    $md = fn ($ymd) => preg_match('/^\d{4}-(\d{2})-(\d{2})$/', $ymd, $m) ? $m[1].'/'.$m[2] : $ymd;
+
+                    return ['id' => $l->id, 'name' => $w ? $empName($w) : '#'.$l->employee_id,
+                        'range' => $md($l->start_date).' – '.$md($l->end_date), 'reason' => (string) ($l->reason ?? '')];
+                })->values()->all();
+
             $crew = [
                 'date' => $crewDate,
                 'dateLabel' => Carbon::parse($crewDate)->format('D · M j'),
@@ -625,6 +659,7 @@ class ViewModel
                 'present' => count(array_filter($crewRows, fn ($r) => ! empty($r['hasPunch']))),
                 'teams' => $crewTeams,
                 'corrections' => $crewCorrections,
+                'leaves' => $crewLeaves,
             ];
         }
 
@@ -886,6 +921,7 @@ class ViewModel
                 'pendCount' => $pendCount, 'pendList' => $pendCorr->take(4)->all(),
                 'siteCards' => $dashSiteCards,
                 'repeatNoShow' => $repeatNoShow, 'noShowThreshold' => WorkerStatus::UNEXCUSED_ALERT,
+                'pendLeaves' => $pendLeaves, 'pendResign' => $pendResign,
             ],
             // employees
             'emp' => [

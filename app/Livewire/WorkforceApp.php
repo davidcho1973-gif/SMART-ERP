@@ -3154,6 +3154,79 @@ class WorkforceApp extends Component
     }
 
     /** Approver: approve a request → apply it to the punch immediately. */
+    // =============== leave · resignation · absence decisions ===============
+
+    /** Lead/manager marks a crew member's day: 결근(사유) or 무단결근. */
+    public function markAbsent(int $employeeId, string $kind, string $reason = ''): void
+    {
+        $e = Employee::find($employeeId);
+        if (! $e || ! $this->can('attendance.adjust', $e)) {
+            return;
+        }
+        $kind = $kind === 'excused' ? 'excused' : 'unexcused';
+        $today = now()->format('Y-m-d');
+        Absence::updateOrCreate(
+            ['employee_id' => $employeeId, 'work_date' => $today],
+            ['kind' => $kind, 'reason' => trim($reason) ?: null, 'source' => 'lead', 'marked_by' => $this->actorEmployee()?->id],
+        );
+        Employee::where('id', $employeeId)->update(['status' => 'absent']);
+        $this->audit('attendance.absent', $e->first.' '.$e->last.' (#'.$e->id.')',
+            $today.' · '.($kind === 'unexcused' ? '무단결근' : '결근').(trim($reason) ? ' · '.trim($reason) : ''));
+        $this->showToast($this->tl('Marked absent', 'Marcado ausente', '결근 처리 완료'));
+    }
+
+    /** May the actor decide this leave? (owner/hr global · site_manager scope · crew_lead own crew) */
+    protected function canDecideLeave(Leave $l): bool
+    {
+        return $this->can('corrections.decide', Employee::find($l->employee_id));
+    }
+
+    public function approveLeave(int $id): void
+    {
+        $l = Leave::find($id);
+        if (! $l || ! $l->isPending() || ! $this->canDecideLeave($l)) {
+            return;
+        }
+        $l->update(['status' => 'approved', 'decided_by' => $this->actorEmployee()?->id, 'decided_at' => now()]);
+        $e = Employee::find($l->employee_id);
+        $this->audit('leave.approve', ($e ? $e->first.' '.$e->last.' (#'.$e->id.')' : '#'.$l->employee_id), $l->start_date.' – '.$l->end_date);
+        $this->showToast($this->tl('Leave approved', 'Permiso aprobado', '휴가 승인 완료'));
+    }
+
+    public function rejectLeave(int $id): void
+    {
+        $l = Leave::find($id);
+        if (! $l || ! $l->isPending() || ! $this->canDecideLeave($l)) {
+            return;
+        }
+        $l->update(['status' => 'rejected', 'decided_by' => $this->actorEmployee()?->id, 'decided_at' => now()]);
+        $this->audit('leave.reject', '#'.$l->employee_id, $l->start_date.' – '.$l->end_date);
+        $this->showToast($this->tl('Leave rejected', 'Permiso rechazado', '휴가 반려'));
+    }
+
+    /** Admin approves a resignation notice → runs the terminate flow on the requested day. */
+    public function approveResign(int $employeeId): void
+    {
+        $e = Employee::find($employeeId);
+        if (! $e || ! $e->hasPendingResignation() || ! $this->can('employees.terminate', $e)) {
+            return;
+        }
+        $e->update(['emp' => 'terminated', 'term' => $e->resign_on, 'status' => 'off', 'access' => 'worker', 'resign_on' => null]);
+        $this->audit('employee.terminate', $e->first.' '.$e->last.' (#'.$e->id.')', 'resignation · '.$e->term);
+        $this->showToast($this->tl('Resignation approved', 'Renuncia aprobada', '퇴사 승인 완료'));
+    }
+
+    public function rejectResign(int $employeeId): void
+    {
+        $e = Employee::find($employeeId);
+        if (! $e || ! $e->hasPendingResignation() || ! $this->can('employees.terminate', $e)) {
+            return;
+        }
+        $e->update(['resign_on' => null, 'resign_reason' => null]);
+        $this->audit('resign.reject', $e->first.' '.$e->last.' (#'.$e->id.')');
+        $this->showToast($this->tl('Resignation declined', 'Renuncia rechazada', '퇴사 신청 반려'));
+    }
+
     public function approveCorrection(int $id): void
     {
         $c = AttendanceCorrection::find($id);

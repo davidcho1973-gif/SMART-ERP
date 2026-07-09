@@ -333,6 +333,26 @@
                             </div>
                         @endif
 
+                        {{-- pending leave requests from crew members --}}
+                        @if(!empty($crew['leaves']))
+                            <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 18px 0 8px;">{{ $L['w_crew_leaves'] }} <span style="color: #3B72E0;">{{ count($crew['leaves']) }}</span></div>
+                            <div style="background: #fff; border: 1px solid #CBDBF5; border-radius: 16px; overflow: hidden;">
+                                @foreach($crew['leaves'] as $lv)
+                                    <div style="padding: 12px 16px; border-bottom: 1px solid #F2F0EA;">
+                                        <div style="display: flex; align-items: baseline; gap: 8px;">
+                                            <span style="flex: 1; font-weight: 600; font-size: 13.5px;">{{ $lv['name'] }}</span>
+                                            <span style="font-size: 12px; color: #3B72E0; font-weight: 700; font-family: 'Space Grotesk';">{{ $lv['range'] }}</span>
+                                        </div>
+                                        @if($lv['reason'])<div style="margin-top: 3px; font-size: 11.5px; color: #8A8880;">“{{ $lv['reason'] }}”</div>@endif
+                                        <div style="display: flex; gap: 8px; margin-top: 9px;">
+                                            <button wire:click="approveLeave({{ $lv['id'] }})" style="flex: 1; padding: 9px; border: none; border-radius: 9px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $L['w_crew_approve'] }}</button>
+                                            <button wire:click="rejectLeave({{ $lv['id'] }})" style="flex: 1; padding: 9px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #C0522B; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $L['w_crew_reject'] }}</button>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
                         {{-- today's crew attendance — actual vs paid, with a lead adjust button --}}
                         <div style="font-size: 13px; font-weight: 600; color: #8A8880; margin: 18px 0 8px;">{{ $L['w_crew_today'] }}</div>
                         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">

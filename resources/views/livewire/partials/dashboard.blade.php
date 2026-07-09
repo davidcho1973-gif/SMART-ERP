@@ -122,7 +122,7 @@
         <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 22px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                 <div style="font-weight: 700; font-size: 15px;">{{ $L['d_attn'] }}</div>
-                @php $attn = $d['pendCount'] + $d['offCount'] + count($d['repeatNoShow']); @endphp
+                @php $attn = $d['pendCount'] + $d['offCount'] + count($d['repeatNoShow']) + count($d['pendLeaves']) + count($d['pendResign']); @endphp
                 @if($attn > 0)
                     <button wire:click="go('attendance')" style="font-size: 11.5px; font-weight: 700; color: #C0522B; background: #FBE9E7; border: none; padding: 3px 10px; border-radius: 999px; cursor: pointer;">{{ $attn }} · {{ $L['d_review'] }}</button>
                 @endif
@@ -133,6 +133,30 @@
                     <span style="font-size: 12.5px;">{{ $L['d_allClear'] }}</span>
                 </div>
             @else
+                @foreach($d['pendResign'] as $r)
+                    {{-- resignation notice → approve (terminate on the requested day) / decline --}}
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #F2F0EA;">
+                        <span style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #ECEBE6; color: #6B6E76; flex-shrink: 0;">{{ $L['d_resign'] }}</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 600;">{{ $r['name'] }} · {{ $r['on'] }}</div>
+                            @if($r['reason'])<div style="font-size: 11.5px; color: #8A8880;">{{ $r['reason'] }}</div>@endif
+                        </div>
+                        <button wire:click="approveResign({{ $r['id'] }})" style="font-size: 11px; font-weight: 700; color: #fff; background: #6B6E76; border: none; padding: 5px 11px; border-radius: 8px; cursor: pointer;">{{ $L['d_approve'] }}</button>
+                        <button wire:click="rejectResign({{ $r['id'] }})" style="font-size: 11px; font-weight: 700; color: #8A8880; background: #F2F0EA; border: none; padding: 5px 10px; border-radius: 8px; cursor: pointer;">{{ $L['d_decline'] }}</button>
+                    </div>
+                @endforeach
+                @foreach($d['pendLeaves'] as $lv)
+                    {{-- leave request → approve / reject --}}
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #F2F0EA;">
+                        <span style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #E9F1FB; color: #3B72E0; flex-shrink: 0;">{{ $L['st_leave'] }}</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 600;">{{ $lv['name'] }} · {{ $lv['range'] }}</div>
+                            @if($lv['reason'])<div style="font-size: 11.5px; color: #8A8880;">{{ $lv['reason'] }}</div>@endif
+                        </div>
+                        <button wire:click="approveLeave({{ $lv['id'] }})" style="font-size: 11px; font-weight: 700; color: #fff; background: #1F9D6B; border: none; padding: 5px 11px; border-radius: 8px; cursor: pointer;">{{ $L['d_approve'] }}</button>
+                        <button wire:click="rejectLeave({{ $lv['id'] }})" style="font-size: 11px; font-weight: 700; color: #C0522B; background: #FBE9E7; border: none; padding: 5px 10px; border-radius: 8px; cursor: pointer;">{{ $L['d_decline'] }}</button>
+                    </div>
+                @endforeach
                 @foreach($d['repeatNoShow'] as $r)
                     {{-- repeat no-call-no-show (무단결근 N회) → resignation review --}}
                     <div style="display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #F2F0EA;">
