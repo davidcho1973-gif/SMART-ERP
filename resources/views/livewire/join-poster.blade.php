@@ -12,10 +12,43 @@
         <div style="margin-top: 60px; color: #8A8880;">Invalid or expired link.</div>
     @else
         {{-- controls (hidden when printing) --}}
-        <div class="no-print" style="display: flex; gap: 10px; align-items: center; margin-bottom: 18px;">
+        <div class="no-print" style="display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; justify-content: center;">
             <button onclick="window.print()" style="padding: 11px 20px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">🖨️ 인쇄 / Print</button>
+            <button onclick="downloadQr('png')" style="padding: 11px 18px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;">⬇️ QR PNG</button>
+            <button onclick="downloadQr('svg')" style="padding: 11px 18px; border: 1px solid #D8D5CD; border-radius: 11px; background: #fff; color: #5A5D64; font-size: 14px; font-weight: 600; cursor: pointer;">⬇️ QR SVG</button>
             <a href="{{ url('/') }}" style="padding: 11px 18px; border: 1px solid #D8D5CD; border-radius: 11px; background: #fff; color: #5A5D64; font-size: 14px; font-weight: 600; text-decoration: none;">← 앱으로</a>
         </div>
+        <script>
+            function downloadQr(kind) {
+                const src = document.querySelector('#qrbox svg');
+                if (!src) return;
+                const svg = src.cloneNode(true);
+                svg.setAttribute('width', '1024');
+                svg.setAttribute('height', '1024');
+                svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                const xml = new XMLSerializer().serializeToString(svg);
+                const base = @js($fileBase);
+                if (kind === 'svg') {
+                    const blob = new Blob([xml], { type: 'image/svg+xml' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob); a.download = base + '.svg'; a.click();
+                    URL.revokeObjectURL(a.href);
+                    return;
+                }
+                // PNG: render the SVG onto a white-padded canvas
+                const img = new Image();
+                img.onload = function () {
+                    const S = 1024, pad = 64;
+                    const c = document.createElement('canvas'); c.width = S; c.height = S;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, S, S);
+                    ctx.drawImage(img, pad, pad, S - 2 * pad, S - 2 * pad);
+                    const a = document.createElement('a');
+                    a.href = c.toDataURL('image/png'); a.download = base + '.png'; a.click();
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+            }
+        </script>
 
         {{-- the poster --}}
         <div class="poster-sheet" style="width: 460px; max-width: 100%; background: #fff; border-radius: 8px; box-shadow: 0 14px 44px rgba(0,0,0,0.16); padding: 40px 38px 34px; text-align: center; color: #16181D;">
@@ -28,7 +61,7 @@
             <h1 style="font-size: 30px; margin: 18px 0 3px; letter-spacing: -0.01em;">Clock-In Sign-Up</h1>
             <div style="font-size: 15px; color: #3A3D44; font-weight: 600;">현장 출퇴근 등록 · Registro de asistencia</div>
 
-            <div style="width: 260px; height: 260px; margin: 22px auto 10px; background: #fff; border: 1px solid #ECEAE3; border-radius: 16px; padding: 16px;">
+            <div id="qrbox" style="width: 260px; height: 260px; margin: 22px auto 10px; background: #fff; border: 1px solid #ECEAE3; border-radius: 16px; padding: 16px;">
                 {!! $qrSvg !!}
             </div>
             <div style="font-size: 15px; font-weight: 700;">📷 Scan with your phone <span style="color: #8A8880; font-weight: 500;">· 휴대폰으로 스캔</span></div>

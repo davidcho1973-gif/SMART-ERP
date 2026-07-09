@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Site;
 use App\Support\RealQr;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -22,6 +23,9 @@ class SignupPoster extends Component
 
     public string $joinUrl = '';
 
+    /** filename base for QR downloads, e.g. "savannah-ga-signup-qr" */
+    public string $fileBase = 'signup-qr';
+
     public function mount(string $token): void
     {
         $site = Site::where('join_token', $token)->first();
@@ -33,6 +37,7 @@ class SignupPoster extends Component
         $this->siteName = trim($site->name.($site->city ? ' · '.$site->city : ''));
         $this->joinUrl = url('/join/'.$token);
         $this->qrSvg = RealQr::svg($this->joinUrl, 460);
+        $this->fileBase = (Str::slug($site->name) ?: 'site').'-signup-qr';
     }
 
     public function render()
