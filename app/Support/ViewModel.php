@@ -136,7 +136,11 @@ class ViewModel
                 ->whereBetween('spent_on', [$periodStart, $periodEnd])
                 ->get()->groupBy('site_id')->map(fn ($g) => (float) $g->sum('amount'));
 
-            $siteRows = $visibleSites->map(function ($st) use ($costPeople, $grossFor, $expBySite) {
+            // honour the header site selector, like every other screen
+            $acctSite = $s['site'] ?? 'all';
+            $acctSites = ($acctSite !== 'all') ? $visibleSites->where('id', $acctSite)->values() : $visibleSites;
+
+            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossFor, $expBySite) {
                 $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
                 $labor = (float) $inSite->sum($grossFor);
                 $expense = (float) ($expBySite[$st->id] ?? 0);
@@ -171,7 +175,7 @@ class ViewModel
                     ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#3B72E0', 'live' => false],
                     ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
                 ],
-                'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $periodStart, $periodEnd, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
+                'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
                 'labels' => [
                     'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
                     'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
@@ -1182,7 +1186,7 @@ class ViewModel
      * Accounting → Expenses/Receipts tab payload: the receipt list, the open
      * detail, category/site pickers and the trilingual labels the panel needs.
      */
-    protected static function expensesPanel(array $s, string $lang, callable $tl, $visibleSites, $scopeSites, $periodStart, $periodEnd, bool $canDecide, bool $canSubmit): array
+    protected static function expensesPanel(array $s, string $lang, callable $tl, $visibleSites, $scopeSites, string $activeSite, bool $canDecide, bool $canSubmit): array
     {
         $catMeta = [
             'fuel' => ['name' => $tl('Fuel', 'Combustible', '유류'), 'color' => '#C98A1E'],
@@ -1206,6 +1210,9 @@ class ViewModel
         }
         if ($scopeSites !== null) {
             $q->whereIn('site_id', $scopeSites);
+        }
+        if ($activeSite !== 'all') {
+            $q->where('site_id', $activeSite);   // header site selector
         }
         $siteNames = $visibleSites->keyBy('id');
         $rows = $q->limit(120)->get()->map(function (\App\Models\Expense $x) use ($catMeta, $statusMeta, $lang, $siteNames) {
@@ -1243,7 +1250,8 @@ class ViewModel
         }
 
         $pendingCount = \App\Models\Expense::where('status', 'pending')
-            ->when($scopeSites !== null, fn ($qq) => $qq->whereIn('site_id', $scopeSites))->count();
+            ->when($scopeSites !== null, fn ($qq) => $qq->whereIn('site_id', $scopeSites))
+            ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count();
 
         return [
             'canSubmit' => $canSubmit,
