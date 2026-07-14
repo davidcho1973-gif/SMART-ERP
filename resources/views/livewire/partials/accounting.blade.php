@@ -15,7 +15,7 @@
         'billing'   => $lab['tab_billing'],
         'invoice'   => $lab['tab_invoice'],
     ];
-    $liveTabs = ['dashboard'];   // only the dashboard is wired to real data today
+    $liveTabs = ['dashboard', 'expenses'];   // dashboard + expenses·receipts are live
 @endphp
 
 {{-- ============ ACCOUNTING ============ --}}
