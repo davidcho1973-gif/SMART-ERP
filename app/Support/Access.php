@@ -67,6 +67,10 @@ class Access
         'payroll.process' => ['owner'],
         'payroll.export' => ['owner'],
 
+        // accounting — expenses/receipts. Field roles submit; office roles approve.
+        'expenses.submit' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
+        'expenses.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
+
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 

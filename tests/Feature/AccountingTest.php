@@ -42,9 +42,12 @@ class AccountingTest extends TestCase
         $this->assertSame('dashboard', $vm['tab']);
         $this->assertArrayHasKey('siteRows', $vm);
         $this->assertArrayHasKey('totalLaborLabel', $vm);
-        // labor pillar is live, the other three are flagged coming
-        $this->assertTrue($vm['pillars'][0]['live']);
-        $this->assertFalse($vm['pillars'][1]['live']);
+        // labor & expenses are live; materials & subcontract are flagged coming
+        $byKey = collect($vm['pillars'])->keyBy('key');
+        $this->assertTrue($byKey['labor']['live']);
+        $this->assertTrue($byKey['expense']['live']);
+        $this->assertFalse($byKey['material']['live']);
+        $this->assertFalse($byKey['sub']['live']);
     }
 
     public function test_accounting_labor_total_matches_sum_of_site_rows(): void

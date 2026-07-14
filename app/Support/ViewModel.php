@@ -130,19 +130,28 @@ class ViewModel
             $costPeople = $employees->filter(
                 fn ($e) => $e->emp === 'active' || $terminatedOwed->contains('id', $e->id)
             );
-            $siteRows = $visibleSites->map(function ($st) use ($costPeople, $grossFor) {
+
+            // approved expenses in this period → per-site totals (the live "경비" pillar)
+            $expBySite = \App\Models\Expense::where('status', 'approved')
+                ->whereBetween('spent_on', [$periodStart, $periodEnd])
+                ->get()->groupBy('site_id')->map(fn ($g) => (float) $g->sum('amount'));
+
+            $siteRows = $visibleSites->map(function ($st) use ($costPeople, $grossFor, $expBySite) {
                 $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
                 $labor = (float) $inSite->sum($grossFor);
+                $expense = (float) ($expBySite[$st->id] ?? 0);
 
                 return [
                     'id' => $st->id, 'name' => $st->name, 'city' => $st->city,
                     'gc' => $st->gc ?: '—', 'headcount' => $inSite->count(),
                     'labor' => $labor, 'laborLabel' => Money::usd($labor),
+                    'expense' => $expense, 'expenseLabel' => Money::usd($expense),
                 ];
-            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0)
+            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0 || $r['expense'] > 0)
                 ->sortByDesc('labor')->values()->all();
 
             $totalLabor = (float) array_sum(array_column($siteRows, 'labor'));
+            $totalExpense = (float) array_sum(array_column($siteRows, 'expense'));
             $totalHead = (int) array_sum(array_column($siteRows, 'headcount'));
 
             $accounting = [
@@ -153,13 +162,16 @@ class ViewModel
                 'totalHead' => $totalHead,
                 'totalLabor' => $totalLabor,
                 'totalLaborLabel' => Money::usd($totalLabor),
-                // cost pillars — labor is live now; the rest arrive with M2/M3/M4
+                'totalExpense' => $totalExpense,
+                'totalExpenseLabel' => Money::usd($totalExpense),
+                // cost pillars — labor & expenses are live; materials/subcontract arrive with M3/M4
                 'pillars' => [
-                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor, 'label' => Money::usd($totalLabor), 'color' => '#E85D2A', 'live' => true],
+                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor,   'label' => Money::usd($totalLabor),   'color' => '#E85D2A', 'live' => true],
+                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => $totalExpense, 'label' => Money::usd($totalExpense), 'color' => '#C98A1E', 'live' => true],
                     ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#3B72E0', 'live' => false],
-                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#C98A1E', 'live' => false],
                     ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
                 ],
+                'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $periodStart, $periodEnd, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
                 'labels' => [
                     'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
                     'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
@@ -175,11 +187,12 @@ class ViewModel
                     'col_gc' => $tl('GC', 'Contratista', '원청'),
                     'col_head' => $tl('Workers', 'Personal', '인원'),
                     'col_labor' => $tl('Labor cost', 'Mano de obra', '노무비'),
+                    'col_expense' => $tl('Expenses', 'Gastos', '경비'),
                     'total' => $tl('Total', 'Total', '합계'),
                     'comp_title' => $tl('Cost composition', 'Composición del costo', '원가 구성'),
-                    'live_note' => $tl('Labor is aggregated live from attendance & payroll. Materials, expenses and subcontract arrive with the next modules.',
-                        'La mano de obra se calcula en vivo desde asistencia y nómina. Materiales, gastos y subcontrata llegan con los próximos módulos.',
-                        '노무비는 근태·급여에서 실시간 집계됩니다. 자재·경비·외주비는 다음 모듈에서 추가됩니다.'),
+                    'live_note' => $tl('Labor is aggregated live from attendance & payroll; expenses from approved receipts. Materials and subcontract arrive with the next modules.',
+                        'La mano de obra se calcula desde asistencia y nómina; los gastos desde recibos aprobados. Materiales y subcontrata llegan con los próximos módulos.',
+                        '노무비는 근태·급여에서, 경비는 승인된 영수증에서 실시간 집계됩니다. 자재·외주비는 다음 모듈에서 추가됩니다.'),
                     'soon' => $tl('Coming soon', 'Próximamente', '준비중'),
                     'empty' => $tl('No cost recorded for this period yet.', 'Aún no hay costos en este periodo.', '이 기간에 집계된 원가가 아직 없어요.'),
                     'soon_expenses' => $tl('Snap a receipt with your phone — amount, vendor and date are read automatically, then filed to a site and approved. Reuses the file-storage we just shipped.',
@@ -1163,5 +1176,121 @@ class ViewModel
         }
 
         return $dowEn.' · '.$n->format('M j, Y').' · MST';
+    }
+
+    /**
+     * Accounting → Expenses/Receipts tab payload: the receipt list, the open
+     * detail, category/site pickers and the trilingual labels the panel needs.
+     */
+    protected static function expensesPanel(array $s, string $lang, callable $tl, $visibleSites, $scopeSites, $periodStart, $periodEnd, bool $canDecide, bool $canSubmit): array
+    {
+        $catMeta = [
+            'fuel' => ['name' => $tl('Fuel', 'Combustible', '유류'), 'color' => '#C98A1E'],
+            'meal' => ['name' => $tl('Meals', 'Comida', '식대'), 'color' => '#1F9D6B'],
+            'transport' => ['name' => $tl('Transport', 'Transporte', '운반'), 'color' => '#3B72E0'],
+            'tool' => ['name' => $tl('Tools', 'Herramientas', '공구'), 'color' => '#6B4EE6'],
+            'supply' => ['name' => $tl('Supplies', 'Insumos', '소모품'), 'color' => '#E85D2A'],
+            'rental' => ['name' => $tl('Rental', 'Renta', '임대'), 'color' => '#0EA5A0'],
+            'other' => ['name' => $tl('Other', 'Otro', '기타'), 'color' => '#8A8880'],
+        ];
+        $statusMeta = [
+            'pending' => ['name' => $tl('Pending', 'Pendiente', '대기'), 'color' => '#C98A1E', 'bg' => '#FBF1DE'],
+            'approved' => ['name' => $tl('Approved', 'Aprobado', '승인'), 'color' => '#1F9D6B', 'bg' => '#E7F5EF'],
+            'rejected' => ['name' => $tl('Rejected', 'Rechazado', '반려'), 'color' => '#D9483B', 'bg' => '#FBEBE9'],
+        ];
+
+        $filter = $s['expFilter'] ?? 'all';
+        $q = \App\Models\Expense::query()->with('submitter')->orderByDesc('id');
+        if (in_array($filter, ['pending', 'approved', 'rejected'], true)) {
+            $q->where('status', $filter);
+        }
+        if ($scopeSites !== null) {
+            $q->whereIn('site_id', $scopeSites);
+        }
+        $siteNames = $visibleSites->keyBy('id');
+        $rows = $q->limit(120)->get()->map(function (\App\Models\Expense $x) use ($catMeta, $statusMeta, $lang, $siteNames) {
+            $cat = $catMeta[$x->category] ?? $catMeta['other'];
+            $st = $statusMeta[$x->status] ?? $statusMeta['pending'];
+
+            return [
+                'id' => $x->id,
+                'category' => $x->category, 'catName' => $cat['name'], 'catColor' => $cat['color'],
+                'vendor' => $x->vendor ?: '—',
+                'amount' => (float) $x->amount, 'amountLabel' => Money::usd((float) $x->amount),
+                'date' => $x->spent_on?->format('M j, Y') ?? '—',
+                'status' => $x->status, 'statusName' => $st['name'], 'statusColor' => $st['color'], 'statusBg' => $st['bg'],
+                'site' => $siteNames->get($x->site_id)?->name ?? ($x->site_id ?: '—'),
+                'submitter' => $x->submitter?->displayName($lang) ?? '—',
+                'note' => $x->note,
+                'rejectReason' => $x->reject_reason,
+                'hasReceipt' => $x->hasReceipt(),
+                'isImage' => $x->isImage(),
+                'receiptUrl' => $x->hasReceipt() ? url('/accounting/receipt/'.$x->id) : '',
+                'pending' => $x->isPending(),
+            ];
+        })->all();
+
+        $selId = $s['expSelId'] ?? null;
+        $selected = null;
+        foreach ($rows as $r) {
+            if ($r['id'] === $selId) {
+                $selected = $r;
+                break;
+            }
+        }
+        if ($selected === null && count($rows)) {
+            $selected = $rows[0];
+        }
+
+        $pendingCount = \App\Models\Expense::where('status', 'pending')
+            ->when($scopeSites !== null, fn ($qq) => $qq->whereIn('site_id', $scopeSites))->count();
+
+        return [
+            'canSubmit' => $canSubmit,
+            'canDecide' => $canDecide,
+            'filter' => $filter,
+            'rows' => $rows,
+            'selected' => $selected,
+            'pendingCount' => $pendingCount,
+            'formOpen' => (bool) ($s['expFormOpen'] ?? false),
+            'rejectId' => $s['expRejectId'] ?? null,
+            'siteOptions' => $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name])->all(),
+            'categories' => array_map(fn ($k) => ['key' => $k, 'name' => $catMeta[$k]['name'], 'color' => $catMeta[$k]['color']], \App\Models\Expense::CATEGORIES),
+            'ocrOn' => (bool) config('services.gemini.key'),
+            'labels' => [
+                'add' => $tl('Add receipt', 'Agregar recibo', '영수증 추가'),
+                'newExpense' => $tl('New receipt', 'Nuevo recibo', '새 영수증'),
+                'attach' => $tl('Receipt photo', 'Foto del recibo', '영수증 사진'),
+                'ocrHint' => $tl('Upload a photo — amount, vendor and date are read for you.', 'Sube una foto — importe, proveedor y fecha se leen solos.', '사진을 올리면 금액·상호·날짜를 자동으로 읽어요.'),
+                'readReceipt' => $tl('Read receipt', 'Leer recibo', '영수증 읽기'),
+                'reading' => $tl('Reading…', 'Leyendo…', '읽는 중…'),
+                'vendor' => $tl('Vendor', 'Proveedor', '상호'),
+                'amount' => $tl('Amount', 'Monto', '금액'),
+                'date' => $tl('Date', 'Fecha', '날짜'),
+                'category' => $tl('Category', 'Categoría', '분류'),
+                'site' => $tl('Site', 'Obra', '현장'),
+                'note' => $tl('Note (optional)', 'Nota (opcional)', '메모 (선택)'),
+                'save' => $tl('Save receipt', 'Guardar recibo', '등록'),
+                'cancel' => $tl('Cancel', 'Cancelar', '취소'),
+                'remove' => $tl('Remove', 'Quitar', '제거'),
+                'approve' => $tl('Approve', 'Aprobar', '승인'),
+                'reject' => $tl('Reject', 'Rechazar', '반려'),
+                'rejectPh' => $tl('Reason (optional)', 'Motivo (opcional)', '반려 사유 (선택)'),
+                'confirmReject' => $tl('Confirm reject', 'Confirmar', '반려 확정'),
+                'filter_all' => $tl('All', 'Todos', '전체'),
+                'filter_pending' => $tl('Pending', 'Pendiente', '대기'),
+                'filter_approved' => $tl('Approved', 'Aprobado', '승인'),
+                'filter_rejected' => $tl('Rejected', 'Rechazado', '반려'),
+                'receipt' => $tl('Receipt', 'Recibo', '영수증'),
+                'noReceipt' => $tl('No receipt image', 'Sin imagen', '영수증 이미지 없음'),
+                'openReceipt' => $tl('Open receipt', 'Abrir recibo', '영수증 열기'),
+                'by' => $tl('by', 'por', '등록:'),
+                'reason' => $tl('Rejection reason', 'Motivo del rechazo', '반려 사유'),
+                'empty' => $tl('No receipts yet — add the first one.', 'Aún no hay recibos.', '등록된 영수증이 없어요 — 첫 영수증을 추가하세요.'),
+                'pending' => $tl('pending', 'pendientes', '대기'),
+                'detail' => $tl('Detail', 'Detalle', '상세'),
+                'pickReceipt' => $tl('Select a receipt to see details', 'Elige un recibo', '영수증을 선택하면 상세가 보여요'),
+            ],
+        ];
     }
 }
