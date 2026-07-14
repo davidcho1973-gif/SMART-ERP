@@ -75,7 +75,8 @@ class ViewModel
         $caps = (array) ($s['can'] ?? []);
         $navKeys = ['dashboard', 'comms', 'projects', 'employees', 'badge', 'attendance'];
         if ($caps['payrollView'] ?? ($s['role'] !== 'manager')) {
-            $navKeys[] = 'payroll';   // payroll is a permission, not a hidden menu
+            $navKeys[] = 'payroll';      // payroll is a permission, not a hidden menu
+            $navKeys[] = 'accounting';   // finance module — same head-office audience as payroll
         }
         // unread badge for the Internal Comms nav item (computed once, reused below)
         $navActor = Employee::find($s['actorId'] ?? null);
@@ -119,6 +120,83 @@ class ViewModel
             $scopeSites === null ? [['id' => 'all', 'label' => $L['allSites']]] : [],
             $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name.' · '.$st->city])->all()
         );
+
+        // ---- accounting: labor cost rolled up per site (reuses the SAME payroll
+        //      engine as the Payroll screen, so the numbers always agree). The
+        //      material/expense/subcontract pillars land with the later modules;
+        //      here they read zero and are flagged "coming" rather than faked. ----
+        $accounting = null;
+        if ($caps['payrollView'] ?? ($s['role'] !== 'manager')) {
+            $costPeople = $employees->filter(
+                fn ($e) => $e->emp === 'active' || $terminatedOwed->contains('id', $e->id)
+            );
+            $siteRows = $visibleSites->map(function ($st) use ($costPeople, $grossFor) {
+                $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
+                $labor = (float) $inSite->sum($grossFor);
+
+                return [
+                    'id' => $st->id, 'name' => $st->name, 'city' => $st->city,
+                    'gc' => $st->gc ?: '—', 'headcount' => $inSite->count(),
+                    'labor' => $labor, 'laborLabel' => Money::usd($labor),
+                ];
+            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0)
+                ->sortByDesc('labor')->values()->all();
+
+            $totalLabor = (float) array_sum(array_column($siteRows, 'labor'));
+            $totalHead = (int) array_sum(array_column($siteRows, 'headcount'));
+
+            $accounting = [
+                'tab' => $s['acctTab'] ?? 'dashboard',
+                'periodLabel' => $periodLabel,
+                'siteRows' => $siteRows,
+                'siteCount' => count($siteRows),
+                'totalHead' => $totalHead,
+                'totalLabor' => $totalLabor,
+                'totalLaborLabel' => Money::usd($totalLabor),
+                // cost pillars — labor is live now; the rest arrive with M2/M3/M4
+                'pillars' => [
+                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor, 'label' => Money::usd($totalLabor), 'color' => '#E85D2A', 'live' => true],
+                    ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#3B72E0', 'live' => false],
+                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#C98A1E', 'live' => false],
+                    ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
+                ],
+                'labels' => [
+                    'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
+                    'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
+                    'tab_materials' => $tl('Materials · Equipment', 'Materiales · Equipo', '자재·장비'),
+                    'tab_billing' => $tl('Contract · Progress', 'Contrato · Avance', '계약·기성'),
+                    'tab_invoice' => $tl('Progress billing', 'Facturación', '기성청구서'),
+                    'kpi_labor' => $tl('Labor cost · this period', 'Mano de obra · periodo', '당월 노무비'),
+                    'kpi_sites' => $tl('Active sites', 'Obras activas', '현장 수'),
+                    'kpi_head' => $tl('Deployed workers', 'Trabajadores', '투입 인원'),
+                    'kpi_period' => $tl('Pay period', 'Periodo', '정산기간'),
+                    'sites_title' => $tl('Cost by site', 'Costo por obra', '현장별 원가'),
+                    'col_site' => $tl('Site', 'Obra', '현장'),
+                    'col_gc' => $tl('GC', 'Contratista', '원청'),
+                    'col_head' => $tl('Workers', 'Personal', '인원'),
+                    'col_labor' => $tl('Labor cost', 'Mano de obra', '노무비'),
+                    'total' => $tl('Total', 'Total', '합계'),
+                    'comp_title' => $tl('Cost composition', 'Composición del costo', '원가 구성'),
+                    'live_note' => $tl('Labor is aggregated live from attendance & payroll. Materials, expenses and subcontract arrive with the next modules.',
+                        'La mano de obra se calcula en vivo desde asistencia y nómina. Materiales, gastos y subcontrata llegan con los próximos módulos.',
+                        '노무비는 근태·급여에서 실시간 집계됩니다. 자재·경비·외주비는 다음 모듈에서 추가됩니다.'),
+                    'soon' => $tl('Coming soon', 'Próximamente', '준비중'),
+                    'empty' => $tl('No cost recorded for this period yet.', 'Aún no hay costos en este periodo.', '이 기간에 집계된 원가가 아직 없어요.'),
+                    'soon_expenses' => $tl('Snap a receipt with your phone — amount, vendor and date are read automatically, then filed to a site and approved. Reuses the file-storage we just shipped.',
+                        'Toma una foto del recibo — importe, proveedor y fecha se leen solos, se asignan a una obra y se aprueban.',
+                        '영수증을 폰으로 촬영하면 금액·상호·날짜가 자동 인식되어 현장에 귀속·승인됩니다. 방금 만든 파일 저장 인프라를 그대로 씁니다.'),
+                    'soon_materials' => $tl('Log material purchases and equipment usage against each site and trade.',
+                        'Registra compras de material y uso de equipo por obra y oficio.',
+                        '자재 구매·장비 사용을 현장·공종별로 기록합니다.'),
+                    'soon_billing' => $tl('Register the contract amount and per-trade progress % to compute this month’s progress payment.',
+                        'Registra el monto del contrato y el % de avance por oficio para calcular el pago del mes.',
+                        '도급계약금액과 공종별 진척률(%)을 등록해 당월 기성을 산출합니다.'),
+                    'soon_invoice' => $tl('Everything rolls up into one progress-billing sheet — cost, margin and evidence — exported as PDF/xlsx for the GC.',
+                        'Todo se resume en una hoja de facturación — costo, margen y evidencia — en PDF/xlsx para el contratista.',
+                        '모든 모듈이 한 장의 기성청구서로 모여 원가·이익·증빙과 함께 PDF/xlsx로 원청에 제출됩니다.'),
+                ],
+            ];
+        }
 
         // ---- dashboard stats ----
         $cnt = ['present' => 0, 'late' => 0, 'absent' => 0, 'off' => 0];
@@ -967,6 +1045,7 @@ class ViewModel
                 'color' => $s['role'] === 'admin' ? '#E85D2A' : '#3B72E0',
             ],
             'pageTitle' => $L['t_'.$s['screen']] ?? '', 'pageSub' => $L['s_'.$s['screen']] ?? '', 'today' => self::todayLabel($lang),
+            'accounting' => $accounting,
             // dashboard
             'dash' => [
                 'layout' => $s['dashLayout'], 'cnt' => $cnt, 'totalActive' => $totalActive, 'onsite' => $onsite, 'rate' => $rate,

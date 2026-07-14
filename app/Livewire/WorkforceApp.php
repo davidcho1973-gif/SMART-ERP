@@ -279,6 +279,9 @@ class WorkforceApp extends Component
 
     public string $payRecipient = 'hourly';   // hourly | all | salary | co:<id> | tm:<id>
 
+    // ---- accounting screen sub-tab ----
+    public string $acctTab = 'dashboard';
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -966,8 +969,8 @@ class WorkforceApp extends Component
 
     public function go(string $screen): void
     {
-        // payroll is a real permission (not a hidden menu); workers have no desktop
-        if ($screen === 'payroll' && ! $this->can('payroll.view')) {
+        // payroll & accounting are finance permissions (not hidden menus); workers have no desktop
+        if (in_array($screen, ['payroll', 'accounting'], true) && ! $this->can('payroll.view')) {
             return;
         }
         if ($this->role === 'worker' && $screen !== 'worker') {
@@ -986,6 +989,15 @@ class WorkforceApp extends Component
             $this->commsPane = 'list'; // on mobile, land on the channel list
             $this->enterComms();
         }
+    }
+
+    /** Switch the sub-tab inside the Accounting screen. */
+    public function acctTab(string $k): void
+    {
+        if (! $this->can('payroll.view')) {
+            return;
+        }
+        $this->acctTab = in_array($k, ['dashboard', 'expenses', 'materials', 'billing', 'invoice'], true) ? $k : 'dashboard';
     }
 
     // =================== internal comms ===================
@@ -3604,6 +3616,7 @@ class WorkforceApp extends Component
             'qrMode' => $this->qrMode, 'qrTeam' => $this->qrTeam,
             'payDetail' => $this->payDetail, 'payVoucher' => $this->payVoucher,
             'checkNo' => $this->checkNo, 'payDate' => $this->payDate,
+            'acctTab' => $this->acctTab,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
