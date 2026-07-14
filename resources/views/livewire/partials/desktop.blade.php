@@ -110,6 +110,8 @@
                 @include('livewire.partials.attendance')
             @elseif($screen === 'payroll')
                 @include('livewire.partials.payroll')
+            @elseif($screen === 'accounting')
+                @include('livewire.partials.accounting')
             @endif
         </div>
     </main>
