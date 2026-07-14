@@ -282,6 +282,31 @@ class WorkforceApp extends Component
     // ---- accounting screen sub-tab ----
     public string $acctTab = 'dashboard';
 
+    // ---- accounting · expenses / receipts (M2) ----
+    public bool $expFormOpen = false;
+
+    public string $expCategory = 'other';
+
+    public string $expVendor = '';
+
+    public string $expAmount = '';
+
+    public string $expDate = '';
+
+    public string $expSite = '';
+
+    public string $expNote = '';
+
+    public $expFile = null;                 // receipt image (Livewire temp upload)
+
+    public ?int $expSelId = null;           // expense open in the detail pane
+
+    public ?int $expRejectId = null;        // expense being rejected
+
+    public string $expRejectNote = '';
+
+    public string $expFilter = 'all';       // status filter: all·pending·approved·rejected
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -998,6 +1023,181 @@ class WorkforceApp extends Component
             return;
         }
         $this->acctTab = in_array($k, ['dashboard', 'expenses', 'materials', 'billing', 'invoice'], true) ? $k : 'dashboard';
+    }
+
+    // =================== accounting · expenses / receipts ===================
+
+    private function resetExpenseForm(): void
+    {
+        $this->expCategory = 'other';
+        $this->expVendor = '';
+        $this->expAmount = '';
+        $this->expNote = '';
+        $this->expFile = null;
+        $this->expDate = now()->format('Y-m-d');
+        $this->expSite = ($this->site && $this->site !== 'all') ? $this->site : (\App\Models\Site::query()->value('id') ?? '');
+    }
+
+    /** Open the "add receipt" form. */
+    public function openExpenseForm(): void
+    {
+        if (! $this->can('expenses.submit')) {
+            return;
+        }
+        $this->resetExpenseForm();
+        $this->expFormOpen = true;
+    }
+
+    public function closeExpenseForm(): void
+    {
+        $this->expFormOpen = false;
+        $this->expFile = null;
+    }
+
+    public function clearExpFile(): void
+    {
+        $this->expFile = null;
+    }
+
+    /** Read the uploaded receipt with Gemini and pre-fill vendor / amount / date / category. */
+    public function readReceipt(): void
+    {
+        if (! $this->expFile || ! $this->can('expenses.submit')) {
+            return;
+        }
+        $analyzer = new \App\Services\ReceiptAnalyzer;
+        if (! $analyzer->isConfigured()) {
+            return;
+        }
+        try {
+            $bytes = $this->expFile->get();
+            $mime = (string) $this->expFile->getMimeType();
+        } catch (\Throwable) {
+            return;
+        }
+        $out = $analyzer->analyze($bytes, $mime);
+        if ($out === null) {
+            $this->showToast($this->tl('Could not read the receipt — enter it manually', 'No se pudo leer el recibo — ingrésalo manualmente', '영수증을 읽지 못했어요 — 직접 입력해 주세요'));
+
+            return;
+        }
+        if ($out['vendor'] !== '') {
+            $this->expVendor = mb_substr($out['vendor'], 0, 120);
+        }
+        if ($out['amount'] > 0) {
+            $this->expAmount = (string) $out['amount'];
+        }
+        if ($out['date'] !== '') {
+            $this->expDate = $out['date'];
+        }
+        $this->expCategory = $out['category'];
+        $this->showToast($this->tl('Receipt read — please check the fields', 'Recibo leído — revisa los campos', '영수증을 읽었어요 — 값을 확인해 주세요'));
+    }
+
+    /** Create a pending expense from the form (with the receipt image, if any). */
+    public function submitExpense(): void
+    {
+        if (! $this->can('expenses.submit')) {
+            return;
+        }
+        $me = $this->actorEmployee();
+        $amount = (float) str_replace(',', '', $this->expAmount);
+        $site = ($this->expSite && $this->expSite !== 'all') ? $this->expSite : null;
+        if (! $site || $amount <= 0) {
+            $this->showToast($this->tl('Pick a site and enter an amount', 'Elige una obra e ingresa el monto', '현장과 금액을 입력해 주세요'));
+
+            return;
+        }
+        $category = in_array($this->expCategory, \App\Models\Expense::CATEGORIES, true) ? $this->expCategory : 'other';
+        $date = $this->expDate ?: now()->format('Y-m-d');
+
+        $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
+        if ($this->expFile) {
+            $why = \App\Support\Attach::reject($this->expFile);
+            if ($why !== null) {
+                $this->showToast($why === 'size'
+                    ? $this->tl('Receipt image is too large', 'La imagen es demasiado grande', '영수증 이미지가 너무 큽니다')
+                    : $this->tl('That file type is not allowed', 'Tipo de archivo no permitido', '허용되지 않는 파일 형식입니다'));
+
+                return;
+            }
+            $ext = strtolower($this->expFile->getClientOriginalExtension());
+            $disk = \App\Support\Attach::enabled() ? \App\Support\Attach::disk() : 'local';
+            $path = 'receipts/'.$site.'/'.\Illuminate\Support\Str::uuid()->toString().'.'.$ext;
+            \Illuminate\Support\Facades\Storage::disk($disk)->putFileAs('', $this->expFile, $path, 'private');
+            $att = [
+                'att_disk' => $disk, 'att_path' => $path,
+                'att_name' => mb_substr($this->expFile->getClientOriginalName(), 0, 180),
+                'att_mime' => \App\Support\Attach::MIME[$ext] ?? (string) $this->expFile->getMimeType(),
+                'att_size' => (int) $this->expFile->getSize(),
+            ];
+        }
+
+        \App\Models\Expense::create(array_merge([
+            'site_id' => $site,
+            'category' => $category,
+            'vendor' => mb_substr(trim($this->expVendor), 0, 120) ?: null,
+            'amount' => $amount,
+            'spent_on' => $date,
+            'note' => mb_substr(trim($this->expNote), 0, 500) ?: null,
+            'status' => 'pending',
+            'submitted_by' => $me?->id,
+        ], $att));
+
+        $this->expFormOpen = false;
+        $this->expFile = null;
+        $this->showToast($this->tl('Receipt added', 'Recibo agregado', '영수증을 등록했어요'));
+    }
+
+    public function selectExpense(int $id): void
+    {
+        $this->expSelId = $id;
+    }
+
+    public function approveExpense(int $id): void
+    {
+        if (! $this->can('expenses.decide')) {
+            return;
+        }
+        $e = \App\Models\Expense::find($id);
+        if (! $e || ! $e->isPending()) {
+            return;
+        }
+        $e->update(['status' => 'approved', 'decided_by' => $this->actorEmployee()?->id, 'decided_at' => now(), 'reject_reason' => null]);
+        $this->showToast($this->tl('Approved', 'Aprobado', '승인했어요'));
+    }
+
+    public function askRejectExpense(int $id): void
+    {
+        if (! $this->can('expenses.decide')) {
+            return;
+        }
+        $this->expRejectId = $id;
+        $this->expRejectNote = '';
+    }
+
+    public function cancelExpReject(): void
+    {
+        $this->expRejectId = null;
+        $this->expRejectNote = '';
+    }
+
+    public function rejectExpense(int $id): void
+    {
+        if (! $this->can('expenses.decide')) {
+            return;
+        }
+        $e = \App\Models\Expense::find($id);
+        if (! $e || ! $e->isPending()) {
+            return;
+        }
+        $e->update([
+            'status' => 'rejected', 'decided_by' => $this->actorEmployee()?->id,
+            'decided_at' => now(), 'reject_reason' => mb_substr(trim($this->expRejectNote), 0, 300) ?: null,
+        ]);
+        $this->expRejectId = null;
+        $this->expRejectNote = '';
+        $this->showToast($this->tl('Rejected', 'Rechazado', '반려했어요'));
     }
 
     // =================== internal comms ===================
@@ -3617,6 +3817,9 @@ class WorkforceApp extends Component
             'payDetail' => $this->payDetail, 'payVoucher' => $this->payVoucher,
             'checkNo' => $this->checkNo, 'payDate' => $this->payDate,
             'acctTab' => $this->acctTab,
+            'expFormOpen' => $this->expFormOpen, 'expSelId' => $this->expSelId,
+            'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter,
+            'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
             'noLunchToday' => $this->noLunchToday, 'lunchOv' => $this->lunchOv,
@@ -3628,6 +3831,8 @@ class WorkforceApp extends Component
             'scopeSites' => $this->scopeSiteIds(),
             'can' => [
                 'payrollView' => $this->can('payroll.view'),
+                'expensesSubmit' => $this->can('expenses.submit'),
+                'expensesDecide' => $this->can('expenses.decide'),
                 'sitesCreate' => $this->can('sites.create'),
                 'sitesDelete' => $this->can('sites.delete'),
                 'companiesCreate' => $this->can('companies.create'),

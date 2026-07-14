@@ -70,6 +70,7 @@
                                 <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px;">{{ $lab['col_gc'] }}</th>
                                 <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_head'] }}</th>
                                 <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_labor'] }}</th>
+                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_expense'] }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -82,6 +83,7 @@
                                     <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; color: #5A5D64;">{{ $r['gc'] }}</td>
                                     <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; color: #5A5D64;">{{ $r['headcount'] }}</td>
                                     <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; font-weight: 700;">{{ $r['laborLabel'] }}</td>
+                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; color: {{ $r['expense'] > 0 ? '#C0641F' : '#C4C1B8' }}; font-weight: {{ $r['expense'] > 0 ? '600' : '400' }};">{{ $r['expenseLabel'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -90,6 +92,7 @@
                                 <td colspan="2" style="padding: 12px 8px; border-top: 2px solid #16181D; font-weight: 700;">{{ $lab['total'] }}</td>
                                 <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; color: #5A5D64;">{{ $A['totalHead'] }}</td>
                                 <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; font-size: 15px;">{{ $A['totalLaborLabel'] }}</td>
+                                <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; color: #C0641F;">{{ $A['totalExpenseLabel'] }}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -125,6 +128,9 @@
                 </div>
             </div>
         </div>
+
+    @elseif($tab === 'expenses')
+        @include('livewire.partials.accounting-expenses')
 
     @else
         {{-- ---------- module placeholder (harmonious "coming soon") ---------- --}}
