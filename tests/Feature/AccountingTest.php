@@ -61,6 +61,24 @@ class AccountingTest extends TestCase
         $this->assertEqualsWithDelta($sum, $vm['totalLabor'], 0.01);
     }
 
+    public function test_dashboard_respects_the_header_site_filter(): void
+    {
+        $sites = \App\Models\Site::query()->limit(2)->pluck('id');
+        $this->assertGreaterThanOrEqual(2, $sites->count(), 'seed needs 2+ sites');
+        $one = $sites[0];
+
+        $A = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'accounting')
+            ->set('site', $one)              // pick one site in the header
+            ->viewData('accounting');
+
+        // every row shown belongs to the selected site
+        foreach ($A['siteRows'] as $r) {
+            $this->assertSame($one, $r['id']);
+        }
+    }
+
     public function test_switching_sub_tabs_works(): void
     {
         Livewire::test(WorkforceApp::class)
