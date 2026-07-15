@@ -1225,7 +1225,8 @@ class ViewModel
         ];
 
         $filter = $s['expFilter'] ?? 'all';
-        $q = \App\Models\Expense::query()->with('submitter')->orderByDesc('id');
+        $search = trim((string) ($s['expSearch'] ?? ''));
+        $q = \App\Models\Expense::query()->with(['submitter', 'decider'])->orderByDesc('id');
         if (in_array($filter, ['pending', 'approved', 'rejected'], true)) {
             $q->where('status', $filter);
         }
@@ -1235,10 +1236,19 @@ class ViewModel
         if ($activeSite !== 'all') {
             $q->where('site_id', $activeSite);   // header site selector
         }
+        if ($search !== '') {
+            $q->where(fn ($w) => $w->where('vendor', 'like', '%'.$search.'%')->orWhere('site_id', 'like', '%'.$search.'%'));
+        }
         $siteNames = $visibleSites->keyBy('id');
-        $rows = $q->limit(120)->get()->map(function (\App\Models\Expense $x) use ($catMeta, $statusMeta, $lang, $siteNames) {
+        $rows = $q->limit(120)->get()->map(function (\App\Models\Expense $x) use ($catMeta, $statusMeta, $lang, $siteNames, $tl) {
             $cat = $catMeta[$x->category] ?? $catMeta['other'];
             $st = $statusMeta[$x->status] ?? $statusMeta['pending'];
+            $decidedLine = null;
+            if ($x->status !== 'pending' && $x->decided_at) {
+                $who = $x->decider?->displayName($lang) ?? '—';
+                $verb = $x->status === 'approved' ? $tl('approved', 'aprobó', '승인') : $tl('rejected', 'rechazó', '반려');
+                $decidedLine = $who.' · '.$verb.' · '.$x->decided_at->format('M j');
+            }
 
             return [
                 'id' => $x->id,
@@ -1246,11 +1256,13 @@ class ViewModel
                 'vendor' => $x->vendor ?: '—',
                 'amount' => (float) $x->amount, 'amountLabel' => Money::usd((float) $x->amount),
                 'date' => $x->spent_on?->format('M j, Y') ?? '—',
+                'dateShort' => $x->spent_on?->format('M j') ?? '—',
                 'status' => $x->status, 'statusName' => $st['name'], 'statusColor' => $st['color'], 'statusBg' => $st['bg'],
                 'site' => $siteNames->get($x->site_id)?->name ?? ($x->site_id ?: '—'),
                 'submitter' => $x->submitter?->displayName($lang) ?? '—',
                 'note' => $x->note,
                 'rejectReason' => $x->reject_reason,
+                'decidedLine' => $decidedLine,
                 'hasReceipt' => $x->hasReceipt(),
                 'isImage' => $x->isImage(),
                 'receiptUrl' => $x->hasReceipt() ? url('/accounting/receipt/'.$x->id) : '',
@@ -1283,6 +1295,7 @@ class ViewModel
             'pendingCount' => $pendingCount,
             'formOpen' => (bool) ($s['expFormOpen'] ?? false),
             'rejectId' => $s['expRejectId'] ?? null,
+            'search' => $search,
             'siteOptions' => $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name])->all(),
             'categories' => array_map(fn ($k) => ['key' => $k, 'name' => $catMeta[$k]['name'], 'color' => $catMeta[$k]['color']], \App\Models\Expense::CATEGORIES),
             'ocrOn' => (bool) config('services.gemini.key'),
@@ -1306,6 +1319,9 @@ class ViewModel
                 'reject' => $tl('Reject', 'Rechazar', '반려'),
                 'rejectPh' => $tl('Reason (optional)', 'Motivo (opcional)', '반려 사유 (선택)'),
                 'confirmReject' => $tl('Confirm reject', 'Confirmar', '반려 확정'),
+                'searchPh' => $tl('Search vendor / site', 'Buscar proveedor / obra', '상호·현장 검색'),
+                'statusCol' => $tl('Status', 'Estado', '상태'),
+                'vendorCat' => $tl('Vendor / Category', 'Proveedor / Categoría', '상호 / 분류'),
                 'filter_all' => $tl('All', 'Todos', '전체'),
                 'filter_pending' => $tl('Pending', 'Pendiente', '대기'),
                 'filter_approved' => $tl('Approved', 'Aprobado', '승인'),
