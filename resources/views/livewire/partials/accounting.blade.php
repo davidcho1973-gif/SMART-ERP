@@ -25,7 +25,7 @@
     <div style="display: flex; gap: 4px; background: #fff; border: 1px solid #E4E2DB; border-radius: 13px; padding: 5px; overflow-x: auto;">
         @foreach($tabs as $key => $label)
             @php $on = $tab === $key; $isLive = in_array($key, $liveTabs, true); @endphp
-            <button wire:click="acctTab('{{ $key }}')"
+            <button wire:click="setAcctTab('{{ $key }}')"
                 style="display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; padding: 9px 15px; border: none; border-radius: 9px; font-size: 13px; font-weight: {{ $on ? '700' : '600' }}; cursor: pointer; background: {{ $on ? '#16181D' : 'transparent' }}; color: {{ $on ? '#fff' : '#5A5D64' }};"
                 @if(!$on) onmouseover="this.style.background='#F4F3EE'" onmouseout="this.style.background='transparent'" @endif>
                 {{ $label }}
