@@ -158,15 +158,26 @@ class ViewModel
                 ->withSum('lines', 'amount')->get()
                 ->groupBy('site_id')->map(fn ($g) => (float) $g->sum('lines_sum_amount'));
 
+            // rented equipment accrued for the month (per-day overlap) → the live "장비비" pillar
+            $mS = $mBase->copy();
+            $mE = $mBase->copy()->endOfMonth();
+            $asOf = $mBase->isSameMonth(Carbon::now()) ? Carbon::today() : null;
+            $eqBySite = \App\Models\Equipment::where('acquisition', 'rented')
+                ->whereNotNull('rental_start')->where('rental_start', '<=', $monthEnd)
+                ->where('status', '!=', 'disposed')
+                ->get()->groupBy('site_id')
+                ->map(fn ($g) => (float) $g->sum(fn ($e) => $e->rentAccrual($mS, $mE, $asOf)));
+
             // honour the header site selector, like every other screen
             $acctSite = $s['site'] ?? 'all';
             $acctSites = ($acctSite !== 'all') ? $visibleSites->where('id', $acctSite)->values() : $visibleSites;
 
-            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossForMonth, $expBySite, $matBySite) {
+            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossForMonth, $expBySite, $matBySite, $eqBySite) {
                 $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
                 $labor = (float) $inSite->sum($grossForMonth);
                 $expense = (float) ($expBySite[$st->id] ?? 0);
                 $material = (float) ($matBySite[$st->id] ?? 0);
+                $equipment = (float) ($eqBySite[$st->id] ?? 0);
 
                 return [
                     'id' => $st->id, 'name' => $st->name, 'city' => $st->city,
@@ -174,13 +185,15 @@ class ViewModel
                     'labor' => $labor, 'laborLabel' => Money::usd($labor),
                     'material' => $material, 'materialLabel' => Money::usd($material),
                     'expense' => $expense, 'expenseLabel' => Money::usd($expense),
+                    'equipment' => $equipment, 'equipmentLabel' => Money::usd($equipment),
                 ];
-            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0 || $r['expense'] > 0 || $r['material'] > 0)
+            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0 || $r['expense'] > 0 || $r['material'] > 0 || $r['equipment'] > 0)
                 ->sortByDesc('labor')->values()->all();
 
             $totalLabor = (float) array_sum(array_column($siteRows, 'labor'));
             $totalExpense = (float) array_sum(array_column($siteRows, 'expense'));
             $totalMaterial = (float) array_sum(array_column($siteRows, 'material'));
+            $totalEquipment = (float) array_sum(array_column($siteRows, 'equipment'));
             $totalHead = (int) array_sum(array_column($siteRows, 'headcount'));
 
             $accounting = [
@@ -197,17 +210,21 @@ class ViewModel
                 'totalExpenseLabel' => Money::usd($totalExpense),
                 'totalMaterial' => $totalMaterial,
                 'totalMaterialLabel' => Money::usd($totalMaterial),
-                // cost pillars — labor, expenses & materials are live; subcontract arrives with M5
+                'totalEquipment' => $totalEquipment,
+                'totalEquipmentLabel' => Money::usd($totalEquipment),
+                // cost pillars — labor, materials, expenses & equipment are live; subcontract arrives with M5
                 'pillars' => [
-                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor,    'label' => Money::usd($totalLabor),    'color' => '#E85D2A', 'live' => true],
-                    ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => $totalMaterial, 'label' => Money::usd($totalMaterial), 'color' => '#3B72E0', 'live' => true],
-                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => $totalExpense,  'label' => Money::usd($totalExpense),  'color' => '#C98A1E', 'live' => true],
-                    ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
+                    ['key' => 'labor',     'name' => $tl('Labor', 'Mano de obra', '노무비'),    'amount' => $totalLabor,     'label' => Money::usd($totalLabor),     'color' => '#E85D2A', 'live' => true],
+                    ['key' => 'material',  'name' => $tl('Materials', 'Materiales', '자재비'),   'amount' => $totalMaterial,  'label' => Money::usd($totalMaterial),  'color' => '#3B72E0', 'live' => true],
+                    ['key' => 'expense',   'name' => $tl('Expenses', 'Gastos', '경비'),          'amount' => $totalExpense,   'label' => Money::usd($totalExpense),   'color' => '#C98A1E', 'live' => true],
+                    ['key' => 'equipment', 'name' => $tl('Equipment', 'Equipo', '장비비'),       'amount' => $totalEquipment, 'label' => Money::usd($totalEquipment), 'color' => '#0EA5A0', 'live' => true],
+                    ['key' => 'sub',       'name' => $tl('Subcontract', 'Subcontrata', '외주비'), 'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
                 ],
                 'materials' => self::materialsPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['materialsDecide'] ?? false), (bool) ($caps['materialsSubmit'] ?? false)),
                 'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
                 'billing' => self::billingPanel($tl, $acctSites, $mBase->format('Y-m'), $monthLabel, (bool) ($caps['contractsManage'] ?? false)),
                 'equipment' => self::equipmentPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, $activeAll, (bool) ($caps['equipmentManage'] ?? false), (bool) ($caps['equipmentCheckout'] ?? false)),
+                'invoice' => self::invoicePanel($tl, $acctSites, $mBase->format('Y-m'), $monthLabel, $siteRows),
                 'labels' => [
                     'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
                     'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
@@ -228,11 +245,12 @@ class ViewModel
                     'col_labor' => $tl('Labor cost', 'Mano de obra', '노무비'),
                     'col_material' => $tl('Materials', 'Materiales', '자재비'),
                     'col_expense' => $tl('Expenses', 'Gastos', '경비'),
+                    'col_equipment' => $tl('Equipment', 'Equipo', '장비비'),
                     'total' => $tl('Total', 'Total', '합계'),
                     'comp_title' => $tl('Cost composition', 'Composición del costo', '원가 구성'),
-                    'live_note' => $tl('Labor is aggregated live from attendance & payroll; expenses from approved receipts. Materials and subcontract arrive with the next modules.',
-                        'La mano de obra se calcula desde asistencia y nómina; los gastos desde recibos aprobados. Materiales y subcontrata llegan con los próximos módulos.',
-                        '노무비는 근태·급여에서, 경비는 승인된 영수증에서 실시간 집계됩니다. 자재·외주비는 다음 모듈에서 추가됩니다.'),
+                    'live_note' => $tl('Labor is aggregated live from attendance & payroll; materials from approved batches; expenses from approved receipts; equipment from rental accrual. Subcontract arrives with the next module.',
+                        'Mano de obra desde asistencia y nómina; materiales desde lotes aprobados; gastos desde recibos; equipo desde renta acumulada. Subcontrata llega con el próximo módulo.',
+                        '노무비는 근태·급여, 자재비는 승인 입고, 경비는 승인 영수증, 장비비는 랜트 누적에서 실시간 집계됩니다. 외주비는 다음 모듈에서 추가됩니다.'),
                     'soon' => $tl('Coming soon', 'Próximamente', '준비중'),
                     'empty' => $tl('No cost recorded for this period yet.', 'Aún no hay costos en este periodo.', '이 기간에 집계된 원가가 아직 없어요.'),
                     'soon_expenses' => $tl('Snap a receipt with your phone — amount, vendor and date are read automatically, then filed to a site and approved. Reuses the file-storage we just shipped.',
@@ -1443,6 +1461,126 @@ class ViewModel
     }
 
     /**
+     * Accounting → M7 기성청구서 (integrated progress-billing sheet). The North Star:
+     * per site it fuses the CONTRACT/PROGRESS side (계약·기성 from billingPanel's
+     * math) with the COST side (노무비·자재비·경비·장비비 from the dashboard siteRows)
+     * to show 당월 기성 vs 당월 원가 and the resulting margin — one printable sheet.
+     */
+    protected static function invoicePanel(callable $tl, $acctSites, string $ym, string $monthLabel, array $siteRows): array
+    {
+        $ids = $acctSites->pluck('id')->all();
+        $contracts = \App\Models\Contract::whereIn('site_id', $ids)->get()->keyBy('site_id');
+        $snapsBySite = \App\Models\ProgressSnapshot::whereIn('site_id', $ids)->orderBy('ym')->get()->groupBy('site_id');
+        $costBySite = collect($siteRows)->keyBy('id');
+
+        $rows = $acctSites->map(function ($st) use ($contracts, $snapsBySite, $ym, $costBySite, $tl) {
+            $amount = (float) ($contracts->get($st->id)->amount ?? 0);
+            $snaps = $snapsBySite->get($st->id, collect());
+            $cumPct = 0.0;
+            $prevPct = 0.0;
+            foreach ($snaps as $sn) {           // sorted ascending by ym
+                if ($sn->ym < $ym) {
+                    $prevPct = (float) $sn->pct;
+                }
+                if ($sn->ym <= $ym) {
+                    $cumPct = (float) $sn->pct;
+                }
+            }
+            $thisBill = $amount * ($cumPct - $prevPct) / 100;
+            $cumBill = $amount * $cumPct / 100;
+            $remaining = max(0.0, $amount - $cumBill);
+
+            $c = $costBySite->get($st->id);
+            $labor = (float) ($c['labor'] ?? 0);
+            $material = (float) ($c['material'] ?? 0);
+            $expense = (float) ($c['expense'] ?? 0);
+            $equipment = (float) ($c['equipment'] ?? 0);
+            $monthCost = $labor + $material + $expense + $equipment;
+            $margin = $thisBill - $monthCost;                       // 당월 기성 − 당월 원가
+            $marginPct = $thisBill > 0 ? round($margin / $thisBill * 100, 1) : null;
+
+            return [
+                'id' => $st->id, 'name' => $st->name, 'city' => $st->city, 'gc' => $st->gc ?: '—',
+                'hasContract' => $amount > 0,
+                'amount' => $amount, 'amountLabel' => Money::usd($amount),
+                'cumPct' => round($cumPct, 1),
+                'thisBill' => $thisBill, 'thisBillLabel' => Money::usd($thisBill),
+                'cumBill' => $cumBill, 'cumBillLabel' => Money::usd($cumBill),
+                'remaining' => $remaining, 'remainingLabel' => Money::usd($remaining),
+                'labor' => $labor, 'laborLabel' => Money::usd($labor),
+                'material' => $material, 'materialLabel' => Money::usd($material),
+                'expense' => $expense, 'expenseLabel' => Money::usd($expense),
+                'equipment' => $equipment, 'equipmentLabel' => Money::usd($equipment),
+                'monthCost' => $monthCost, 'monthCostLabel' => Money::usd($monthCost),
+                'margin' => $margin, 'marginLabel' => Money::usd($margin),
+                'marginPct' => $marginPct, 'positive' => $margin >= 0,
+            ];
+        })->filter(fn ($r) => $r['hasContract'] || $r['monthCost'] > 0)->values()->all();
+
+        $sum = fn ($k) => (float) array_sum(array_column($rows, $k));
+        $totContract = $sum('amount');
+        $totThis = $sum('thisBill');
+        $totCum = $sum('cumBill');
+        $totRemain = $sum('remaining');
+        $totCost = $sum('monthCost');
+        $totMargin = $totThis - $totCost;
+        $overallPct = $totContract > 0 ? round($totCum / $totContract * 100, 1) : 0.0;
+        $marginPct = $totThis > 0 ? round($totMargin / $totThis * 100, 1) : null;
+
+        return [
+            'monthLabel' => $monthLabel,
+            'ym' => $ym,
+            'rows' => $rows,
+            'hasAny' => count($rows) > 0,
+            'totContractLabel' => Money::usd($totContract),
+            'totThisLabel' => Money::usd($totThis),
+            'totThis' => $totThis,
+            'totCumLabel' => Money::usd($totCum),
+            'totRemainLabel' => Money::usd($totRemain),
+            'totLaborLabel' => Money::usd($sum('labor')),
+            'totMaterialLabel' => Money::usd($sum('material')),
+            'totExpenseLabel' => Money::usd($sum('expense')),
+            'totEquipmentLabel' => Money::usd($sum('equipment')),
+            'totCostLabel' => Money::usd($totCost),
+            'totMarginLabel' => Money::usd($totMargin),
+            'totMargin' => $totMargin,
+            'overallPct' => $overallPct,
+            'marginPct' => $marginPct,
+            'positive' => $totMargin >= 0,
+            'labels' => [
+                'title' => $tl('Progress Billing Statement', 'Estado de Facturación por Avance', '기성 청구서'),
+                'subtitle' => $tl('Contract progress vs. cost — integrated', 'Avance del contrato vs. costo', '계약 기성 대비 원가 — 통합 집계'),
+                'print' => $tl('Print / PDF', 'Imprimir / PDF', '인쇄 / PDF'),
+                'kpi_this' => $tl('This month billing', 'Facturación del mes', '당월 기성'),
+                'kpi_cost' => $tl('This month cost', 'Costo del mes', '당월 원가'),
+                'kpi_margin' => $tl('Gross margin', 'Margen bruto', '당월 이익'),
+                'kpi_progress' => $tl('Overall progress', 'Avance global', '전체 기성률'),
+                'billing_h' => $tl('Contract & progress', 'Contrato y avance', '계약 · 기성'),
+                'cost_h' => $tl('Cost of work (this month)', 'Costo de obra (mes)', '당월 투입 원가'),
+                'col_site' => $tl('Site', 'Obra', '현장'),
+                'col_contract' => $tl('Contract', 'Contrato', '계약금액'),
+                'col_pct' => $tl('%', '%', '기성률'),
+                'col_this' => $tl('This month', 'Este mes', '당월 기성'),
+                'col_cum' => $tl('Cumulative', 'Acumulado', '누계 기성'),
+                'col_remain' => $tl('Remaining', 'Restante', '잔여'),
+                'col_labor' => $tl('Labor', 'M. de obra', '노무비'),
+                'col_material' => $tl('Material', 'Material', '자재비'),
+                'col_expense' => $tl('Expense', 'Gasto', '경비'),
+                'col_equipment' => $tl('Equipment', 'Equipo', '장비비'),
+                'col_cost' => $tl('Cost', 'Costo', '원가 계'),
+                'col_margin' => $tl('Margin', 'Margen', '이익'),
+                'total' => $tl('Total', 'Total', '합계'),
+                'empty' => $tl('Set a contract and record cost to generate the billing statement.', 'Fija un contrato y registra costos para generar el estado.', '계약금액을 설정하고 원가가 집계되면 기성청구서가 생성됩니다.'),
+                'note' => $tl('Margin = this-month billing − this-month cost (labor + material + expense + equipment). Figures roll up live from every module.',
+                    'Margen = facturación del mes − costo del mes (mano de obra + material + gasto + equipo).',
+                    '이익 = 당월 기성 − 당월 원가(노무비+자재비+경비+장비비). 모든 모듈에서 실시간 집계됩니다.'),
+                'generated' => $tl('Generated', 'Generado', '작성일'),
+                'for' => $tl('for', 'para', '대상 월'),
+            ],
+        ];
+    }
+
+    /**
      * Accounting → Materials tab (M3 · STEP 1). Inbound batches (delivery slip ·
      * manual · opening stock) with line items; approved delivery/manual batches
      * feed 자재비, opening batches record quantity only.
@@ -1738,6 +1876,38 @@ class ViewModel
             ->when($scopeSites !== null, fn ($qq) => $qq->where(fn ($w) => $w->whereIn('site_id', $scopeSites)->orWhereNull('site_id')))
             ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count();
 
+        // ---- 유휴 장비 반납 절감 AI — rented units on the books but not deployed,
+        //      still accruing rent. Flag them with the projected saving of returning now. ----
+        $idleUnits = \App\Models\Equipment::where('acquisition', 'rented')->whereNotNull('rental_rate')
+            ->whereIn('status', ['available', 'maintenance'])
+            ->when($scopeSites !== null, fn ($qq) => $qq->where(fn ($w) => $w->whereIn('site_id', $scopeSites)->orWhereNull('site_id')))
+            ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))
+            ->get()->filter(fn ($e) => $e->isIdleRental());
+        $idleSaving = (float) $idleUnits->sum(fn ($e) => $e->idleSaving());
+        $idle = [
+            'count' => $idleUnits->count(),
+            'saving' => $idleSaving,
+            'savingLabel' => Money::usd($idleSaving),
+            'units' => $idleUnits->sortByDesc(fn ($e) => $e->idleSaving())->take(6)->map(function ($e) use ($tl, $siteNames) {
+                $due = $e->daysToReturn();
+                $rate = $e->perDayRate();
+
+                return [
+                    'id' => $e->id,
+                    'name' => $e->name,
+                    'site' => $siteNames->get($e->site_id)?->name ?? ($e->site_id ?: $tl('Unassigned', 'Sin asignar', '미배정')),
+                    'dailyLabel' => Money::usd($rate).$tl('/day', '/día', '/일'),
+                    'saveLabel' => Money::usd($e->idleSaving()),
+                    'reason' => $e->status === 'maintenance'
+                        ? $tl('In maintenance, still on rent', 'En mantenimiento, aún rentado', '정비 중이나 임대료 발생')
+                        : $tl('Not deployed to a site', 'Sin desplegar a obra', '현장 미배치 상태'),
+                    'window' => $due === null
+                        ? $tl('open-ended rental', 'renta abierta', '기한 없는 임대')
+                        : $tl($due.'d until return', $due.'d hasta devolución', '반납까지 '.$due.'일'),
+                ];
+            })->values()->all(),
+        ];
+
         $expandId = $s['equipExpandId'] ?? null;
         $qrEquip = null;
         if (($s['equipQrId'] ?? null) && ($s['equipModal'] ?? null) === 'qr') {
@@ -1745,7 +1915,7 @@ class ViewModel
             if ($qe) {
                 $qrEquip = [
                     'name' => $qe->name, 'token' => $qe->qr_token,
-                    'svg' => RealQr::svg('EQUIP:'.$qe->qr_token, 148),
+                    'svg' => RealQr::svg(url('/e/'.$qe->qr_token), 148),
                 ];
             }
         }
@@ -1754,6 +1924,7 @@ class ViewModel
             'canManage' => $canManage, 'canCheckout' => $canCheckout,
             'filter' => $filter, 'search' => $search,
             'rows' => $rows, 'counts' => $counts, 'dueSoon' => $dueSoon,
+            'idle' => $idle,
             'expandId' => $expandId,
             'coTarget' => $s['coTarget'] ?? null,
             'formOpen' => ($s['equipModal'] ?? null) === 'register',
@@ -1772,6 +1943,11 @@ class ViewModel
                 'kpi_total' => $tl('Registered', 'Registrados', '등록 장비'),
                 'kpi_out' => $tl('On site', 'En obra', '현장 배치'),
                 'kpi_due' => $tl('Return due ≤7d', 'Devolución ≤7d', '반납 임박'),
+                'idle_title' => $tl('Idle-rental savings', 'Ahorro de renta ociosa', '유휴 장비 반납 절감'),
+                'idle_sub' => $tl('These rented units are on the books but not deployed — returning them now saves', 'Estas unidades rentadas no están desplegadas — devolverlas ahora ahorra', '아래 랜트 장비는 현장에 배치되지 않은 채 임대료가 나가고 있어요 — 지금 반납하면 예상 절감액'),
+                'idle_return' => $tl('Return now', 'Devolver ahora', '반납 처리'),
+                'idle_save' => $tl('save', 'ahorra', '절감'),
+                'idle_none' => $tl('No idle rentals — every rented unit is deployed. 👍', 'Sin rentas ociosas — todo desplegado. 👍', '유휴 랜트 장비가 없어요 — 모두 현장에 배치됨 👍'),
                 'filter_all' => $tl('All', 'Todos', '전체'),
                 'filter_available' => $tl('Available', 'Disponible', '보유'),
                 'filter_out' => $tl('On site', 'En obra', '현장'),

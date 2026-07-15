@@ -23,6 +23,40 @@
     </div>
 </div>
 
+{{-- ---------- 유휴 장비 반납 절감 AI ---------- --}}
+@if($E['idle']['count'] > 0)
+    <div style="background: linear-gradient(135deg, #0E1A19, #16302E); border-radius: 16px; padding: 16px 18px; margin-bottom: 16px; color: #fff;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: rgba(14,165,160,.22); color: #5EE6D8;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></span>
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 14.5px;">{{ $el['idle_title'] }}</div>
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 20px; background: rgba(94,230,216,.16); color: #5EE6D8;">AI</span>
+            <div style="flex: 1;"></div>
+            <div style="text-align: right;">
+                <div style="font-size: 10.5px; color: rgba(255,255,255,.55);">{{ $el['idle_save'] }}</div>
+                <div style="font-family: 'Space Grotesk'; font-size: 20px; font-weight: 700; color: #5EE6D8; line-height: 1;">{{ $E['idle']['savingLabel'] }}</div>
+            </div>
+        </div>
+        <div style="font-size: 12px; color: rgba(255,255,255,.62); margin: 9px 0 12px; line-height: 1.5;">{{ $el['idle_sub'] }} <strong style="color:#5EE6D8;">{{ $E['idle']['savingLabel'] }}</strong>.</div>
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+            @foreach($E['idle']['units'] as $u)
+                <div wire:key="idle-{{ $u['id'] }}" style="display: flex; align-items: center; gap: 11px; background: rgba(255,255,255,.05); border-radius: 10px; padding: 9px 12px; flex-wrap: wrap;">
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="font-weight: 600; font-size: 13px;">{{ $u['name'] }}</div>
+                        <div style="font-size: 11px; color: rgba(255,255,255,.5); margin-top: 1px;">{{ $u['site'] }} · {{ $u['reason'] }} · {{ $u['window'] }}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 11px; color: rgba(255,255,255,.5);">{{ $u['dailyLabel'] }}</div>
+                        <div style="font-weight: 700; font-size: 13px; color: #5EE6D8;">−{{ $u['saveLabel'] }}</div>
+                    </div>
+                    @if($E['canCheckout'])
+                        <button wire:click="equipStatus({{ $u['id'] }}, 'returned')" style="padding: 7px 13px; border: none; border-radius: 8px; background: #5EE6D8; color: #0E1A19; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;">{{ $el['idle_return'] }}</button>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 {{-- toolbar --}}
 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
     <div style="display: flex; gap: 3px; background: #fff; border: 1px solid #E4E2DB; border-radius: 11px; padding: 3px; flex-wrap: wrap;">

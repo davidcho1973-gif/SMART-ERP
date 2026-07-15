@@ -152,4 +152,83 @@ class EquipmentTest extends TestCase
             ->call('submitEquip');
         $this->assertSame(1, Equipment::count()); // nothing added
     }
+
+    public function test_rent_accrual_is_per_day_over_the_month_overlap(): void
+    {
+        $e = new Equipment(['acquisition' => 'rented', 'rental_rate' => 100, 'rate_unit' => 'day', 'status' => 'out']);
+        $e->rental_start = Carbon::parse('2026-06-01');
+        $e->rental_end = Carbon::parse('2026-06-30');
+
+        // full June (30 inclusive days) × $100/day = $3,000
+        $this->assertSame(3000.0, $e->rentAccrual(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'), null));
+
+        // weekly rate 700/wk → 100/day; 10 days into the month with asOf cap
+        $w = new Equipment(['acquisition' => 'rented', 'rental_rate' => 700, 'rate_unit' => 'week', 'status' => 'out']);
+        $w->rental_start = Carbon::parse('2026-06-01');
+        $w->rental_end = Carbon::parse('2026-07-31');
+        // asOf = Jun 10 → Jun 1..10 = 10 days × 100 = 1000
+        $this->assertEqualsWithDelta(1000.0, $w->rentAccrual(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'), Carbon::parse('2026-06-10')), 0.01);
+    }
+
+    public function test_rented_equipment_feeds_the_equipment_pillar(): void
+    {
+        $site = $this->siteId();
+        // active rental spanning the whole current month
+        Equipment::create(['name' => 'Boom Lift', 'acquisition' => 'rented', 'qr_token' => 'PILLAR1', 'status' => 'out',
+            'site_id' => $site, 'rental_rate' => 50, 'rate_unit' => 'day',
+            'rental_start' => now()->startOfMonth()->subMonth()->format('Y-m-d'),
+            'rental_end' => now()->endOfMonth()->addMonth()->format('Y-m-d')]);
+
+        $A = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'accounting')
+            ->viewData('accounting');
+
+        $pillar = collect($A['pillars'])->firstWhere('key', 'equipment');
+        $this->assertTrue($pillar['live']);
+        $this->assertGreaterThan(0, $A['totalEquipment']);
+        $this->assertSame($A['totalEquipment'], $pillar['amount']);
+    }
+
+    public function test_idle_rental_surfaces_savings(): void
+    {
+        $site = $this->siteId();
+        // rented, available (not deployed), still inside rental window → idle
+        Equipment::create(['name' => 'Idle Generator', 'acquisition' => 'rented', 'qr_token' => 'IDLE001', 'status' => 'available',
+            'site_id' => $site, 'rental_rate' => 90, 'rate_unit' => 'day',
+            'rental_start' => now()->subDays(5)->format('Y-m-d'),
+            'rental_end' => now()->addDays(20)->format('Y-m-d')]);
+
+        $A = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'accounting')
+            ->viewData('accounting');
+
+        $this->assertSame(1, $A['equipment']['idle']['count']);
+        // 20 days left × $90/day = $1,800 projected saving
+        $this->assertEqualsWithDelta(1800.0, $A['equipment']['idle']['saving'], 0.01);
+    }
+
+    public function test_invoice_integrates_progress_and_cost_into_margin(): void
+    {
+        $site = $this->siteId();
+        // contract 100k, this month is the first progress snapshot at 10% → $10k billing
+        \App\Models\Contract::create(['site_id' => $site, 'amount' => 100000]);
+        \App\Models\ProgressSnapshot::create(['site_id' => $site, 'ym' => now()->format('Y-m'), 'pct' => 10]);
+        // some approved cost this month: a $2k material batch
+        $b = \App\Models\MaterialBatch::create(['site_id' => $site, 'kind' => 'delivery', 'status' => 'approved', 'spent_on' => now()->format('Y-m-d')]);
+        $b->lines()->create(['name' => 'Pipe', 'unit' => 'm', 'qty' => 100, 'unit_price' => 20, 'amount' => 2000]);
+
+        $A = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'accounting')
+            ->call('setAcctTab', 'invoice')
+            ->viewData('accounting');
+
+        $inv = $A['invoice'];
+        $this->assertTrue($inv['hasAny']);
+        $this->assertSame(10000.0, $inv['totThis']);         // 100k × 10%
+        // margin = 10,000 billing − (labor + 2,000 material + …)
+        $this->assertSame($inv['totThis'] - array_sum(array_map(fn ($r) => $r['monthCost'], $inv['rows'])), $inv['totMargin']);
+    }
 }
