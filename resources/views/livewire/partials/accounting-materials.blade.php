@@ -12,17 +12,13 @@
     @foreach(['materials' => $ml['materials'], 'equipment' => $ml['equipment']] as $sk => $sl)
         @php $son = $M['section'] === $sk; @endphp
         <button wire:click="setMatSection('{{ $sk }}')" style="padding: 8px 18px; border: none; border-radius: 9px; font-size: 13px; font-weight: {{ $son ? '700' : '600' }}; cursor: pointer; background: {{ $son ? '#16181D' : 'transparent' }}; color: {{ $son ? '#fff' : '#5A5D64' }};">
-            {{ $sl }}@if($sk === 'equipment')<span style="font-size: 9.5px; font-weight: 700; margin-left: 6px; padding: 2px 6px; border-radius: 20px; background: {{ $son ? 'rgba(255,255,255,.16)' : '#F0EEE8' }}; color: {{ $son ? '#fff' : '#A7A49B' }};">준비중</span>@endif
+            {{ $sl }}
         </button>
     @endforeach
 </div>
 
 @if($M['section'] === 'equipment')
-    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 48px 34px; text-align: center; max-width: 540px; margin: 12px auto;">
-        <span style="display: inline-flex; width: 54px; height: 54px; border-radius: 15px; background: #E7F5EF; color: #1F9D6B; align-items: center; justify-content: center; margin-bottom: 12px;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17h13V6H3zM16 9h4l3 3v5h-7z"/><circle cx="6.5" cy="17.5" r="1.5"/><circle cx="18.5" cy="17.5" r="1.5"/></svg></span>
-        <div style="font-family: 'Space Grotesk'; font-size: 19px; font-weight: 700;">{{ $ml['equipment'] }}</div>
-        <div style="font-size: 13.5px; color: #5A5D64; margin-top: 8px; line-height: 1.6;">{{ $ml['equipSoon'] }}</div>
-    </div>
+    @include('livewire.partials.accounting-equipment')
 @else
 
 {{-- toolbar --}}
