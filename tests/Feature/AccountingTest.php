@@ -46,8 +46,8 @@ class AccountingTest extends TestCase
         $byKey = collect($vm['pillars'])->keyBy('key');
         $this->assertTrue($byKey['labor']['live']);
         $this->assertTrue($byKey['expense']['live']);
-        $this->assertFalse($byKey['material']['live']);
-        $this->assertFalse($byKey['sub']['live']);
+        $this->assertTrue($byKey['material']['live']);
+        $this->assertFalse($byKey['sub']['live']); // subcontract arrives with M5
     }
 
     public function test_accounting_labor_total_matches_sum_of_site_rows(): void
