@@ -309,6 +309,8 @@ class WorkforceApp extends Component
 
     public string $expFilter = 'all';       // status filter: all·pending·approved·rejected
 
+    public string $expSearch = '';          // vendor / site search
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -3857,7 +3859,7 @@ class WorkforceApp extends Component
             'checkNo' => $this->checkNo, 'payDate' => $this->payDate,
             'acctTab' => $this->acctTab, 'acctMonth' => $this->acctMonth,
             'expFormOpen' => $this->expFormOpen, 'expSelId' => $this->expSelId,
-            'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter,
+            'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter, 'expSearch' => $this->expSearch,
             'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,

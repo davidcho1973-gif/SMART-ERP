@@ -51,24 +51,44 @@
             @endunless
         </div>
 
-        {{-- ---------- KPI row ---------- --}}
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
-            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 15px; padding: 17px 18px;">
-                <div style="font-size: 12px; color: #8A8880; font-weight: 600;">{{ $lab['kpi_labor'] }}</div>
-                <div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; margin-top: 7px; color: #E85D2A;">{{ $A['totalLaborLabel'] }}</div>
-                <div style="font-size: 11.5px; color: #A7A49B; margin-top: 5px;">{{ $lab['kpi_period'] }} · {{ $A['periodLabel'] }}</div>
+        @php
+            $totCost = $A['totalLabor'] + $A['totalExpense'];
+            $laborPct = $totCost > 0 ? round($A['totalLabor'] / $totCost * 100) : 0;
+            $expPct = $totCost > 0 ? (100 - $laborPct) : 0;
+            $money = fn ($n) => \App\Support\Money::usd($n);
+            $maxTot = 0.0;
+            foreach ($A['siteRows'] as $rr) { $maxTot = max($maxTot, $rr['labor'] + $rr['expense']); }
+        @endphp
+
+        {{-- ---------- KPI row (color rail + hierarchy) ---------- --}}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 13px;">
+            <div style="position: relative; overflow: hidden; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px 17px;">
+                <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #16181D;"></span>
+                <div style="font-size: 12px; color: #8A8880; font-weight: 600;">{{ $lab['comp_title'] }}</div>
+                <div style="font-family: 'Space Grotesk'; font-size: 25px; font-weight: 700; letter-spacing: -0.02em; margin-top: 9px;">{{ $money($totCost) }}</div>
+                <div style="font-size: 11.5px; color: #A7A49B; margin-top: 5px;">{{ $A['periodLabel'] }}</div>
             </div>
-            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 15px; padding: 17px 18px;">
-                <div style="font-size: 12px; color: #8A8880; font-weight: 600;">{{ $lab['kpi_sites'] }}</div>
-                <div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; margin-top: 7px;">{{ $A['siteCount'] }}</div>
+            <div style="position: relative; overflow: hidden; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px 17px;">
+                <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #E85D2A;"></span>
+                <div style="font-size: 12px; color: #8A8880; font-weight: 600;"><span style="color: #E85D2A;">●</span> {{ $A['pillars'][0]['name'] }}</div>
+                <div style="font-family: 'Space Grotesk'; font-size: 25px; font-weight: 700; letter-spacing: -0.02em; margin-top: 9px; color: #E85D2A;">{{ $A['totalLaborLabel'] }}</div>
+                <div style="font-size: 11.5px; color: #A7A49B; margin-top: 5px;">{{ $laborPct }}%</div>
             </div>
-            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 15px; padding: 17px 18px;">
+            <div style="position: relative; overflow: hidden; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px 17px;">
+                <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #C98A1E;"></span>
+                <div style="font-size: 12px; color: #8A8880; font-weight: 600;"><span style="color: #C98A1E;">●</span> {{ $A['pillars'][1]['name'] }}</div>
+                <div style="font-family: 'Space Grotesk'; font-size: 25px; font-weight: 700; letter-spacing: -0.02em; margin-top: 9px; color: #C98A1E;">{{ $A['totalExpenseLabel'] }}</div>
+                <div style="font-size: 11.5px; color: #A7A49B; margin-top: 5px;">{{ $expPct }}%</div>
+            </div>
+            <div style="position: relative; overflow: hidden; background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 16px 17px;">
+                <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #1F9D6B;"></span>
                 <div style="font-size: 12px; color: #8A8880; font-weight: 600;">{{ $lab['kpi_head'] }}</div>
-                <div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; margin-top: 7px;">{{ $A['totalHead'] }}</div>
+                <div style="font-family: 'Space Grotesk'; font-size: 25px; font-weight: 700; letter-spacing: -0.02em; margin-top: 9px;">{{ $A['totalHead'] }}<span style="font-size: 15px; color: #A7A49B; font-weight: 600;"> · {{ $A['siteCount'] }}</span></div>
+                <div style="font-size: 11.5px; color: #A7A49B; margin-top: 5px;">{{ $lab['kpi_sites'] }}</div>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px;" class="wf-acct-grid">
+        <div style="display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 16px;" class="wf-acct-grid">
             {{-- ---------- cost by site ---------- --}}
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px 20px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
@@ -80,63 +100,66 @@
                     <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums;">
                         <thead>
                             <tr style="text-align: left;">
-                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px;">{{ $lab['col_site'] }}</th>
-                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px;">{{ $lab['col_gc'] }}</th>
-                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_head'] }}</th>
-                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_labor'] }}</th>
-                                <th style="font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 8px 10px; text-align: right;">{{ $lab['col_expense'] }}</th>
+                                <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 10px 11px;">{{ $lab['col_site'] }}</th>
+                                <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 10px 11px; text-align: right;">{{ $lab['col_labor'] }}</th>
+                                <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 10px 11px; text-align: right;">{{ $lab['col_expense'] }}</th>
+                                <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 0 10px 11px; text-align: right;">{{ $lab['total'] }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($A['siteRows'] as $r)
+                                @php $rowTot = $r['labor'] + $r['expense']; $share = $maxTot > 0 ? round($rowTot / $maxTot * 100) : 0; @endphp
                                 <tr>
-                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8;">
+                                    <td style="padding: 12px 10px; border-top: 1px solid #F0EEE8;">
                                         <div style="font-weight: 600;">{{ $r['name'] }}</div>
-                                        <div style="font-size: 11px; color: #A7A49B;">{{ $r['city'] }}</div>
+                                        <div style="font-size: 11px; color: #A7A49B; margin-top: 1px; display: inline-flex; align-items: center; gap: 4px;">{{ $r['gc'] }} · <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>{{ $r['headcount'] }}</div>
+                                        <div style="height: 5px; width: 120px; max-width: 100%; border-radius: 3px; background: #F4F3EE; overflow: hidden; margin-top: 7px;"><span style="display: block; height: 100%; width: {{ $share }}%; border-radius: 3px; background: #E85D2A;"></span></div>
                                     </td>
-                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; color: #5A5D64;">{{ $r['gc'] }}</td>
-                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; color: #5A5D64;">{{ $r['headcount'] }}</td>
-                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; font-weight: 700;">{{ $r['laborLabel'] }}</td>
-                                    <td style="padding: 11px 8px; border-top: 1px solid #F0EEE8; text-align: right; color: {{ $r['expense'] > 0 ? '#C0641F' : '#C4C1B8' }}; font-weight: {{ $r['expense'] > 0 ? '600' : '400' }};">{{ $r['expenseLabel'] }}</td>
+                                    <td style="padding: 12px 10px; border-top: 1px solid #F0EEE8; text-align: right; font-weight: 600;">{{ $r['laborLabel'] }}</td>
+                                    <td style="padding: 12px 10px; border-top: 1px solid #F0EEE8; text-align: right; color: {{ $r['expense'] > 0 ? '#C0641F' : '#C4C1B8' }};">{{ $r['expenseLabel'] }}</td>
+                                    <td style="padding: 12px 10px; border-top: 1px solid #F0EEE8; text-align: right; font-weight: 700;">{{ $money($rowTot) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="2" style="padding: 12px 8px; border-top: 2px solid #16181D; font-weight: 700;">{{ $lab['total'] }}</td>
-                                <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; color: #5A5D64;">{{ $A['totalHead'] }}</td>
-                                <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; font-size: 15px;">{{ $A['totalLaborLabel'] }}</td>
-                                <td style="padding: 12px 8px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; color: #C0641F;">{{ $A['totalExpenseLabel'] }}</td>
+                                <td style="padding: 13px 10px; border-top: 2px solid #16181D; font-weight: 700;">{{ $lab['total'] }}</td>
+                                <td style="padding: 13px 10px; border-top: 2px solid #16181D; text-align: right; font-weight: 700;">{{ $A['totalLaborLabel'] }}</td>
+                                <td style="padding: 13px 10px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; color: #C0641F;">{{ $A['totalExpenseLabel'] }}</td>
+                                <td style="padding: 13px 10px; border-top: 2px solid #16181D; text-align: right; font-weight: 700; font-size: 15px;">{{ $money($totCost) }}</td>
                             </tr>
                         </tfoot>
                     </table>
                     </div>
                 @else
-                    <div style="padding: 34px 8px; text-align: center; color: #B7B4AB; font-size: 13px;">{{ $lab['empty'] }}</div>
+                    <div style="padding: 40px 8px; text-align: center; color: #B7B4AB; font-size: 13px;">{{ $lab['empty'] }}</div>
                 @endif
             </div>
 
-            {{-- ---------- cost composition ---------- --}}
+            {{-- ---------- cost composition (donut) ---------- --}}
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column;">
                 <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 14.5px; margin-bottom: 16px;">{{ $lab['comp_title'] }}</div>
-                <div style="display: flex; flex-direction: column; gap: 13px;">
+                <div style="display: flex; justify-content: center; margin-bottom: 18px;">
+                    <div style="position: relative; width: 168px; height: 168px; border-radius: 50%; background: {{ $totCost > 0 ? 'conic-gradient(#E85D2A 0 '.$laborPct.'%, #C98A1E '.$laborPct.'% 100%)' : '#EDEBE4' }};">
+                        <div style="position: absolute; inset: 25px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <span style="font-size: 10.5px; color: #A7A49B; font-weight: 600;">{{ $A['periodLabel'] }}</span>
+                            <span style="font-family: 'Space Grotesk'; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px;">{{ $money($totCost) }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
                     @foreach($A['pillars'] as $p)
-                        @php $pct = $A['totalLabor'] > 0 ? round($p['amount'] / $A['totalLabor'] * 100) : 0; @endphp
-                        <div>
-                            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-                                <span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: {{ $p['live'] ? '#16181D' : '#A7A49B' }};">
-                                    <span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $p['live'] ? $p['color'] : '#DAD7CE' }};"></span>{{ $p['name'] }}
-                                    @unless($p['live'])<span style="font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 20px; background: #F0EEE8; color: #A7A49B;">{{ $lab['soon'] }}</span>@endunless
-                                </span>
-                                <span style="font-weight: 700; color: {{ $p['live'] ? '#16181D' : '#C4C1B8' }}; font-variant-numeric: tabular-nums;">{{ $p['label'] }}</span>
-                            </div>
-                            <div style="height: 8px; border-radius: 5px; background: #F4F3EE; overflow: hidden;">
-                                <div style="height: 100%; border-radius: 5px; width: {{ $p['live'] ? $pct : 0 }}%; background: {{ $p['color'] }};"></div>
-                            </div>
+                        @php $pct = $totCost > 0 ? round($p['amount'] / $totCost * 100) : 0; @endphp
+                        <div style="display: flex; align-items: center; gap: 9px; font-size: 12.5px;">
+                            <span style="width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; background: {{ $p['live'] ? $p['color'] : '#DAD7CE' }};"></span>
+                            <span style="font-weight: 600; color: {{ $p['live'] ? '#16181D' : '#A7A49B' }};">{{ $p['name'] }}</span>
+                            @unless($p['live'])<span style="font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 20px; background: #F0EEE8; color: #A7A49B;">{{ $lab['soon'] }}</span>@endunless
+                            <span style="margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: {{ $p['live'] ? '#16181D' : '#C4C1B8' }};">{{ $p['live'] ? $p['label'] : '—' }}</span>
+                            @if($p['live'])<span style="width: 36px; text-align: right; color: #A7A49B; font-weight: 600; font-variant-numeric: tabular-nums;">{{ $pct }}%</span>@else<span style="width: 36px;"></span>@endif
                         </div>
                     @endforeach
                 </div>
-                <div style="margin-top: auto; padding-top: 16px; font-size: 11.5px; line-height: 1.6; color: #8A8880; border-top: 1px solid #F0EEE8; margin-top: 18px; display: flex; gap: 8px;">
+                <div style="margin-top: 18px; padding-top: 14px; font-size: 11.5px; line-height: 1.6; color: #8A8880; border-top: 1px solid #F0EEE8; display: flex; gap: 8px;">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
                     <span>{{ $lab['live_note'] }}</span>
                 </div>
