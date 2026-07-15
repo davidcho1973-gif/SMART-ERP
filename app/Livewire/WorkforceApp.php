@@ -322,6 +322,35 @@ class WorkforceApp extends Component
 
     public string $billNote = '';
 
+    // ---- accounting · materials inbound (M3 · STEP 1) ----
+    public string $matSection = 'materials';   // inner toggle: materials | equipment
+
+    public ?string $matModal = null;           // add-batch modal open
+
+    public string $matKind = 'delivery';       // delivery | manual | opening
+
+    public $matFile = null;                    // slip / pile photo
+
+    public string $matVendor = '';
+
+    public string $matDate = '';
+
+    public string $matSite = '';
+
+    public string $matNote = '';
+
+    public array $matLines = [];               // [['name'=>,'unit'=>,'qty'=>,'unitPrice'=>], …]
+
+    public string $matFilter = 'all';
+
+    public string $matSearch = '';
+
+    public ?int $matExpandId = null;           // expanded batch row
+
+    public ?int $matRejectId = null;
+
+    public string $matRejectNote = '';
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -1316,6 +1345,213 @@ class WorkforceApp extends Component
     public function closeBill(): void
     {
         $this->billModal = null;
+    }
+
+    // =================== accounting · materials inbound (M3) ===================
+
+    public function setMatSection(string $k): void
+    {
+        $this->matSection = in_array($k, ['materials', 'equipment'], true) ? $k : 'materials';
+    }
+
+    /** Open the add-batch form for a given inbound kind (delivery|manual|opening). */
+    public function openMatBatch(string $kind): void
+    {
+        if (! $this->can('materials.submit')) {
+            return;
+        }
+        $this->matKind = in_array($kind, \App\Models\MaterialBatch::KINDS, true) ? $kind : 'delivery';
+        $this->matVendor = '';
+        $this->matNote = '';
+        $this->matFile = null;
+        $this->matDate = now()->format('Y-m-d');
+        $this->matSite = ($this->site && $this->site !== 'all') ? $this->site : (\App\Models\Site::query()->value('id') ?? '');
+        $this->matLines = [['name' => '', 'unit' => 'ea', 'qty' => '', 'unitPrice' => '']];
+        $this->matModal = 'batch';
+    }
+
+    public function closeMatBatch(): void
+    {
+        $this->matModal = null;
+        $this->matFile = null;
+    }
+
+    public function clearMatFile(): void
+    {
+        $this->matFile = null;
+    }
+
+    public function addMatLine(): void
+    {
+        $this->matLines[] = ['name' => '', 'unit' => 'ea', 'qty' => '', 'unitPrice' => ''];
+    }
+
+    public function removeMatLine(int $i): void
+    {
+        unset($this->matLines[$i]);
+        $this->matLines = array_values($this->matLines);
+        if ($this->matLines === []) {
+            $this->addMatLine();
+        }
+    }
+
+    /** Read the delivery slip with Gemini and fill vendor / date / line items. */
+    public function readSlip(): void
+    {
+        if (! $this->matFile || ! $this->can('materials.submit')) {
+            return;
+        }
+        $analyzer = new \App\Services\MaterialSlipAnalyzer;
+        if (! $analyzer->isConfigured()) {
+            return;
+        }
+        try {
+            $bytes = $this->matFile->get();
+            $mime = (string) $this->matFile->getMimeType();
+        } catch (\Throwable) {
+            return;
+        }
+        $out = $analyzer->analyze($bytes, $mime);
+        if ($out === null || $out['lines'] === []) {
+            $this->showToast($this->tl('Could not read the slip — enter items manually', 'No se pudo leer — ingresa manualmente', '납품서를 읽지 못했어요 — 직접 입력해 주세요'));
+
+            return;
+        }
+        if ($out['vendor'] !== '') {
+            $this->matVendor = $out['vendor'];
+        }
+        if ($out['date'] !== '') {
+            $this->matDate = $out['date'];
+        }
+        $this->matLines = array_map(fn ($l) => [
+            'name' => $l['name'], 'unit' => $l['unit'],
+            'qty' => (string) $l['qty'], 'unitPrice' => (string) $l['unitPrice'],
+        ], $out['lines']);
+        $this->showToast($this->tl('Slip read — please check the items', 'Revisa los ítems', '납품서를 읽었어요 — 품목을 확인해 주세요'));
+    }
+
+    /** Create a material batch with its lines (delivery/manual/opening). */
+    public function submitMaterials(): void
+    {
+        if (! $this->can('materials.submit')) {
+            return;
+        }
+        $site = ($this->matSite && $this->matSite !== 'all') ? $this->matSite : null;
+        $kind = in_array($this->matKind, \App\Models\MaterialBatch::KINDS, true) ? $this->matKind : 'delivery';
+
+        // keep only lines with a name and a positive quantity
+        $lines = [];
+        foreach ($this->matLines as $l) {
+            $name = trim((string) ($l['name'] ?? ''));
+            $qty = (float) str_replace(',', '', (string) ($l['qty'] ?? 0));
+            if ($name === '' || $qty <= 0) {
+                continue;
+            }
+            $unitPrice = (float) str_replace(',', '', (string) ($l['unitPrice'] ?? 0));
+            $lines[] = [
+                'name' => mb_substr($name, 0, 160),
+                'unit' => mb_substr(trim((string) ($l['unit'] ?? 'ea')) ?: 'ea', 0, 12),
+                'qty' => $qty, 'unit_price' => max(0, $unitPrice),
+                'amount' => round($qty * max(0, $unitPrice), 2),
+            ];
+        }
+        if (! $site || $lines === []) {
+            $this->showToast($this->tl('Pick a site and add at least one item', 'Elige obra y agrega un ítem', '현장과 품목을 하나 이상 입력해 주세요'));
+
+            return;
+        }
+
+        try {
+            $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
+            if ($this->matFile) {
+                $why = \App\Support\Attach::reject($this->matFile);
+                if ($why !== null) {
+                    $this->showToast($why === 'size'
+                        ? $this->tl('Image is too large', 'Imagen muy grande', '이미지가 너무 큽니다')
+                        : $this->tl('That file type is not allowed', 'Tipo no permitido', '허용되지 않는 형식입니다'));
+
+                    return;
+                }
+                $ext = strtolower($this->matFile->getClientOriginalExtension());
+                $disk = \App\Support\Attach::disk() ?? 'local';
+                $name = \Illuminate\Support\Str::uuid()->toString().'.'.$ext;
+                $path = $this->matFile->storeAs('materials/'.$site, $name, $disk);
+                $att = [
+                    'att_disk' => $disk, 'att_path' => $path,
+                    'att_name' => mb_substr($this->matFile->getClientOriginalName(), 0, 180),
+                    'att_mime' => \App\Support\Attach::MIME[$ext] ?? (string) $this->matFile->getMimeType(),
+                    'att_size' => (int) $this->matFile->getSize(),
+                ];
+            }
+
+            $batch = \App\Models\MaterialBatch::create(array_merge([
+                'site_id' => $site,
+                'vendor' => mb_substr(trim($this->matVendor), 0, 120) ?: null,
+                'spent_on' => $this->matDate ?: now()->format('Y-m-d'),
+                'kind' => $kind,
+                'status' => 'pending',
+                'submitted_by' => $this->actorEmployee()?->id,
+                'note' => mb_substr(trim($this->matNote), 0, 200) ?: null,
+            ], $att));
+            $batch->lines()->createMany($lines);
+        } catch (\Throwable $e) {
+            report($e);
+            $this->showToast($this->tl('Could not save — please try again', 'No se pudo guardar', '저장하지 못했어요 — 다시 시도해 주세요'));
+
+            return;
+        }
+
+        $this->matModal = null;
+        $this->matFile = null;
+        $this->showToast($this->tl('Materials recorded', 'Materiales registrados', '자재 입고를 등록했어요'));
+    }
+
+    public function toggleMatExpand(int $id): void
+    {
+        $this->matExpandId = $this->matExpandId === $id ? null : $id;
+    }
+
+    public function approveMaterial(int $id): void
+    {
+        if (! $this->can('materials.decide')) {
+            return;
+        }
+        $b = \App\Models\MaterialBatch::find($id);
+        if (! $b || ! $b->isPending()) {
+            return;
+        }
+        $b->update(['status' => 'approved', 'decided_by' => $this->actorEmployee()?->id, 'decided_at' => now(), 'reject_reason' => null]);
+        $this->showToast($this->tl('Approved', 'Aprobado', '승인했어요'));
+    }
+
+    public function askRejectMaterial(int $id): void
+    {
+        if (! $this->can('materials.decide')) {
+            return;
+        }
+        $this->matRejectId = $id;
+        $this->matRejectNote = '';
+    }
+
+    public function cancelMatReject(): void
+    {
+        $this->matRejectId = null;
+        $this->matRejectNote = '';
+    }
+
+    public function rejectMaterial(int $id): void
+    {
+        if (! $this->can('materials.decide')) {
+            return;
+        }
+        $b = \App\Models\MaterialBatch::find($id);
+        if (! $b || ! $b->isPending()) {
+            return;
+        }
+        $b->update(['status' => 'rejected', 'decided_by' => $this->actorEmployee()?->id, 'decided_at' => now(), 'reject_reason' => mb_substr(trim($this->matRejectNote), 0, 300) ?: null]);
+        $this->matRejectId = null;
+        $this->matRejectNote = '';
+        $this->showToast($this->tl('Rejected', 'Rechazado', '반려했어요'));
     }
 
     // =================== internal comms ===================
@@ -3938,6 +4174,9 @@ class WorkforceApp extends Component
             'expFormOpen' => $this->expFormOpen, 'expSelId' => $this->expSelId,
             'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter, 'expSearch' => $this->expSearch,
             'billModal' => $this->billModal, 'billSite' => $this->billSite,
+            'matSection' => $this->matSection, 'matModal' => $this->matModal, 'matKind' => $this->matKind,
+            'matFilter' => $this->matFilter, 'matSearch' => $this->matSearch,
+            'matExpandId' => $this->matExpandId, 'matRejectId' => $this->matRejectId, 'matSite' => $this->matSite,
             'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
@@ -3953,6 +4192,8 @@ class WorkforceApp extends Component
                 'expensesSubmit' => $this->can('expenses.submit'),
                 'expensesDecide' => $this->can('expenses.decide'),
                 'contractsManage' => $this->can('contracts.manage'),
+                'materialsSubmit' => $this->can('materials.submit'),
+                'materialsDecide' => $this->can('materials.decide'),
                 'sitesCreate' => $this->can('sites.create'),
                 'sitesDelete' => $this->can('sites.delete'),
                 'companiesCreate' => $this->can('companies.create'),

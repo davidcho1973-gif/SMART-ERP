@@ -152,26 +152,35 @@ class ViewModel
                 ->whereBetween('spent_on', [$monthStart, $monthEnd])
                 ->get()->groupBy('site_id')->map(fn ($g) => (float) $g->sum('amount'));
 
+            // approved material batches (delivery/manual, not opening) → the live "자재비" pillar
+            $matBySite = \App\Models\MaterialBatch::where('status', 'approved')->where('kind', '!=', 'opening')
+                ->whereBetween('spent_on', [$monthStart, $monthEnd])
+                ->withSum('lines', 'amount')->get()
+                ->groupBy('site_id')->map(fn ($g) => (float) $g->sum('lines_sum_amount'));
+
             // honour the header site selector, like every other screen
             $acctSite = $s['site'] ?? 'all';
             $acctSites = ($acctSite !== 'all') ? $visibleSites->where('id', $acctSite)->values() : $visibleSites;
 
-            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossForMonth, $expBySite) {
+            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossForMonth, $expBySite, $matBySite) {
                 $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
                 $labor = (float) $inSite->sum($grossForMonth);
                 $expense = (float) ($expBySite[$st->id] ?? 0);
+                $material = (float) ($matBySite[$st->id] ?? 0);
 
                 return [
                     'id' => $st->id, 'name' => $st->name, 'city' => $st->city,
                     'gc' => $st->gc ?: '—', 'headcount' => $inSite->count(),
                     'labor' => $labor, 'laborLabel' => Money::usd($labor),
+                    'material' => $material, 'materialLabel' => Money::usd($material),
                     'expense' => $expense, 'expenseLabel' => Money::usd($expense),
                 ];
-            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0 || $r['expense'] > 0)
+            })->filter(fn ($r) => $r['headcount'] > 0 || $r['labor'] > 0 || $r['expense'] > 0 || $r['material'] > 0)
                 ->sortByDesc('labor')->values()->all();
 
             $totalLabor = (float) array_sum(array_column($siteRows, 'labor'));
             $totalExpense = (float) array_sum(array_column($siteRows, 'expense'));
+            $totalMaterial = (float) array_sum(array_column($siteRows, 'material'));
             $totalHead = (int) array_sum(array_column($siteRows, 'headcount'));
 
             $accounting = [
@@ -186,13 +195,16 @@ class ViewModel
                 'totalLaborLabel' => Money::usd($totalLabor),
                 'totalExpense' => $totalExpense,
                 'totalExpenseLabel' => Money::usd($totalExpense),
-                // cost pillars — labor & expenses are live; materials/subcontract arrive with M3/M4
+                'totalMaterial' => $totalMaterial,
+                'totalMaterialLabel' => Money::usd($totalMaterial),
+                // cost pillars — labor, expenses & materials are live; subcontract arrives with M5
                 'pillars' => [
-                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor,   'label' => Money::usd($totalLabor),   'color' => '#E85D2A', 'live' => true],
-                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => $totalExpense, 'label' => Money::usd($totalExpense), 'color' => '#C98A1E', 'live' => true],
-                    ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#3B72E0', 'live' => false],
+                    ['key' => 'labor',    'name' => $tl('Labor', 'Mano de obra', '노무비'),   'amount' => $totalLabor,    'label' => Money::usd($totalLabor),    'color' => '#E85D2A', 'live' => true],
+                    ['key' => 'material', 'name' => $tl('Materials', 'Materiales', '자재비'),  'amount' => $totalMaterial, 'label' => Money::usd($totalMaterial), 'color' => '#3B72E0', 'live' => true],
+                    ['key' => 'expense',  'name' => $tl('Expenses', 'Gastos', '경비'),         'amount' => $totalExpense,  'label' => Money::usd($totalExpense),  'color' => '#C98A1E', 'live' => true],
                     ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
                 ],
+                'materials' => self::materialsPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['materialsDecide'] ?? false), (bool) ($caps['materialsSubmit'] ?? false)),
                 'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
                 'billing' => self::billingPanel($tl, $acctSites, $mBase->format('Y-m'), $monthLabel, (bool) ($caps['contractsManage'] ?? false)),
                 'labels' => [
@@ -213,6 +225,7 @@ class ViewModel
                     'col_gc' => $tl('GC', 'Contratista', '원청'),
                     'col_head' => $tl('Workers', 'Personal', '인원'),
                     'col_labor' => $tl('Labor cost', 'Mano de obra', '노무비'),
+                    'col_material' => $tl('Materials', 'Materiales', '자재비'),
                     'col_expense' => $tl('Expenses', 'Gastos', '경비'),
                     'total' => $tl('Total', 'Total', '합계'),
                     'comp_title' => $tl('Cost composition', 'Composición del costo', '원가 구성'),
@@ -1424,6 +1437,146 @@ class ViewModel
                 'empty' => $tl('Set a contract amount for a site to start progress billing.', 'Fija el monto del contrato de una obra para iniciar la facturación.', '현장의 계약금액을 설정하면 기성 청구가 시작됩니다.'),
                 'lockedNote' => $tl('Only the owner can edit contracts & progress.', 'Solo el propietario puede editar.', '계약·진척은 대표만 수정할 수 있어요.'),
                 'billFormula' => $tl('This month = contract × (this month % − last month %)', 'Este mes = contrato × (% este mes − % mes anterior)', '당월 기성 = 계약금액 × (당월 % − 전월 %)'),
+            ],
+        ];
+    }
+
+    /**
+     * Accounting → Materials tab (M3 · STEP 1). Inbound batches (delivery slip ·
+     * manual · opening stock) with line items; approved delivery/manual batches
+     * feed 자재비, opening batches record quantity only.
+     */
+    protected static function materialsPanel(array $s, string $lang, callable $tl, $visibleSites, $scopeSites, string $activeSite, bool $canDecide, bool $canSubmit): array
+    {
+        $kindMeta = [
+            'delivery' => ['name' => $tl('Delivery slip', 'Albarán', '납품서'), 'color' => '#3B72E0'],
+            'manual' => ['name' => $tl('No slip', 'Sin comprobante', '무증빙'), 'color' => '#C98A1E'],
+            'opening' => ['name' => $tl('Opening stock', 'Inventario inicial', '개시재고'), 'color' => '#8A8880'],
+        ];
+        $statusMeta = [
+            'pending' => ['name' => $tl('Pending', 'Pendiente', '대기'), 'color' => '#C98A1E', 'bg' => '#FBF1DE'],
+            'approved' => ['name' => $tl('Approved', 'Aprobado', '승인'), 'color' => '#1F9D6B', 'bg' => '#E7F5EF'],
+            'rejected' => ['name' => $tl('Rejected', 'Rechazado', '반려'), 'color' => '#D9483B', 'bg' => '#FBEBE9'],
+        ];
+
+        $filter = $s['matFilter'] ?? 'all';
+        $search = trim((string) ($s['matSearch'] ?? ''));
+        $q = \App\Models\MaterialBatch::query()->with(['lines', 'submitter', 'decider'])->orderByDesc('id');
+        if (in_array($filter, ['pending', 'approved', 'rejected'], true)) {
+            $q->where('status', $filter);
+        }
+        if ($scopeSites !== null) {
+            $q->whereIn('site_id', $scopeSites);
+        }
+        if ($activeSite !== 'all') {
+            $q->where('site_id', $activeSite);
+        }
+        if ($search !== '') {
+            $q->where(fn ($w) => $w->where('vendor', 'like', '%'.$search.'%')
+                ->orWhere('site_id', 'like', '%'.$search.'%')
+                ->orWhereHas('lines', fn ($l) => $l->where('name', 'like', '%'.$search.'%')));
+        }
+        $siteNames = $visibleSites->keyBy('id');
+        $rows = $q->limit(120)->get()->map(function (\App\Models\MaterialBatch $b) use ($kindMeta, $statusMeta, $lang, $siteNames, $tl) {
+            $kind = $kindMeta[$b->kind] ?? $kindMeta['delivery'];
+            $st = $statusMeta[$b->status] ?? $statusMeta['pending'];
+            $decidedLine = null;
+            if ($b->status !== 'pending' && $b->decided_at) {
+                $who = $b->decider?->displayName($lang) ?? '—';
+                $verb = $b->status === 'approved' ? $tl('approved', 'aprobó', '승인') : $tl('rejected', 'rechazó', '반려');
+                $decidedLine = $who.' · '.$verb.' · '.$b->decided_at->format('M j');
+            }
+            $total = (float) $b->lines->sum('amount');
+
+            return [
+                'id' => $b->id,
+                'kind' => $b->kind, 'kindName' => $kind['name'], 'kindColor' => $kind['color'],
+                'costed' => $b->isCosted(),
+                'vendor' => $b->vendor ?: '—',
+                'site' => $siteNames->get($b->site_id)?->name ?? ($b->site_id ?: '—'),
+                'date' => $b->spent_on?->format('M j, Y') ?? '—',
+                'dateShort' => $b->spent_on?->format('M j') ?? '—',
+                'lineCount' => $b->lines->count(),
+                'total' => $total, 'totalLabel' => Money::usd($total),
+                'status' => $b->status, 'statusName' => $st['name'], 'statusColor' => $st['color'], 'statusBg' => $st['bg'],
+                'submitter' => $b->submitter?->displayName($lang) ?? '—',
+                'note' => $b->note, 'rejectReason' => $b->reject_reason, 'decidedLine' => $decidedLine,
+                'hasImage' => $b->hasImage(), 'isImage' => $b->isImage(),
+                'slipUrl' => $b->hasImage() ? url('/accounting/slip/'.$b->id) : '',
+                'pending' => $b->isPending(),
+                'lines' => $b->lines->map(fn ($l) => [
+                    'name' => $l->name, 'unit' => $l->unit, 'qty' => (float) $l->qty,
+                    'unitPriceLabel' => Money::usd((float) $l->unit_price), 'amountLabel' => Money::usd((float) $l->amount),
+                ])->all(),
+            ];
+        })->all();
+
+        $pendingCount = \App\Models\MaterialBatch::where('status', 'pending')
+            ->when($scopeSites !== null, fn ($qq) => $qq->whereIn('site_id', $scopeSites))
+            ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count();
+
+        return [
+            'section' => ($s['matSection'] ?? 'materials') === 'equipment' ? 'equipment' : 'materials',
+            'canSubmit' => $canSubmit, 'canDecide' => $canDecide,
+            'filter' => $filter, 'search' => $search,
+            'rows' => $rows, 'pendingCount' => $pendingCount,
+            'expandId' => $s['matExpandId'] ?? null,
+            'rejectId' => $s['matRejectId'] ?? null,
+            'formOpen' => (bool) ($s['matModal'] ?? false),
+            'formKind' => $s['matKind'] ?? 'delivery',
+            'formKindName' => $kindMeta[$s['matKind'] ?? 'delivery']['name'] ?? '',
+            'siteOptions' => $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name])->all(),
+            'units' => ['ea', 'm', 'ft', 'box', 'kg', 'roll', 'set', 'pc'],
+            'ocrOn' => (bool) config('services.gemini.key'),
+            'labels' => [
+                'materials' => $tl('Materials', 'Materiales', '자재'),
+                'equipment' => $tl('Equipment', 'Equipo', '장비'),
+                'equipSoon' => $tl('Equipment registry & QR check-out — coming in the next step.', 'Registro de equipo y QR — próximamente.', '장비 대장·QR 체크아웃 — 다음 단계에서 추가됩니다.'),
+                'addSlip' => $tl('Add delivery slip', 'Agregar albarán', '납품서 등록'),
+                'addManual' => $tl('Manual (no slip)', 'Manual (sin comprobante)', '수동 입력'),
+                'addOpening' => $tl('Opening stock', 'Inventario inicial', '개시재고'),
+                'filter_all' => $tl('All', 'Todos', '전체'),
+                'filter_pending' => $tl('Pending', 'Pendiente', '대기'),
+                'filter_approved' => $tl('Approved', 'Aprobado', '승인'),
+                'filter_rejected' => $tl('Rejected', 'Rechazado', '반려'),
+                'searchPh' => $tl('Search vendor / item / site', 'Buscar proveedor / ítem', '상호·품목·현장 검색'),
+                'col_type' => $tl('Type', 'Tipo', '유형'),
+                'col_vendor' => $tl('Vendor', 'Proveedor', '상호'),
+                'col_site' => $tl('Site', 'Obra', '현장'),
+                'col_date' => $tl('Date', 'Fecha', '날짜'),
+                'col_items' => $tl('Items', 'Ítems', '품목'),
+                'col_amount' => $tl('Amount', 'Monto', '금액'),
+                'col_status' => $tl('Status', 'Estado', '상태'),
+                'items' => $tl('items', 'ítems', '품목'),
+                'openingNote' => $tl('quantity only · not in cost', 'solo cantidad · sin costo', '수량만 · 원가 미반영'),
+                'slip' => $tl('Slip', 'Comprobante', '납품서'),
+                'openSlip' => $tl('Open slip', 'Abrir', '납품서 보기'),
+                'name' => $tl('Item', 'Ítem', '품목'),
+                'unit' => $tl('Unit', 'Unidad', '단위'),
+                'qty' => $tl('Qty', 'Cant.', '수량'),
+                'unitPrice' => $tl('Unit price', 'Precio unit.', '단가'),
+                'amount' => $tl('Amount', 'Monto', '금액'),
+                'by' => $tl('by', 'por', '등록:'),
+                'reason' => $tl('Rejection reason', 'Motivo', '반려 사유'),
+                'photo' => $tl('Slip / photo', 'Comprobante / foto', '납품서 / 사진'),
+                'ocrHint' => $tl('Upload the slip — items are read for you.', 'Sube el albarán — se leen los ítems.', '납품서를 올리면 품목을 자동으로 읽어요.'),
+                'readSlip' => $tl('Read slip', 'Leer albarán', '납품서 읽기'),
+                'reading' => $tl('Reading…', 'Leyendo…', '읽는 중…'),
+                'vendor' => $tl('Vendor', 'Proveedor', '상호'),
+                'date' => $tl('Date', 'Fecha', '날짜'),
+                'site' => $tl('Site', 'Obra', '현장'),
+                'lineItems' => $tl('Line items', 'Ítems', '품목 목록'),
+                'addLine' => $tl('Add item', 'Agregar ítem', '품목 추가'),
+                'remove' => $tl('Remove', 'Quitar', '제거'),
+                'note' => $tl('Note (optional)', 'Nota (opcional)', '메모 (선택)'),
+                'save' => $tl('Save', 'Guardar', '등록'),
+                'cancel' => $tl('Cancel', 'Cancelar', '취소'),
+                'approve' => $tl('Approve', 'Aprobar', '승인'),
+                'reject' => $tl('Reject', 'Rechazar', '반려'),
+                'rejectPh' => $tl('Reason (optional)', 'Motivo (opcional)', '반려 사유 (선택)'),
+                'confirmReject' => $tl('Confirm reject', 'Confirmar', '반려 확정'),
+                'empty' => $tl('No materials recorded yet.', 'Aún no hay materiales.', '등록된 자재 입고가 없어요.'),
+                'openingHelp' => $tl('Opening stock is material already on site (bought before). Quantity only — it does not add to this month\'s cost.', 'El inventario inicial ya está en obra. Solo cantidad, sin costo del mes.', '개시재고는 이미 현장에 있던 자재입니다. 수량만 기록되고 이번 달 원가에는 반영되지 않아요.'),
             ],
         ];
     }

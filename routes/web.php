@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CommsFileController;
 use App\Http\Controllers\ExpenseReceiptController;
+use App\Http\Controllers\MaterialSlipController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\TimesheetExportController;
@@ -30,6 +31,9 @@ Route::get('/comms/file/{message}', CommsFileController::class)->middleware('aut
 
 // Expense receipt image — streamed only to accounting/approver roles.
 Route::get('/accounting/receipt/{expense}', ExpenseReceiptController::class)->middleware('auth');
+
+// Materials slip image — streamed only to materials/accounting roles.
+Route::get('/accounting/slip/{batch}', MaterialSlipController::class)->middleware('auth');
 
 // Public self-service sign-up opened from a printed site QR (no auth).
 Route::get('/join/{token}', JoinForm::class);
