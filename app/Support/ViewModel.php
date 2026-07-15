@@ -131,18 +131,34 @@ class ViewModel
                 fn ($e) => $e->emp === 'active' || $terminatedOwed->contains('id', $e->id)
             );
 
-            // approved expenses in this period → per-site totals (the live "경비" pillar)
+            // ---- accounting is a MONTHLY rollup (not the bi-weekly pay period) ----
+            $mBase = ! empty($s['acctMonth'])
+                ? Carbon::createFromFormat('Y-m', $s['acctMonth'])->startOfMonth()
+                : Carbon::now()->startOfMonth();
+            $monthStart = $mBase->format('Y-m-d');
+            $monthEnd = $mBase->copy()->endOfMonth()->format('Y-m-d');
+            $monthLabel = match ($lang) {
+                'ko' => $mBase->format('Y').'년 '.$mBase->format('n').'월',
+                'es' => [1 => 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][(int) $mBase->format('n')].' '.$mBase->format('Y'),
+                default => $mBase->format('F Y'),
+            };
+
+            // labor for the whole month (weekly-40h OT via the same engine)
+            $monthBreak = Payroll::periodBreakdowns($employees->pluck('id')->all(), $monthStart, $monthEnd);
+            $grossForMonth = fn (Employee $e) => Payroll::grossPay($monthBreak[$e->id] ?? Payroll::fallbackBreakdown($e), $e->rate);
+
+            // approved expenses in the month → per-site totals (the live "경비" pillar)
             $expBySite = \App\Models\Expense::where('status', 'approved')
-                ->whereBetween('spent_on', [$periodStart, $periodEnd])
+                ->whereBetween('spent_on', [$monthStart, $monthEnd])
                 ->get()->groupBy('site_id')->map(fn ($g) => (float) $g->sum('amount'));
 
             // honour the header site selector, like every other screen
             $acctSite = $s['site'] ?? 'all';
             $acctSites = ($acctSite !== 'all') ? $visibleSites->where('id', $acctSite)->values() : $visibleSites;
 
-            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossFor, $expBySite) {
+            $siteRows = $acctSites->map(function ($st) use ($costPeople, $grossForMonth, $expBySite) {
                 $inSite = $costPeople->filter(fn ($e) => $e->site_id === $st->id);
-                $labor = (float) $inSite->sum($grossFor);
+                $labor = (float) $inSite->sum($grossForMonth);
                 $expense = (float) ($expBySite[$st->id] ?? 0);
 
                 return [
@@ -160,7 +176,9 @@ class ViewModel
 
             $accounting = [
                 'tab' => $s['acctTab'] ?? 'dashboard',
-                'periodLabel' => $periodLabel,
+                'periodLabel' => $monthLabel,
+                'month' => $mBase->format('Y-m'),
+                'isThisMonth' => $mBase->isSameMonth(Carbon::now()),
                 'siteRows' => $siteRows,
                 'siteCount' => count($siteRows),
                 'totalHead' => $totalHead,
@@ -182,10 +200,13 @@ class ViewModel
                     'tab_materials' => $tl('Materials · Equipment', 'Materiales · Equipo', '자재·장비'),
                     'tab_billing' => $tl('Contract · Progress', 'Contrato · Avance', '계약·기성'),
                     'tab_invoice' => $tl('Progress billing', 'Facturación', '기성청구서'),
-                    'kpi_labor' => $tl('Labor cost · this period', 'Mano de obra · periodo', '당월 노무비'),
+                    'kpi_labor' => $tl('Labor cost · this month', 'Mano de obra · mes', '당월 노무비'),
                     'kpi_sites' => $tl('Active sites', 'Obras activas', '현장 수'),
                     'kpi_head' => $tl('Deployed workers', 'Trabajadores', '투입 인원'),
-                    'kpi_period' => $tl('Pay period', 'Periodo', '정산기간'),
+                    'kpi_period' => $tl('Month', 'Mes', '집계 월'),
+                    'thisMonth' => $tl('This month', 'Este mes', '이번 달'),
+                    'prevMonth' => $tl('Previous month', 'Mes anterior', '이전 달'),
+                    'nextMonth' => $tl('Next month', 'Mes siguiente', '다음 달'),
                     'sites_title' => $tl('Cost by site', 'Costo por obra', '현장별 원가'),
                     'col_site' => $tl('Site', 'Obra', '현장'),
                     'col_gc' => $tl('GC', 'Contratista', '원청'),

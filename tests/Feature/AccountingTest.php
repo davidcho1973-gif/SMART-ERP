@@ -79,6 +79,23 @@ class AccountingTest extends TestCase
         }
     }
 
+    public function test_dashboard_aggregates_expenses_by_the_selected_month(): void
+    {
+        $site = \App\Models\Site::query()->value('id');
+        $lastMonth = now()->subMonthNoOverflow()->startOfMonth()->format('Y-m-d');
+        \App\Models\Expense::create(['site_id' => $site, 'category' => 'fuel', 'amount' => 200, 'spent_on' => $lastMonth, 'status' => 'approved']);
+
+        $c = Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('go', 'accounting');
+        // current month: last month's expense is not counted
+        $this->assertSame(0.0, $c->viewData('accounting')['totalExpense']);
+        // step back one month: now it is
+        $c->call('acctMonthShift', -1);
+        $this->assertSame(200.0, $c->viewData('accounting')['totalExpense']);
+        // can't step into the future beyond the current month
+        $c->call('acctMonthShift', 0)->call('acctMonthShift', 1);
+        $this->assertSame('', $c->get('acctMonth'));
+    }
+
     public function test_switching_sub_tabs_works(): void
     {
         Livewire::test(WorkforceApp::class)
