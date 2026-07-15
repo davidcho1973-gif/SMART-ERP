@@ -34,12 +34,27 @@ class Attach
     /** File sharing is on only when a durable object-storage disk is configured. */
     public static function enabled(): bool
     {
-        return filled(config('filesystems.disks.s3.bucket'));
+        return self::disk() !== null;
     }
 
-    public static function disk(): string
+    /**
+     * The durable object-storage disk to store on, or null when only ephemeral
+     * local storage exists. We DON'T assume the disk is literally named "s3":
+     * Laravel Cloud names the bucket disk whatever you typed when connecting it
+     * (and makes it the default), so prefer the default disk when it is an
+     * s3-driver disk, then fall back to an explicit "s3" disk from AWS_* envs.
+     */
+    public static function disk(): ?string
     {
-        return 's3';
+        $default = (string) config('filesystems.default');
+        if ($default !== '' && config("filesystems.disks.{$default}.driver") === 's3') {
+            return $default;
+        }
+        if (filled(config('filesystems.disks.s3.bucket'))) {
+            return 's3';
+        }
+
+        return null;
     }
 
     public static function allowedExt(): array
@@ -92,7 +107,7 @@ class Attach
     public static function store(UploadedFile $file, int $channelId): array
     {
         $ext = strtolower($file->getClientOriginalExtension());
-        $disk = self::disk();
+        $disk = self::disk() ?? 'local';
         $path = 'comms/'.$channelId.'/'.Str::uuid()->toString().'.'.$ext;
         // no ACL/visibility arg — Cloudflare R2 (Laravel Cloud storage) rejects ACLs
         Storage::disk($disk)->putFileAs('', $file, $path);
