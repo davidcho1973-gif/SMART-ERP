@@ -311,6 +311,17 @@ class WorkforceApp extends Component
 
     public string $expSearch = '';          // vendor / site search
 
+    // ---- accounting · contracts & progress billing (M4) ----
+    public ?string $billModal = null;       // 'contract' | 'progress' | null
+
+    public string $billSite = '';           // site being edited
+
+    public string $billAmount = '';         // contract amount input
+
+    public string $billPct = '';            // cumulative progress % input
+
+    public string $billNote = '';
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -1239,6 +1250,72 @@ class WorkforceApp extends Component
         $this->expRejectId = null;
         $this->expRejectNote = '';
         $this->showToast($this->tl('Rejected', 'Rechazado', '반려했어요'));
+    }
+
+    // =================== accounting · contracts & progress (M4) ===================
+
+    /** The month the accounting screen is aggregating (YYYY-MM). */
+    private function acctYm(): string
+    {
+        return $this->acctMonth !== '' ? $this->acctMonth : now()->format('Y-m');
+    }
+
+    public function openContract(string $siteId): void
+    {
+        if (! $this->can('contracts.manage')) {
+            return;
+        }
+        $c = \App\Models\Contract::where('site_id', $siteId)->first();
+        $this->billSite = $siteId;
+        $this->billAmount = $c ? (string) $c->amount : '';
+        $this->billNote = $c->note ?? '';
+        $this->billModal = 'contract';
+    }
+
+    public function saveContract(): void
+    {
+        if (! $this->can('contracts.manage') || $this->billSite === '') {
+            return;
+        }
+        $amount = (float) str_replace(',', '', $this->billAmount);
+        \App\Models\Contract::updateOrCreate(
+            ['site_id' => $this->billSite],
+            ['amount' => max(0, $amount), 'note' => mb_substr(trim($this->billNote), 0, 200) ?: null],
+        );
+        $this->billModal = null;
+        $this->showToast($this->tl('Contract saved', 'Contrato guardado', '계약금액을 저장했어요'));
+    }
+
+    public function openProgress(string $siteId): void
+    {
+        if (! $this->can('contracts.manage')) {
+            return;
+        }
+        $snap = \App\Models\ProgressSnapshot::where('site_id', $siteId)->where('ym', $this->acctYm())->first();
+        $this->billSite = $siteId;
+        $this->billPct = $snap ? (string) $snap->pct : '';
+        $this->billNote = $snap->note ?? '';
+        $this->billModal = 'progress';
+    }
+
+    public function saveProgress(): void
+    {
+        if (! $this->can('contracts.manage') || $this->billSite === '') {
+            return;
+        }
+        $pct = (float) str_replace(',', '', $this->billPct);
+        $pct = max(0.0, min(100.0, $pct));
+        \App\Models\ProgressSnapshot::updateOrCreate(
+            ['site_id' => $this->billSite, 'ym' => $this->acctYm()],
+            ['pct' => $pct, 'note' => mb_substr(trim($this->billNote), 0, 200) ?: null],
+        );
+        $this->billModal = null;
+        $this->showToast($this->tl('Progress saved', 'Avance guardado', '진척률을 저장했어요'));
+    }
+
+    public function closeBill(): void
+    {
+        $this->billModal = null;
     }
 
     // =================== internal comms ===================
@@ -3860,6 +3937,7 @@ class WorkforceApp extends Component
             'acctTab' => $this->acctTab, 'acctMonth' => $this->acctMonth,
             'expFormOpen' => $this->expFormOpen, 'expSelId' => $this->expSelId,
             'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter, 'expSearch' => $this->expSearch,
+            'billModal' => $this->billModal, 'billSite' => $this->billSite,
             'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
@@ -3874,6 +3952,7 @@ class WorkforceApp extends Component
                 'payrollView' => $this->can('payroll.view'),
                 'expensesSubmit' => $this->can('expenses.submit'),
                 'expensesDecide' => $this->can('expenses.decide'),
+                'contractsManage' => $this->can('contracts.manage'),
                 'sitesCreate' => $this->can('sites.create'),
                 'sitesDelete' => $this->can('sites.delete'),
                 'companiesCreate' => $this->can('companies.create'),

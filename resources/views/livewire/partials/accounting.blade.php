@@ -15,7 +15,7 @@
         'billing'   => $lab['tab_billing'],
         'invoice'   => $lab['tab_invoice'],
     ];
-    $liveTabs = ['dashboard', 'expenses'];   // dashboard + expenses·receipts are live
+    $liveTabs = ['dashboard', 'expenses', 'billing'];   // + contract·progress billing
 @endphp
 
 {{-- ============ ACCOUNTING ============ --}}
@@ -168,6 +168,9 @@
 
     @elseif($tab === 'expenses')
         @include('livewire.partials.accounting-expenses')
+
+    @elseif($tab === 'billing')
+        @include('livewire.partials.accounting-billing')
 
     @else
         {{-- ---------- module placeholder (harmonious "coming soon") ---------- --}}
