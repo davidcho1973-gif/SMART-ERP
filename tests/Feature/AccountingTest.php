@@ -84,9 +84,9 @@ class AccountingTest extends TestCase
         Livewire::test(WorkforceApp::class)
             ->call('demo', 'admin')
             ->call('go', 'accounting')
-            ->call('acctTab', 'expenses')
+            ->call('setAcctTab','expenses')
             ->assertSet('acctTab', 'expenses')
-            ->call('acctTab', 'bogus')          // invalid → falls back to dashboard
+            ->call('setAcctTab','bogus')          // invalid → falls back to dashboard
             ->assertSet('acctTab', 'dashboard');
     }
 

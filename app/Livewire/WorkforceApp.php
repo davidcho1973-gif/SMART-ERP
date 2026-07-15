@@ -1016,8 +1016,13 @@ class WorkforceApp extends Component
         }
     }
 
-    /** Switch the sub-tab inside the Accounting screen. */
-    public function acctTab(string $k): void
+    /**
+     * Switch the sub-tab inside the Accounting screen. NOTE: the method must NOT
+     * be named `acctTab` — that collides with the public $acctTab property and
+     * Livewire's browser proxy would treat `acctTab(...)` as calling the string
+     * value (silently doing nothing on click).
+     */
+    public function setAcctTab(string $k): void
     {
         if (! $this->can('payroll.view')) {
             return;

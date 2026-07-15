@@ -40,7 +40,7 @@ class ExpenseTest extends TestCase
         Livewire::test(WorkforceApp::class)
             ->call('demo', 'admin')
             ->call('go', 'accounting')
-            ->call('acctTab', 'expenses')
+            ->call('setAcctTab', 'expenses')
             ->call('openExpenseForm')
             ->set('expSite', $site)
             ->set('expVendor', 'GS Caltex')
@@ -67,7 +67,7 @@ class ExpenseTest extends TestCase
         Livewire::test(WorkforceApp::class)
             ->call('demo', 'admin')
             ->call('go', 'accounting')
-            ->call('acctTab', 'expenses')
+            ->call('setAcctTab', 'expenses')
             ->call('openExpenseForm')
             ->set('expSite', '')
             ->set('expAmount', '0')
@@ -82,7 +82,7 @@ class ExpenseTest extends TestCase
         $a = Expense::create(['site_id' => $site, 'category' => 'meal', 'amount' => 50, 'spent_on' => '2026-07-11', 'status' => 'pending']);
         $b = Expense::create(['site_id' => $site, 'category' => 'tool', 'amount' => 30, 'spent_on' => '2026-07-11', 'status' => 'pending']);
 
-        $c = Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('go', 'accounting')->call('acctTab', 'expenses');
+        $c = Livewire::test(WorkforceApp::class)->call('demo', 'admin')->call('go', 'accounting')->call('setAcctTab', 'expenses');
         $c->call('approveExpense', $a->id);
         $c->call('askRejectExpense', $b->id)->set('expRejectNote', 'no receipt')->call('rejectExpense', $b->id);
 
