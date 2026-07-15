@@ -32,122 +32,93 @@
     @endif
 </div>
 
-{{-- table + detail drawer --}}
-<div style="display: grid; grid-template-columns: 1fr 340px; gap: 14px; margin-top: 14px;" class="wf-exp-grid">
-
-    {{-- ---------- receipt table ---------- --}}
-    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden;">
-        @if(count($E['rows']))
-            <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums;">
-                <thead>
-                    <tr style="text-align: left;">
-                        <th style="width: 46px; padding: 14px 0 11px 16px;"></th>
-                        <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 12px 11px;">{{ $el['vendorCat'] }}</th>
-                        <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 12px 11px;">{{ $el['site'] }}</th>
-                        <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 12px 11px; text-align: right;">{{ $el['date'] }}</th>
-                        <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 12px 11px; text-align: right;">{{ $el['amount'] }}</th>
-                        <th style="font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 16px 11px 12px; text-align: right;">{{ $el['statusCol'] }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($E['rows'] as $r)
-                        @php $on = $sel && $sel['id'] === $r['id']; @endphp
-                        <tr wire:click="selectExpense({{ $r['id'] }})" wire:key="exp-{{ $r['id'] }}" style="cursor: pointer; background: {{ $on ? '#FCEEE7' : 'transparent' }};"
-                            @if(!$on) onmouseover="this.style.background='#FAF9F5'" onmouseout="this.style.background='transparent'" @endif>
-                            <td style="padding: 11px 0 11px 16px; border-top: 1px solid #F0EEE8; box-shadow: {{ $on ? 'inset 3px 0 0 #E85D2A' : 'none' }};">
-                                @if($r['hasReceipt'] && $r['isImage'])
-                                    <img src="{{ $r['receiptUrl'] }}" alt="" loading="lazy" style="width: 36px; height: 36px; object-fit: cover; border-radius: 8px; border: 1px solid #ECEAE3;">
-                                @else
-                                    <span style="display: inline-flex; width: 36px; height: 36px; border-radius: 8px; background: #F4F3EE; align-items: center; justify-content: center; color: {{ $r['catColor'] }};"><span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $r['catColor'] }};"></span></span>
+{{-- single full-width receipt table (no side panel; each fact appears once) --}}
+<div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden; margin-top: 14px;">
+    @if(count($E['rows']))
+        <div style="overflow-x: auto;">
+        @php
+            $th = 'font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: #A7A49B; font-weight: 700; padding: 14px 12px 11px;';
+            $bd = 'border-top: 1px solid #F0EEE8;';
+        @endphp
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; min-width: 880px;">
+            <thead>
+                <tr style="text-align: left;">
+                    <th style="{{ $th }} width: 56px; padding-left: 16px;">{{ $el['receipt'] }}</th>
+                    <th style="{{ $th }}">{{ $el['vendor'] }}</th>
+                    <th style="{{ $th }}">{{ $el['category'] }}</th>
+                    <th style="{{ $th }}">{{ $el['site'] }}</th>
+                    <th style="{{ $th }} text-align: right;">{{ $el['date'] }}</th>
+                    <th style="{{ $th }} text-align: right;">{{ $el['amount'] }}</th>
+                    <th style="{{ $th }}">{{ $el['by'] }}</th>
+                    <th style="{{ $th }} text-align: right; padding-right: 16px;">{{ $el['statusCol'] }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($E['rows'] as $r)
+                    <tr wire:key="exp-{{ $r['id'] }}" onmouseover="this.style.background='#FAF9F5'" onmouseout="this.style.background='transparent'">
+                        {{-- receipt thumbnail → click to zoom (per-row lightbox) --}}
+                        <td style="{{ $bd }} padding: 10px 0 10px 16px;">
+                            @if($r['hasReceipt'] && $r['isImage'])
+                                <div x-data="{ z: false }" style="display: inline-block;">
+                                    <img @click="z = true" src="{{ $r['receiptUrl'] }}" alt="{{ $el['receipt'] }}" loading="lazy" style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 1px solid #ECEAE3; cursor: zoom-in; display: block;">
+                                    <template x-teleport="body">
+                                        <div x-show="z" x-cloak @click="z = false" @keydown.escape.window="z = false" x-transition.opacity style="position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;">
+                                            <img src="{{ $r['receiptUrl'] }}" alt="{{ $el['receipt'] }}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+                                        </div>
+                                    </template>
+                                </div>
+                            @else
+                                <span style="display: inline-flex; width: 40px; height: 40px; border-radius: 8px; background: #F4F3EE; align-items: center; justify-content: center;" title="{{ $el['noReceipt'] }}"><span style="width: 10px; height: 10px; border-radius: 3px; background: {{ $r['catColor'] }};"></span></span>
+                            @endif
+                        </td>
+                        {{-- vendor (+ note / reject reason as a muted sub-line) --}}
+                        <td style="{{ $bd }} padding: 10px 12px;">
+                            <div style="font-weight: 600;">{{ $r['vendor'] }}</div>
+                            @if($r['note'])
+                                <div style="font-size: 11px; color: #A7A49B; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $r['note'] }}">{{ $r['note'] }}</div>
+                            @elseif($r['status'] === 'rejected' && $r['rejectReason'])
+                                <div style="font-size: 11px; color: #C0392B; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $r['rejectReason'] }}">{{ $el['reason'] }}: {{ $r['rejectReason'] }}</div>
+                            @endif
+                        </td>
+                        <td style="{{ $bd }} padding: 10px 12px;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: {{ $r['catColor'] }};"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{ $r['catColor'] }};"></span>{{ $r['catName'] }}</span></td>
+                        <td style="{{ $bd }} padding: 10px 12px; color: #5A5D64;">{{ $r['site'] }}</td>
+                        <td style="{{ $bd }} padding: 10px 12px; text-align: right; color: #5A5D64;">{{ $r['dateShort'] }}</td>
+                        <td style="{{ $bd }} padding: 10px 12px; text-align: right; font-weight: 700;">{{ $r['amountLabel'] }}</td>
+                        <td style="{{ $bd }} padding: 10px 12px; color: #5A5D64; white-space: nowrap;">{{ $r['submitter'] }}</td>
+                        {{-- status + inline actions --}}
+                        <td style="{{ $bd }} padding: 10px 16px 10px 12px; text-align: right;">
+                            @if($r['pending'] && $E['canDecide'])
+                                <div style="display: inline-flex; gap: 6px; justify-content: flex-end;">
+                                    <button wire:click="askRejectExpense({{ $r['id'] }})" style="padding: 6px 11px; border: 1px solid #E4E2DB; border-radius: 8px; background: #fff; color: #D9483B; font-size: 12px; font-weight: 700; cursor: pointer;">{{ $el['reject'] }}</button>
+                                    <button wire:click="approveExpense({{ $r['id'] }})" style="padding: 6px 12px; border: none; border-radius: 8px; background: #1F9D6B; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;">{{ $el['approve'] }}</button>
+                                </div>
+                            @else
+                                <span style="font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: {{ $r['statusBg'] }}; color: {{ $r['statusColor'] }};">{{ $r['statusName'] }}</span>
+                                @if($r['decidedLine'])
+                                    <div style="font-size: 10.5px; color: #A7A49B; margin-top: 4px; white-space: nowrap;">{{ $r['decidedLine'] }}</div>
                                 @endif
+                            @endif
+                        </td>
+                    </tr>
+                    {{-- inline reject-reason row --}}
+                    @if($E['rejectId'] === $r['id'])
+                        <tr wire:key="exprej-{{ $r['id'] }}">
+                            <td colspan="8" style="{{ $bd }} padding: 12px 16px; background: #FDF6F5;">
+                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <input type="text" wire:model="expRejectNote" placeholder="{{ $el['rejectPh'] }}" style="flex: 1; min-width: 180px; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #fff;">
+                                    <button wire:click="cancelExpReject" style="padding: 9px 14px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $el['cancel'] }}</button>
+                                    <button wire:click="rejectExpense({{ $r['id'] }})" style="padding: 9px 16px; border: none; border-radius: 9px; background: #D9483B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $el['confirmReject'] }}</button>
+                                </div>
                             </td>
-                            <td style="padding: 11px 12px; border-top: 1px solid #F0EEE8;">
-                                <div style="font-weight: 600;">{{ $r['vendor'] }}</div>
-                                <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: {{ $r['catColor'] }}; font-weight: 600; margin-top: 2px;"><span style="width: 7px; height: 7px; border-radius: 2px; background: {{ $r['catColor'] }};"></span>{{ $r['catName'] }}</div>
-                            </td>
-                            <td style="padding: 11px 12px; border-top: 1px solid #F0EEE8; color: #5A5D64;">{{ $r['site'] }}</td>
-                            <td style="padding: 11px 12px; border-top: 1px solid #F0EEE8; text-align: right; color: #5A5D64;">{{ $r['dateShort'] }}</td>
-                            <td style="padding: 11px 12px; border-top: 1px solid #F0EEE8; text-align: right; font-weight: 700;">{{ $r['amountLabel'] }}</td>
-                            <td style="padding: 11px 16px 11px 12px; border-top: 1px solid #F0EEE8; text-align: right;"><span style="font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: {{ $r['statusBg'] }}; color: {{ $r['statusColor'] }};">{{ $r['statusName'] }}</span></td>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
-            </div>
-        @else
-            <div style="padding: 54px 16px; text-align: center; color: #B7B4AB; font-size: 13px;">{{ $E['search'] !== '' ? $el['searchPh'] : $el['empty'] }}</div>
-        @endif
-    </div>
-
-    {{-- ---------- detail drawer (receipt-first, no repeated card) ---------- --}}
-    <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 16px; overflow: hidden; align-self: start;">
-        @if($sel)
-            {{-- receipt: compact thumbnail, click to zoom --}}
-            @if($sel['hasReceipt'] && $sel['isImage'])
-                <div x-data="{ zoom: false }" wire:key="rcpt-{{ $sel['id'] }}" style="padding: 14px 16px 0;">
-                    <button type="button" @click="zoom = true" style="display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 8px; border: 1px solid #ECEAE3; border-radius: 11px; background: #FAFAF8; cursor: zoom-in;">
-                        <img src="{{ $sel['receiptUrl'] }}" alt="{{ $el['receipt'] }}" loading="lazy" style="width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
-                        <span style="min-width: 0; flex: 1;"><span style="display: block; font-size: 12.5px; font-weight: 600; color: #16181D;">{{ $el['receipt'] }}</span><span style="font-size: 11px; color: #A7A49B;">{{ $el['openReceipt'] }}</span></span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A7A49B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg>
-                    </button>
-                    <template x-teleport="body">
-                        <div x-show="zoom" x-cloak @click="zoom = false" @keydown.escape.window="zoom = false" x-transition.opacity style="position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;">
-                            <img src="{{ $sel['receiptUrl'] }}" alt="{{ $el['receipt'] }}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
-                        </div>
-                    </template>
-                </div>
-            @elseif($sel['hasReceipt'])
-                <div style="padding: 14px 16px 0;"><a href="{{ $sel['receiptUrl'] }}" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #ECEAE3; border-radius: 11px; text-decoration: none; color: #16181D; font-size: 13px; font-weight: 600;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>{{ $el['openReceipt'] }}</a></div>
-            @endif
-
-            <div style="padding: 14px 18px 18px;">
-                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
-                    <div style="font-family: 'Space Grotesk'; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{ $sel['amountLabel'] }}</div>
-                    <span style="font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: {{ $sel['statusBg'] }}; color: {{ $sel['statusColor'] }};">{{ $sel['statusName'] }}</span>
-                </div>
-                <div style="font-size: 14.5px; font-weight: 600; margin-top: 3px;">{{ $sel['vendor'] }}</div>
-
-                {{-- meta: shown once, here (not repeated as a card) --}}
-                <div style="margin-top: 13px; border-top: 1px solid #F0EEE8;">
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F0EEE8; font-size: 13px;"><span style="color: #A7A49B;">{{ $el['category'] }}</span><span style="font-weight: 600; color: {{ $sel['catColor'] }};">{{ $sel['catName'] }}</span></div>
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F0EEE8; font-size: 13px;"><span style="color: #A7A49B;">{{ $el['site'] }}</span><span style="font-weight: 600;">{{ $sel['site'] }}</span></div>
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F0EEE8; font-size: 13px;"><span style="color: #A7A49B;">{{ $el['date'] }}</span><span style="font-weight: 600;">{{ $sel['date'] }}</span></div>
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 13px;"><span style="color: #A7A49B;">{{ $el['by'] }}</span><span style="font-weight: 600;">{{ $sel['submitter'] }}</span></div>
-                </div>
-
-                @if($sel['note'])
-                    <div style="margin-top: 12px; font-size: 12.5px; color: #5A5D64; background: #F7F5F0; border-radius: 9px; padding: 9px 11px;">{{ $sel['note'] }}</div>
-                @endif
-                @if($sel['status'] === 'rejected' && $sel['rejectReason'])
-                    <div style="margin-top: 12px; font-size: 12.5px; color: #B23B3B; background: #FBEBE9; border-radius: 9px; padding: 9px 11px;"><span style="color: #A7A49B;">{{ $el['reason'] }}:</span> {{ $sel['rejectReason'] }}</div>
-                @endif
-
-                @if($sel['pending'] && $E['canDecide'])
-                    @if($E['rejectId'] === $sel['id'])
-                        <div style="margin-top: 14px;">
-                            <input type="text" wire:model="expRejectNote" placeholder="{{ $el['rejectPh'] }}" style="width: 100%; padding: 9px 11px; border: 1.5px solid #E4E2DB; border-radius: 9px; font-size: 13px; outline: none; background: #FAFAF8;">
-                            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                <button wire:click="cancelExpReject" style="flex: 1; padding: 9px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #8A8880; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ $el['cancel'] }}</button>
-                                <button wire:click="rejectExpense({{ $sel['id'] }})" style="flex: 1.4; padding: 9px; border: none; border-radius: 9px; background: #D9483B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $el['confirmReject'] }}</button>
-                            </div>
-                        </div>
-                    @else
-                        <div style="display: flex; gap: 9px; margin-top: 16px;">
-                            <button wire:click="askRejectExpense({{ $sel['id'] }})" style="flex: 1; padding: 10px; border: 1px solid #E4E2DB; border-radius: 10px; background: #fff; color: #D9483B; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $el['reject'] }}</button>
-                            <button wire:click="approveExpense({{ $sel['id'] }})" style="flex: 1.5; padding: 10px; border: none; border-radius: 10px; background: #1F9D6B; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $el['approve'] }}</button>
-                        </div>
                     @endif
-                @elseif($sel['decidedLine'])
-                    <div style="margin-top: 14px; font-size: 12px; color: #8A8880; display: flex; align-items: center; gap: 7px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{ $sel['status'] === 'approved' ? '#1F9D6B' : '#D9483B' }}" stroke-width="2.4" style="flex-shrink: 0;">@if($sel['status'] === 'approved')<path d="M20 6 9 17l-5-5"/>@else<path d="M18 6 6 18M6 6l12 12"/>@endif</svg>{{ $sel['decidedLine'] }}
-                    </div>
-                @endif
-            </div>
-        @else
-            <div style="padding: 48px 16px; text-align: center; color: #B7B4AB; font-size: 12.5px;">{{ $el['pickReceipt'] }}</div>
-        @endif
-    </div>
+                @endforeach
+            </tbody>
+        </table>
+        </div>
+    @else
+        <div style="padding: 54px 16px; text-align: center; color: #B7B4AB; font-size: 13px;">{{ $E['search'] !== '' ? $el['searchPh'] : $el['empty'] }}</div>
+    @endif
 </div>
 
 {{-- ---------- add-receipt modal ---------- --}}
