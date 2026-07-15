@@ -1129,7 +1129,15 @@ class WorkforceApp extends Component
             $ext = strtolower($this->expFile->getClientOriginalExtension());
             $disk = \App\Support\Attach::enabled() ? \App\Support\Attach::disk() : 'local';
             $path = 'receipts/'.$site.'/'.\Illuminate\Support\Str::uuid()->toString().'.'.$ext;
-            \Illuminate\Support\Facades\Storage::disk($disk)->putFileAs('', $this->expFile, $path, 'private');
+            try {
+                // no ACL/visibility arg — Cloudflare R2 (Laravel Cloud storage) rejects ACLs
+                \Illuminate\Support\Facades\Storage::disk($disk)->putFileAs('', $this->expFile, $path);
+            } catch (\Throwable $e) {
+                report($e);
+                $this->showToast($this->tl('Could not save the receipt image — please try again', 'No se pudo guardar la imagen — inténtalo de nuevo', '영수증 이미지를 저장하지 못했어요 — 다시 시도해 주세요'));
+
+                return;
+            }
             $att = [
                 'att_disk' => $disk, 'att_path' => $path,
                 'att_name' => mb_substr($this->expFile->getClientOriginalName(), 0, 180),

@@ -94,7 +94,8 @@ class Attach
         $ext = strtolower($file->getClientOriginalExtension());
         $disk = self::disk();
         $path = 'comms/'.$channelId.'/'.Str::uuid()->toString().'.'.$ext;
-        Storage::disk($disk)->putFileAs('', $file, $path, 'private');
+        // no ACL/visibility arg — Cloudflare R2 (Laravel Cloud storage) rejects ACLs
+        Storage::disk($disk)->putFileAs('', $file, $path);
 
         return [
             'disk' => $disk,
