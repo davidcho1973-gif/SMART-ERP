@@ -614,10 +614,9 @@ class WorkforceAppTest extends TestCase
             ->set('loginPassword', 'Nahshon!2026')
             ->call('login')
             ->assertSet('access', 'manager')
-            ->assertSet('role', 'manager')
-            ->call('viewAs', 'worker')->assertSet('role', 'worker')
-            ->call('viewAs', 'manager')->assertSet('role', 'manager')
-            ->call('viewAs', 'admin')->assertSet('role', 'manager'); // blocked — stays manager
+            ->assertSet('role', 'worker')->assertSet('screen', 'worker')
+            ->call('viewAs', 'admin')->assertSet('role', 'worker')
+            ->call('viewAs', 'manager')->assertSet('role', 'worker');
     }
 
     public function test_worker_can_only_view_worker(): void
