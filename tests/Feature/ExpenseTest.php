@@ -6,7 +6,6 @@ use App\Livewire\WorkforceApp;
 use App\Models\Expense;
 use App\Models\Site;
 use App\Models\User;
-use App\Support\Payroll;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\WorkforceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,10 +94,10 @@ class ExpenseTest extends TestCase
     public function test_approved_expenses_feed_the_dashboard_expense_pillar(): void
     {
         $site = $this->siteId();
-        [$start] = Payroll::currentPeriod();
+        $today = now()->format('Y-m-d');   // dashboard aggregates by calendar month
         // one approved (counts) + one pending (must NOT count)
-        Expense::create(['site_id' => $site, 'category' => 'fuel', 'amount' => 120, 'spent_on' => $start, 'status' => 'approved']);
-        Expense::create(['site_id' => $site, 'category' => 'meal', 'amount' => 999, 'spent_on' => $start, 'status' => 'pending']);
+        Expense::create(['site_id' => $site, 'category' => 'fuel', 'amount' => 120, 'spent_on' => $today, 'status' => 'approved']);
+        Expense::create(['site_id' => $site, 'category' => 'meal', 'amount' => 999, 'spent_on' => $today, 'status' => 'pending']);
 
         $A = Livewire::test(WorkforceApp::class)
             ->call('demo', 'admin')

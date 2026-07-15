@@ -279,8 +279,10 @@ class WorkforceApp extends Component
 
     public string $payRecipient = 'hourly';   // hourly | all | salary | co:<id> | tm:<id>
 
-    // ---- accounting screen sub-tab ----
+    // ---- accounting screen sub-tab + the month it aggregates (YYYY-MM, '' = current) ----
     public string $acctTab = 'dashboard';
+
+    public string $acctMonth = '';
 
     // ---- accounting · expenses / receipts (M2) ----
     public bool $expFormOpen = false;
@@ -1028,6 +1030,27 @@ class WorkforceApp extends Component
             return;
         }
         $this->acctTab = in_array($k, ['dashboard', 'expenses', 'materials', 'billing', 'invoice'], true) ? $k : 'dashboard';
+    }
+
+    /** Step the accounting month back/forward (dir = -1 / +1); 0 jumps to the current month. */
+    public function acctMonthShift(int $dir): void
+    {
+        if (! $this->can('payroll.view')) {
+            return;
+        }
+        if ($dir === 0) {
+            $this->acctMonth = '';
+
+            return;
+        }
+        $base = $this->acctMonth !== ''
+            ? \Illuminate\Support\Carbon::createFromFormat('Y-m', $this->acctMonth)
+            : \Illuminate\Support\Carbon::now();
+        $target = $base->startOfMonth()->addMonths($dir);
+        // don't navigate into the future beyond the current month
+        $this->acctMonth = $target->isAfter(\Illuminate\Support\Carbon::now()->startOfMonth())
+            ? ''
+            : $target->format('Y-m');
     }
 
     // =================== accounting · expenses / receipts ===================
@@ -3832,7 +3855,7 @@ class WorkforceApp extends Component
             'qrMode' => $this->qrMode, 'qrTeam' => $this->qrTeam,
             'payDetail' => $this->payDetail, 'payVoucher' => $this->payVoucher,
             'checkNo' => $this->checkNo, 'payDate' => $this->payDate,
-            'acctTab' => $this->acctTab,
+            'acctTab' => $this->acctTab, 'acctMonth' => $this->acctMonth,
             'expFormOpen' => $this->expFormOpen, 'expSelId' => $this->expSelId,
             'expRejectId' => $this->expRejectId, 'expFilter' => $this->expFilter,
             'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
