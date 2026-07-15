@@ -24,7 +24,7 @@ jobs:
     env:
       APP_ENV: testing
       DB_CONNECTION: sqlite
-      DB_DATABASE: ${{ runner.temp }}/smart-erp-ci.sqlite
+      DB_DATABASE: /tmp/smart-erp-ci.sqlite
       CACHE_STORE: array
       QUEUE_CONNECTION: sync
       SESSION_DRIVER: array
