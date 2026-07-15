@@ -78,6 +78,10 @@ class Access
         'materials.submit' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
         'materials.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 
+        // accounting — equipment registry. Office manages the registry; field roles check out.
+        'equipment.manage' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
+        'equipment.checkout' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
+
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 

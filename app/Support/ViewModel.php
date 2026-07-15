@@ -207,6 +207,7 @@ class ViewModel
                 'materials' => self::materialsPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['materialsDecide'] ?? false), (bool) ($caps['materialsSubmit'] ?? false)),
                 'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
                 'billing' => self::billingPanel($tl, $acctSites, $mBase->format('Y-m'), $monthLabel, (bool) ($caps['contractsManage'] ?? false)),
+                'equipment' => self::equipmentPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, $activeAll, (bool) ($caps['equipmentManage'] ?? false), (bool) ($caps['equipmentCheckout'] ?? false)),
                 'labels' => [
                     'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
                     'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
@@ -1577,6 +1578,264 @@ class ViewModel
                 'confirmReject' => $tl('Confirm reject', 'Confirmar', '반려 확정'),
                 'empty' => $tl('No materials recorded yet.', 'Aún no hay materiales.', '등록된 자재 입고가 없어요.'),
                 'openingHelp' => $tl('Opening stock is material already on site (bought before). Quantity only — it does not add to this month\'s cost.', 'El inventario inicial ya está en obra. Solo cantidad, sin costo del mes.', '개시재고는 이미 현장에 있던 자재입니다. 수량만 기록되고 이번 달 원가에는 반영되지 않아요.'),
+            ],
+        ];
+    }
+
+    /**
+     * Equipment registry (M3 · STEP 2) — the 장비 half of the materials tab.
+     * Owned (구매) assets carry a book value + monthly depreciation; rented (랜트)
+     * units carry a rate + days-to-return countdown. Each row ships its photo
+     * gallery, event log and per-status actions.
+     */
+    protected static function equipmentPanel(array $s, string $lang, callable $tl, $visibleSites, $scopeSites, string $activeSite, $roster, bool $canManage, bool $canCheckout): array
+    {
+        $statusMeta = [
+            'available' => ['name' => $tl('Available', 'Disponible', '보유'), 'color' => '#1F9D6B', 'bg' => '#E7F5EF'],
+            'out' => ['name' => $tl('On site', 'En obra', '현장 배치'), 'color' => '#3B72E0', 'bg' => '#E7EEFB'],
+            'maintenance' => ['name' => $tl('Maintenance', 'Mantenimiento', '정비 중'), 'color' => '#C98A1E', 'bg' => '#FBF1DE'],
+            'returned' => ['name' => $tl('Returned', 'Devuelto', '반납'), 'color' => '#8A8880', 'bg' => '#F1F0EC'],
+            'disposed' => ['name' => $tl('Disposed', 'Dado de baja', '폐기'), 'color' => '#8A8880', 'bg' => '#F1F0EC'],
+        ];
+        $acqMeta = [
+            'owned' => ['name' => $tl('Owned', 'Propio', '구매'), 'color' => '#6B4EE6'],
+            'rented' => ['name' => $tl('Rented', 'Rentado', '랜트'), 'color' => '#0EA5A0'],
+        ];
+        $photoKind = [
+            'main' => $tl('Main', 'Principal', '전경'),
+            'plate' => $tl('Nameplate', 'Placa', '명판'),
+            'meter' => $tl('Meter', 'Medidor', '계기'),
+            'side' => $tl('Side', 'Lateral', '측면'),
+            'condition' => $tl('Condition', 'Condición', '상태'),
+        ];
+
+        $filter = $s['equipFilter'] ?? 'all';
+        $search = trim((string) ($s['equipSearch'] ?? ''));
+        $q = \App\Models\Equipment::query()->with(['photos', 'holder', 'events' => fn ($e) => $e->orderByDesc('id')->limit(6)])->orderByDesc('id');
+        if (in_array($filter, ['available', 'out', 'maintenance'], true)) {
+            $q->where('status', $filter);
+        } elseif ($filter === 'owned' || $filter === 'rented') {
+            $q->where('acquisition', $filter);
+        }
+        if ($scopeSites !== null) {
+            $q->where(fn ($w) => $w->whereIn('site_id', $scopeSites)->orWhereNull('site_id'));
+        }
+        if ($activeSite !== 'all') {
+            $q->where('site_id', $activeSite);
+        }
+        if ($search !== '') {
+            $q->where(fn ($w) => $w->where('name', 'like', '%'.$search.'%')
+                ->orWhere('type', 'like', '%'.$search.'%')
+                ->orWhere('serial', 'like', '%'.$search.'%')
+                ->orWhere('asset_tag', 'like', '%'.$search.'%')
+                ->orWhere('vendor', 'like', '%'.$search.'%'));
+        }
+        $siteNames = $visibleSites->keyBy('id');
+        $empName = fn ($e) => $e?->displayName($lang) ?? '—';
+
+        $rows = $q->limit(120)->get()->map(function (\App\Models\Equipment $e) use ($statusMeta, $acqMeta, $photoKind, $siteNames, $tl, $empName, $lang) {
+            $st = $statusMeta[$e->status] ?? $statusMeta['available'];
+            $acq = $acqMeta[$e->acquisition] ?? $acqMeta['rented'];
+
+            // cost indicator — owned shows book value; rented shows rate + return countdown
+            $costLabel = '—';
+            $costSub = null;
+            $due = null;
+            if ($e->isRented()) {
+                if ($e->rental_rate) {
+                    $unit = match ($e->rate_unit) { 'week' => $tl('/wk', '/sem', '/주'), 'month' => $tl('/mo', '/mes', '/월'), default => $tl('/day', '/día', '/일') };
+                    $costLabel = Money::usd((float) $e->rental_rate).$unit;
+                }
+                $d = $e->daysToReturn();
+                if ($d !== null) {
+                    $due = $d < 0
+                        ? ['text' => $tl('Overdue '.abs($d).'d', 'Vencido '.abs($d).'d', abs($d).'일 초과'), 'color' => '#D9483B']
+                        : ($d <= 3
+                            ? ['text' => $tl('Return in '.$d.'d', 'Devuelve en '.$d.'d', $d.'일 후 반납'), 'color' => '#C98A1E']
+                            : ['text' => $tl('Return in '.$d.'d', 'Devuelve en '.$d.'d', $d.'일 후 반납'), 'color' => '#8A8880']);
+                    $costSub = optional($e->rental_end)->format('M j, Y');
+                }
+            } else {
+                $bv = $e->bookValue();
+                if ($bv !== null) {
+                    $costLabel = Money::usd($bv);
+                    $md = $e->monthlyDepreciation();
+                    $costSub = $md !== null ? $tl('−', '−', '−').Money::usd($md).$tl('/mo', '/mes', '/월') : null;
+                }
+            }
+
+            $photos = $e->photos->map(fn ($p) => [
+                'id' => $p->id,
+                'kind' => $p->kind, 'kindName' => $photoKind[$p->kind] ?? $p->kind,
+                'isImage' => $p->isImage(),
+                'url' => url('/accounting/equip-photo/'.$p->id),
+                'caption' => $p->caption,
+            ])->all();
+            $cover = null;
+            foreach (['main', 'side', 'plate'] as $k) {
+                foreach ($photos as $p) {
+                    if ($p['kind'] === $k && $p['isImage']) { $cover = $p['url']; break 2; }
+                }
+            }
+            if ($cover === null) {
+                foreach ($photos as $p) {
+                    if ($p['isImage']) { $cover = $p['url']; break; }
+                }
+            }
+
+            $events = $e->events->map(function ($ev) use ($tl, $empName) {
+                $typeName = match ($ev->type) {
+                    'checkout' => $tl('Checked out', 'Asignado', '현장 배치'),
+                    'checkin' => $tl('Checked in', 'Devuelto', '입고'),
+                    'maintenance' => $tl('Maintenance', 'Mantenimiento', '정비'),
+                    'return' => $tl('Returned', 'Devuelto', '반납'),
+                    default => $tl('Note', 'Nota', '메모'),
+                };
+                $who = $ev->employee_id ? \App\Models\Employee::find($ev->employee_id) : null;
+
+                return [
+                    'type' => $ev->type, 'typeName' => $typeName,
+                    'at' => optional($ev->at)->format('M j, Y g:i A') ?? '—',
+                    'who' => $who?->displayName(app()->getLocale()) ?? '—',
+                    'note' => $ev->note,
+                ];
+            })->all();
+
+            return [
+                'id' => $e->id,
+                'name' => $e->name,
+                'type' => $e->type ?: '—',
+                'acq' => $e->acquisition, 'acqName' => $acq['name'], 'acqColor' => $acq['color'],
+                'serial' => $e->serial, 'assetTag' => $e->asset_tag,
+                'status' => $e->status, 'statusName' => $st['name'], 'statusColor' => $st['color'], 'statusBg' => $st['bg'],
+                'isOut' => $e->status === 'out',
+                'site' => $siteNames->get($e->site_id)?->name ?? ($e->site_id ?: '—'),
+                'holder' => $empName($e->holder),
+                'meter' => $e->meter !== null ? rtrim(rtrim(number_format((float) $e->meter, 1), '0'), '.').' '.$e->meter_unit : null,
+                'costLabel' => $costLabel, 'costSub' => $costSub, 'due' => $due,
+                'vendor' => $e->vendor, 'note' => $e->note,
+                'qrToken' => $e->qr_token,
+                'cover' => $cover,
+                'photoCount' => count($photos),
+                'photos' => $photos,
+                'events' => $events,
+            ];
+        })->all();
+
+        $counts = [
+            'total' => \App\Models\Equipment::query()
+                ->when($scopeSites !== null, fn ($qq) => $qq->where(fn ($w) => $w->whereIn('site_id', $scopeSites)->orWhereNull('site_id')))
+                ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count(),
+            'out' => \App\Models\Equipment::where('status', 'out')
+                ->when($scopeSites !== null, fn ($qq) => $qq->whereIn('site_id', $scopeSites))
+                ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count(),
+        ];
+        // rentals due back within 7 days (or overdue) across the visible scope
+        $dueSoon = \App\Models\Equipment::where('acquisition', 'rented')
+            ->whereIn('status', ['available', 'out', 'maintenance'])
+            ->whereNotNull('rental_end')
+            ->whereDate('rental_end', '<=', \Illuminate\Support\Carbon::today()->addDays(7))
+            ->when($scopeSites !== null, fn ($qq) => $qq->where(fn ($w) => $w->whereIn('site_id', $scopeSites)->orWhereNull('site_id')))
+            ->when($activeSite !== 'all', fn ($qq) => $qq->where('site_id', $activeSite))->count();
+
+        $expandId = $s['equipExpandId'] ?? null;
+        $qrEquip = null;
+        if (($s['equipQrId'] ?? null) && ($s['equipModal'] ?? null) === 'qr') {
+            $qe = \App\Models\Equipment::find($s['equipQrId']);
+            if ($qe) {
+                $qrEquip = [
+                    'name' => $qe->name, 'token' => $qe->qr_token,
+                    'svg' => RealQr::svg('EQUIP:'.$qe->qr_token, 148),
+                ];
+            }
+        }
+
+        return [
+            'canManage' => $canManage, 'canCheckout' => $canCheckout,
+            'filter' => $filter, 'search' => $search,
+            'rows' => $rows, 'counts' => $counts, 'dueSoon' => $dueSoon,
+            'expandId' => $expandId,
+            'coTarget' => $s['coTarget'] ?? null,
+            'formOpen' => ($s['equipModal'] ?? null) === 'register',
+            'editing' => (bool) ($s['equipEditId'] ?? null),
+            'acq' => in_array($s['eqAcq'] ?? 'rented', ['owned', 'rented'], true) ? $s['eqAcq'] : 'rented',
+            'photoKind' => $s['eqPhotoKind'] ?? 'side',
+            'qrEquip' => $qrEquip,
+            'siteOptions' => $visibleSites->map(fn ($st) => ['id' => $st->id, 'label' => $st->name])->all(),
+            'holderOptions' => collect($roster)->map(fn ($e) => ['id' => $e->id, 'label' => $e->displayName($lang)])->values()->all(),
+            'photoKinds' => array_map(fn ($k) => ['key' => $k, 'name' => $photoKind[$k]], \App\Models\EquipmentPhoto::KINDS),
+            'ocrOn' => (bool) config('services.gemini.key'),
+            'labels' => [
+                'add' => $tl('Register equipment', 'Registrar equipo', '장비 등록'),
+                'newEquip' => $tl('New equipment', 'Nuevo equipo', '새 장비'),
+                'editEquip' => $tl('Edit equipment', 'Editar equipo', '장비 수정'),
+                'kpi_total' => $tl('Registered', 'Registrados', '등록 장비'),
+                'kpi_out' => $tl('On site', 'En obra', '현장 배치'),
+                'kpi_due' => $tl('Return due ≤7d', 'Devolución ≤7d', '반납 임박'),
+                'filter_all' => $tl('All', 'Todos', '전체'),
+                'filter_available' => $tl('Available', 'Disponible', '보유'),
+                'filter_out' => $tl('On site', 'En obra', '현장'),
+                'filter_maintenance' => $tl('Maintenance', 'Mantenimiento', '정비'),
+                'filter_owned' => $tl('Owned', 'Propio', '구매'),
+                'filter_rented' => $tl('Rented', 'Rentado', '랜트'),
+                'searchPh' => $tl('Search name / serial / vendor', 'Buscar nombre / serie', '장비명·시리얼·상호 검색'),
+                'col_equip' => $tl('Equipment', 'Equipo', '장비'),
+                'col_acq' => $tl('Type', 'Tipo', '구분'),
+                'col_status' => $tl('Status', 'Estado', '상태'),
+                'col_site' => $tl('Site · Holder', 'Obra · Responsable', '현장·담당'),
+                'col_cost' => $tl('Value / Rate', 'Valor / Renta', '가치 / 임대료'),
+                'plate' => $tl('Nameplate / photo', 'Placa / foto', '명판 / 사진'),
+                'plateHint' => $tl('Upload the nameplate — maker, model and serial are read for you.', 'Sube la placa — marca, modelo y serie se leen solos.', '명판 사진을 올리면 제조사·모델·시리얼을 자동으로 읽어요.'),
+                'readPlate' => $tl('Read nameplate', 'Leer placa', '명판 읽기'),
+                'reading' => $tl('Reading…', 'Leyendo…', '읽는 중…'),
+                'acquisition' => $tl('Acquisition', 'Adquisición', '취득 구분'),
+                'owned' => $tl('Owned (purchase)', 'Propio (compra)', '구매'),
+                'rented' => $tl('Rented', 'Rentado', '랜트'),
+                'name' => $tl('Equipment name', 'Nombre', '장비명'),
+                'typeField' => $tl('Type', 'Tipo', '종류'),
+                'serial' => $tl('Serial no.', 'No. de serie', '시리얼'),
+                'assetTag' => $tl('Asset tag', 'Etiqueta', '자산 번호'),
+                'site' => $tl('Site', 'Obra', '현장'),
+                'meter' => $tl('Meter', 'Medidor', '가동 계기'),
+                'hours' => $tl('hours', 'horas', '시간'),
+                'km' => $tl('km', 'km', 'km'),
+                'purchaseDate' => $tl('Purchase date', 'Fecha de compra', '구매일'),
+                'purchaseCost' => $tl('Purchase cost', 'Costo de compra', '취득가'),
+                'life' => $tl('Useful life (months)', 'Vida útil (meses)', '내용연수 (개월)'),
+                'salvage' => $tl('Salvage value', 'Valor residual', '잔존가치'),
+                'vendor' => $tl('Rental vendor', 'Proveedor', '임대사'),
+                'rate' => $tl('Rental rate', 'Tarifa', '임대료'),
+                'perDay' => $tl('per day', 'por día', '일'),
+                'perWeek' => $tl('per week', 'por semana', '주'),
+                'perMonth' => $tl('per month', 'por mes', '월'),
+                'start' => $tl('Rental start', 'Inicio', '임대 시작'),
+                'end' => $tl('Expected return', 'Devolución', '반납 예정'),
+                'deposit' => $tl('Deposit', 'Depósito', '보증금'),
+                'note' => $tl('Note (optional)', 'Nota (opcional)', '메모 (선택)'),
+                'save' => $tl('Save', 'Guardar', '저장'),
+                'cancel' => $tl('Cancel', 'Cancelar', '취소'),
+                'edit' => $tl('Edit', 'Editar', '수정'),
+                'qr' => $tl('QR', 'QR', 'QR'),
+                'qrTitle' => $tl('Equipment QR', 'QR del equipo', '장비 QR'),
+                'qrHint' => $tl('Print & attach to the equipment. Scan to check out / in on site.', 'Imprime y pega en el equipo. Escanea para asignar/devolver.', '출력해 장비에 부착하세요. 현장에서 스캔하면 배치·입고됩니다.'),
+                'checkout' => $tl('Check out', 'Asignar', '현장 배치'),
+                'checkin' => $tl('Check in', 'Devolver', '입고'),
+                'maintenance' => $tl('To maintenance', 'A mantenimiento', '정비 전환'),
+                'return' => $tl('Return', 'Devolver', '반납 처리'),
+                'holder' => $tl('Holder (optional)', 'Responsable (opcional)', '담당자 (선택)'),
+                'pickSite' => $tl('Pick a site', 'Elige obra', '현장 선택'),
+                'confirm' => $tl('Confirm', 'Confirmar', '확정'),
+                'photos' => $tl('Photos', 'Fotos', '사진'),
+                'addPhoto' => $tl('Add photo', 'Agregar foto', '사진 추가'),
+                'photoKind' => $tl('Photo type', 'Tipo de foto', '사진 종류'),
+                'removePhoto' => $tl('Remove', 'Quitar', '삭제'),
+                'history' => $tl('History', 'Historial', '이력'),
+                'noHistory' => $tl('No activity yet.', 'Sin actividad.', '이력이 없어요.'),
+                'noPhotos' => $tl('No photos yet — add one to verify condition.', 'Sin fotos — agrega una para verificar.', '사진이 없어요 — 상태 확인용으로 추가해 주세요.'),
+                'by' => $tl('by', 'por', '담당:'),
+                'empty' => $tl('No equipment registered yet.', 'Aún no hay equipo.', '등록된 장비가 없어요.'),
+                'ownedHelp' => $tl('Owned assets depreciate straight-line — the book value updates every month automatically.', 'Los activos propios se deprecian en línea recta.', '구매 장비는 정액법으로 감가되어 장부가치가 매월 자동 갱신됩니다.'),
+                'rentedHelp' => $tl('Rented units show a return countdown so nothing runs past its return date.', 'Los rentados muestran cuenta regresiva de devolución.', '랜트 장비는 반납일 카운트다운으로 초과 임대를 막아줍니다.'),
             ],
         ];
     }
