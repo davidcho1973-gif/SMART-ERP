@@ -64,9 +64,24 @@
     <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 14px; padding: 16px; align-self: start;">
         @if($sel)
             @if($sel['hasReceipt'] && $sel['isImage'])
-                <a href="{{ $sel['receiptUrl'] }}" target="_blank" rel="noopener" style="display: block; border-radius: 11px; overflow: hidden; border: 1px solid #ECEAE3; margin-bottom: 14px;">
-                    <img src="{{ $sel['receiptUrl'] }}" alt="{{ $el['receipt'] }}" loading="lazy" style="display: block; width: 100%; height: auto; max-height: 300px; object-fit: cover;">
-                </a>
+                {{-- compact thumbnail; click opens a full-screen lightbox --}}
+                <div x-data="{ zoom: false }" wire:key="rcpt-{{ $sel['id'] }}" style="margin-bottom: 14px;">
+                    <button type="button" @click="zoom = true"
+                        style="display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 8px; border: 1px solid #ECEAE3; border-radius: 11px; background: #FAFAF8; cursor: zoom-in;">
+                        <img src="{{ $sel['receiptUrl'] }}" alt="{{ $el['receipt'] }}" loading="lazy" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">
+                        <span style="min-width: 0; flex: 1;">
+                            <span style="display: block; font-size: 12.5px; font-weight: 600; color: #16181D;">{{ $el['receipt'] }}</span>
+                            <span style="font-size: 11px; color: #A7A49B;">{{ $el['openReceipt'] }}</span>
+                        </span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A7A49B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg>
+                    </button>
+                    <template x-teleport="body">
+                        <div x-show="zoom" x-cloak @click="zoom = false" @keydown.escape.window="zoom = false" x-transition.opacity
+                            style="position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;">
+                            <img src="{{ $sel['receiptUrl'] }}" alt="{{ $el['receipt'] }}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+                        </div>
+                    </template>
+                </div>
             @elseif($sel['hasReceipt'])
                 <a href="{{ $sel['receiptUrl'] }}" target="_blank" rel="noopener" style="display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #ECEAE3; border-radius: 11px; text-decoration: none; color: #16181D; font-size: 13px; font-weight: 600; margin-bottom: 14px;">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#E85D2A" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>{{ $el['openReceipt'] }}
@@ -204,4 +219,5 @@
 
 <style>
     @media (max-width: 820px) { .wf-exp-grid { grid-template-columns: 1fr !important; } }
+    [x-cloak] { display: none !important; }
 </style>

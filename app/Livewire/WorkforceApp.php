@@ -1116,9 +1116,8 @@ class WorkforceApp extends Component
         $category = in_array($this->expCategory, \App\Models\Expense::CATEGORIES, true) ? $this->expCategory : 'other';
         $date = $this->expDate ?: now()->format('Y-m-d');
 
-        // Everything below (receipt sniff/store + DB insert) is wrapped so ANY
-        // failure surfaces as a toast with the real reason instead of a raw 500.
-        $disk = '—';
+        // Everything below (receipt sniff/store + DB insert) is wrapped so any
+        // failure surfaces as a toast instead of a raw 500.
         try {
             $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
             if ($this->expFile) {
@@ -1155,8 +1154,8 @@ class WorkforceApp extends Component
                 'submitted_by' => $me?->id,
             ], $att));
         } catch (\Throwable $e) {
-            report($e);
-            $this->showToast('저장 실패 ['.$disk.'] '.class_basename($e).': '.mb_substr($e->getMessage(), 0, 150));
+            report($e);   // logged for diagnostics; users see a friendly message
+            $this->showToast($this->tl('Could not save the receipt — please try again', 'No se pudo guardar el recibo — inténtalo de nuevo', '영수증을 저장하지 못했어요 — 다시 시도해 주세요'));
 
             return;
         }
