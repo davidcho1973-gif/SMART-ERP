@@ -1128,13 +1128,14 @@ class WorkforceApp extends Component
             }
             $ext = strtolower($this->expFile->getClientOriginalExtension());
             $disk = \App\Support\Attach::disk() ?? 'local';
-            $path = 'receipts/'.$site.'/'.\Illuminate\Support\Str::uuid()->toString().'.'.$ext;
+            $name = \Illuminate\Support\Str::uuid()->toString().'.'.$ext;
             try {
-                // no ACL/visibility arg — Cloudflare R2 (Laravel Cloud storage) rejects ACLs
-                \Illuminate\Support\Facades\Storage::disk($disk)->putFileAs('', $this->expFile, $path);
+                // storeAs (not putFileAs): reads the Livewire temp file by STREAM from
+                // whatever disk it lives on (R2/s3 or local) — putFileAs would try to
+                // fopen an s3 temp key as a local path and fail. No ACL arg (R2 rejects).
+                $path = $this->expFile->storeAs('receipts/'.$site, $name, $disk);
             } catch (\Throwable $e) {
                 report($e);
-                // surface the real reason so we can pinpoint storage misconfig (disk: which one)
                 $this->showToast('저장 실패 ['.$disk.'] '.class_basename($e).': '.mb_substr($e->getMessage(), 0, 140));
 
                 return;

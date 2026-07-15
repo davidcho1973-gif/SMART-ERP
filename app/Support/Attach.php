@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -108,9 +107,10 @@ class Attach
     {
         $ext = strtolower($file->getClientOriginalExtension());
         $disk = self::disk() ?? 'local';
-        $path = 'comms/'.$channelId.'/'.Str::uuid()->toString().'.'.$ext;
-        // no ACL/visibility arg — Cloudflare R2 (Laravel Cloud storage) rejects ACLs
-        Storage::disk($disk)->putFileAs('', $file, $path);
+        $name = Str::uuid()->toString().'.'.$ext;
+        // storeAs (not putFileAs): streams the Livewire temp file from whatever disk
+        // it lives on (R2/s3 or local). No ACL arg — Cloudflare R2 rejects ACLs.
+        $path = $file->storeAs('comms/'.$channelId, $name, $disk);
 
         return [
             'disk' => $disk,
