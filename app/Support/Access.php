@@ -74,6 +74,10 @@ class Access
         // accounting — contracts & progress billing (head office only)
         'contracts.manage' => ['owner'],
 
+        // accounting — materials inbound. Field roles submit; office roles approve.
+        'materials.submit' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
+        'materials.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
+
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 
