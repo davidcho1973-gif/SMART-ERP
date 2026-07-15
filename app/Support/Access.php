@@ -71,6 +71,9 @@ class Access
         'expenses.submit' => ['owner', 'hr_admin', 'site_manager', 'company_admin', 'crew_lead'],
         'expenses.decide' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 
+        // accounting — contracts & progress billing (head office only)
+        'contracts.manage' => ['owner'],
+
         // comms
         'comms.announce' => ['owner', 'hr_admin', 'site_manager', 'company_admin'],
 
