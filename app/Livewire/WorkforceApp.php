@@ -1116,48 +1116,50 @@ class WorkforceApp extends Component
         $category = in_array($this->expCategory, \App\Models\Expense::CATEGORIES, true) ? $this->expCategory : 'other';
         $date = $this->expDate ?: now()->format('Y-m-d');
 
-        $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
-        if ($this->expFile) {
-            $why = \App\Support\Attach::reject($this->expFile);
-            if ($why !== null) {
-                $this->showToast($why === 'size'
-                    ? $this->tl('Receipt image is too large', 'La imagen es demasiado grande', '영수증 이미지가 너무 큽니다')
-                    : $this->tl('That file type is not allowed', 'Tipo de archivo no permitido', '허용되지 않는 파일 형식입니다'));
+        // Everything below (receipt sniff/store + DB insert) is wrapped so ANY
+        // failure surfaces as a toast with the real reason instead of a raw 500.
+        $disk = '—';
+        try {
+            $att = ['att_disk' => null, 'att_path' => null, 'att_name' => null, 'att_mime' => null, 'att_size' => null];
+            if ($this->expFile) {
+                $why = \App\Support\Attach::reject($this->expFile);
+                if ($why !== null) {
+                    $this->showToast($why === 'size'
+                        ? $this->tl('Receipt image is too large', 'La imagen es demasiado grande', '영수증 이미지가 너무 큽니다')
+                        : $this->tl('That file type is not allowed', 'Tipo de archivo no permitido', '허용되지 않는 파일 형식입니다'));
 
-                return;
-            }
-            $ext = strtolower($this->expFile->getClientOriginalExtension());
-            $disk = \App\Support\Attach::disk() ?? 'local';
-            $name = \Illuminate\Support\Str::uuid()->toString().'.'.$ext;
-            try {
-                // storeAs (not putFileAs): reads the Livewire temp file by STREAM from
-                // whatever disk it lives on (R2/s3 or local) — putFileAs would try to
-                // fopen an s3 temp key as a local path and fail. No ACL arg (R2 rejects).
+                    return;
+                }
+                $ext = strtolower($this->expFile->getClientOriginalExtension());
+                $disk = \App\Support\Attach::disk() ?? 'local';
+                $name = \Illuminate\Support\Str::uuid()->toString().'.'.$ext;
+                // storeAs streams the Livewire temp file from whatever disk it lives
+                // on (R2/s3 or local); no ACL arg (Cloudflare R2 rejects ACLs).
                 $path = $this->expFile->storeAs('receipts/'.$site, $name, $disk);
-            } catch (\Throwable $e) {
-                report($e);
-                $this->showToast('저장 실패 ['.$disk.'] '.class_basename($e).': '.mb_substr($e->getMessage(), 0, 140));
-
-                return;
+                $att = [
+                    'att_disk' => $disk, 'att_path' => $path,
+                    'att_name' => mb_substr($this->expFile->getClientOriginalName(), 0, 180),
+                    'att_mime' => \App\Support\Attach::MIME[$ext] ?? (string) $this->expFile->getMimeType(),
+                    'att_size' => (int) $this->expFile->getSize(),
+                ];
             }
-            $att = [
-                'att_disk' => $disk, 'att_path' => $path,
-                'att_name' => mb_substr($this->expFile->getClientOriginalName(), 0, 180),
-                'att_mime' => \App\Support\Attach::MIME[$ext] ?? (string) $this->expFile->getMimeType(),
-                'att_size' => (int) $this->expFile->getSize(),
-            ];
-        }
 
-        \App\Models\Expense::create(array_merge([
-            'site_id' => $site,
-            'category' => $category,
-            'vendor' => mb_substr(trim($this->expVendor), 0, 120) ?: null,
-            'amount' => $amount,
-            'spent_on' => $date,
-            'note' => mb_substr(trim($this->expNote), 0, 500) ?: null,
-            'status' => 'pending',
-            'submitted_by' => $me?->id,
-        ], $att));
+            \App\Models\Expense::create(array_merge([
+                'site_id' => $site,
+                'category' => $category,
+                'vendor' => mb_substr(trim($this->expVendor), 0, 120) ?: null,
+                'amount' => $amount,
+                'spent_on' => $date,
+                'note' => mb_substr(trim($this->expNote), 0, 500) ?: null,
+                'status' => 'pending',
+                'submitted_by' => $me?->id,
+            ], $att));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->showToast('저장 실패 ['.$disk.'] '.class_basename($e).': '.mb_substr($e->getMessage(), 0, 150));
+
+            return;
+        }
 
         $this->expFormOpen = false;
         $this->expFile = null;
