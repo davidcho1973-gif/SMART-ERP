@@ -8,7 +8,12 @@ return [
      | Every other Livewire setting keeps its framework default (merged in).
      */
     'temporary_file_upload' => [
-        'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK'),
+        // Keep temp uploads on the LOCAL disk, never the object store. On Laravel
+        // Cloud the default disk is Cloudflare R2, and R2 can't return the size of
+        // a streamed temp object — getSize()/validation then throws
+        // "UnableToRetrieveMetadata". Local temp files always report a size; the
+        // permanent copy still goes to R2 via storeAs('…','…','s3').
+        'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK', 'local'),
         'rules' => ['required', 'file', 'max:25600'], // 25 MB
         'directory' => null,
         'middleware' => null,
