@@ -194,6 +194,7 @@ class ViewModel
                     ['key' => 'sub',      'name' => $tl('Subcontract', 'Subcontrata', '외주비'),'amount' => 0.0, 'label' => Money::usd(0), 'color' => '#1F9D6B', 'live' => false],
                 ],
                 'expenses' => self::expensesPanel($s, $lang, $tl, $visibleSites, $scopeSites, $acctSite, (bool) ($caps['expensesDecide'] ?? false), (bool) ($caps['expensesSubmit'] ?? false)),
+                'billing' => self::billingPanel($tl, $acctSites, $mBase->format('Y-m'), $monthLabel, (bool) ($caps['contractsManage'] ?? false)),
                 'labels' => [
                     'tab_dashboard' => $tl('Dashboard', 'Panel', '대시보드'),
                     'tab_expenses' => $tl('Expenses · Receipts', 'Gastos · Recibos', '경비·영수증'),
@@ -1335,6 +1336,94 @@ class ViewModel
                 'pending' => $tl('pending', 'pendientes', '대기'),
                 'detail' => $tl('Detail', 'Detalle', '상세'),
                 'pickReceipt' => $tl('Select a receipt to see details', 'Elige un recibo', '영수증을 선택하면 상세가 보여요'),
+            ],
+        ];
+    }
+
+    /**
+     * Accounting → Contract·Progress tab (M4). Progress billing per site for the
+     * selected month: 당월 기성 = contract × (this-month% − last-month%), 누계
+     * 기성 = contract × this-month%, 잔여 = contract − 누계.
+     */
+    protected static function billingPanel(callable $tl, $acctSites, string $ym, string $monthLabel, bool $canManage): array
+    {
+        $ids = $acctSites->pluck('id')->all();
+        $contracts = \App\Models\Contract::whereIn('site_id', $ids)->get()->keyBy('site_id');
+        $snapsBySite = \App\Models\ProgressSnapshot::whereIn('site_id', $ids)->orderBy('ym')->get()->groupBy('site_id');
+
+        $rows = $acctSites->map(function ($st) use ($contracts, $snapsBySite, $ym) {
+            $amount = (float) ($contracts->get($st->id)->amount ?? 0);
+            $snaps = $snapsBySite->get($st->id, collect());
+            $cumPct = 0.0;
+            $prevPct = 0.0;
+            $hasThis = false;
+            foreach ($snaps as $sn) {           // sorted ascending by ym
+                if ($sn->ym < $ym) {
+                    $prevPct = (float) $sn->pct;
+                }
+                if ($sn->ym <= $ym) {
+                    $cumPct = (float) $sn->pct;
+                }
+                if ($sn->ym === $ym) {
+                    $hasThis = true;
+                }
+            }
+            $thisBill = $amount * ($cumPct - $prevPct) / 100;
+            $cumBill = $amount * $cumPct / 100;
+            $remaining = max(0.0, $amount - $cumBill);
+
+            return [
+                'id' => $st->id, 'name' => $st->name, 'city' => $st->city, 'gc' => $st->gc ?: '—',
+                'hasContract' => $amount > 0,
+                'amount' => $amount, 'amountLabel' => Money::usd($amount),
+                'cumPct' => round($cumPct, 1), 'hasThisSnap' => $hasThis,
+                'thisBill' => $thisBill, 'thisBillLabel' => Money::usd($thisBill),
+                'cumBill' => $cumBill, 'cumBillLabel' => Money::usd($cumBill),
+                'remaining' => $remaining, 'remainingLabel' => Money::usd($remaining),
+            ];
+        })->values()->all();
+
+        $totContract = (float) array_sum(array_column($rows, 'amount'));
+        $totThis = (float) array_sum(array_column($rows, 'thisBill'));
+        $totCum = (float) array_sum(array_column($rows, 'cumBill'));
+        $totRemain = (float) array_sum(array_column($rows, 'remaining'));
+        $overallPct = $totContract > 0 ? round($totCum / $totContract * 100, 1) : 0.0;
+
+        return [
+            'canManage' => $canManage,
+            'monthLabel' => $monthLabel,
+            'rows' => $rows,
+            'totContractLabel' => Money::usd($totContract),
+            'totThisLabel' => Money::usd($totThis),
+            'totCumLabel' => Money::usd($totCum),
+            'totRemainLabel' => Money::usd($totRemain),
+            'overallPct' => $overallPct,
+            'hasAny' => $totContract > 0,
+            'labels' => [
+                'kpi_contract' => $tl('Contract total', 'Total contrato', '총 계약금액'),
+                'kpi_thisBill' => $tl('This month billing', 'Facturación del mes', '당월 기성'),
+                'kpi_cumBill' => $tl('Cumulative billing', 'Facturación acumulada', '누계 기성'),
+                'kpi_pct' => $tl('Progress', 'Avance', '기성률'),
+                'col_site' => $tl('Site', 'Obra', '현장'),
+                'col_contract' => $tl('Contract', 'Contrato', '계약금액'),
+                'col_pct' => $tl('Progress %', 'Avance %', '누계 진척률'),
+                'col_this' => $tl('This month', 'Este mes', '당월 기성'),
+                'col_cum' => $tl('Cumulative', 'Acumulado', '누계 기성'),
+                'col_remain' => $tl('Remaining', 'Restante', '잔여'),
+                'total' => $tl('Total', 'Total', '합계'),
+                'setContract' => $tl('Set contract', 'Fijar contrato', '계약금액 설정'),
+                'setProgress' => $tl('Enter progress', 'Ingresar avance', '진척률 입력'),
+                'editContract' => $tl('Contract', 'Contrato', '계약'),
+                'editProgress' => $tl('Progress', 'Avance', '진척'),
+                'noContract' => $tl('No contract set', 'Sin contrato', '계약금액 미설정'),
+                'amount' => $tl('Contract amount (USD)', 'Monto del contrato (USD)', '계약금액 (USD)'),
+                'pctInput' => $tl('Cumulative % complete this month', '% acumulado completado este mes', '이번 달 누계 진척률 (%)'),
+                'note' => $tl('Note (optional)', 'Nota (opcional)', '메모 (선택)'),
+                'save' => $tl('Save', 'Guardar', '저장'),
+                'cancel' => $tl('Cancel', 'Cancelar', '취소'),
+                'empty' => $tl('Set a contract amount for a site to start progress billing.', 'Fija el monto del contrato de una obra para iniciar la facturación.', '현장의 계약금액을 설정하면 기성 청구가 시작됩니다.'),
+                'lockedNote' => $tl('Only the owner can edit contracts & progress.', 'Solo el propietario puede editar.', '계약·진척은 대표만 수정할 수 있어요.'),
+                'billFormula' => $tl('This month = contract × (this month % − last month %)', 'Este mes = contrato × (% este mes − % mes anterior)', '당월 기성 = 계약금액 × (당월 % − 전월 %)'),
             ],
         ];
     }
