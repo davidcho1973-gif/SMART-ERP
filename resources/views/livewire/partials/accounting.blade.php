@@ -37,6 +37,20 @@
     </div>
 
     @if($tab === 'dashboard')
+        {{-- ---------- month navigator ---------- --}}
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button wire:click="acctMonthShift(-1)" title="{{ $lab['prevMonth'] }}" style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #16181D; cursor: pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div style="min-width: 130px; text-align: center; font-family: 'Space Grotesk'; font-weight: 700; font-size: 16px;">{{ $A['periodLabel'] }}</div>
+            <button wire:click="acctMonthShift(1)" @disabled($A['isThisMonth']) title="{{ $lab['nextMonth'] }}" style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: {{ $A['isThisMonth'] ? '#C4C1B8' : '#16181D' }}; cursor: {{ $A['isThisMonth'] ? 'not-allowed' : 'pointer' }};">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            @unless($A['isThisMonth'])
+                <button wire:click="acctMonthShift(0)" style="padding: 8px 13px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; color: #E85D2A; font-size: 12.5px; font-weight: 700; cursor: pointer;">{{ $lab['thisMonth'] }}</button>
+            @endunless
+        </div>
+
         {{-- ---------- KPI row ---------- --}}
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
             <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 15px; padding: 17px 18px;">
