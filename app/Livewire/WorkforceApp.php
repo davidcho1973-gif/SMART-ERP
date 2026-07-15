@@ -351,6 +351,71 @@ class WorkforceApp extends Component
 
     public string $matRejectNote = '';
 
+    // ---- accounting · equipment registry (M3 · STEP 2) ----
+    public ?string $equipModal = null;         // register | qr
+
+    public ?int $equipEditId = null;
+
+    public ?int $equipQrId = null;
+
+    public $equipFile = null;                  // nameplate / main photo at registration
+
+    public string $eqName = '';
+
+    public string $eqType = '';
+
+    public string $eqAcq = 'rented';           // owned | rented
+
+    public string $eqSerial = '';
+
+    public string $eqTag = '';
+
+    public string $eqSite = '';
+
+    public string $eqNote = '';
+
+    public string $eqMeter = '';
+
+    public string $eqMeterUnit = 'hours';
+
+    public string $eqPurchaseDate = '';
+
+    public string $eqPurchaseCost = '';
+
+    public string $eqLife = '';
+
+    public string $eqSalvage = '';
+
+    public string $eqVendor = '';
+
+    public string $eqRate = '';
+
+    public string $eqRateUnit = 'day';
+
+    public string $eqStart = '';
+
+    public string $eqEnd = '';
+
+    public string $eqDeposit = '';
+
+    public string $equipFilter = 'all';
+
+    public string $equipSearch = '';
+
+    public ?int $equipExpandId = null;
+
+    public ?int $coTarget = null;              // equipment being checked out
+
+    public string $coSite = '';
+
+    public string $coHolder = '';
+
+    public $eqPhotoFile = null;                // add-photo in the detail
+
+    public string $eqPhotoKind = 'side';
+
+    public ?int $eqPhotoTarget = null;
+
     // ---- worker mobile ----
     public string $mobileTab = 'home';
 
@@ -1552,6 +1617,310 @@ class WorkforceApp extends Component
         $this->matRejectId = null;
         $this->matRejectNote = '';
         $this->showToast($this->tl('Rejected', 'Rechazado', '반려했어요'));
+    }
+
+    // =================== accounting · equipment registry (M3 · STEP 2) ===================
+
+    /** Store an uploaded file (Livewire temp → durable disk) and return metadata. */
+    private function storeUpload($file, string $folder): array
+    {
+        $ext = strtolower($file->getClientOriginalExtension());
+        $disk = \App\Support\Attach::disk() ?? 'local';
+        $name = \Illuminate\Support\Str::uuid()->toString().'.'.$ext;
+        $path = $file->storeAs($folder, $name, $disk);
+
+        return [
+            'att_disk' => $disk, 'att_path' => $path,
+            'att_name' => mb_substr($file->getClientOriginalName(), 0, 180),
+            'att_mime' => \App\Support\Attach::MIME[$ext] ?? (string) $file->getMimeType(),
+            'att_size' => (int) $file->getSize(),
+        ];
+    }
+
+    private function uniqueEquipToken(): string
+    {
+        do {
+            $t = \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(8));
+        } while (\App\Models\Equipment::where('qr_token', $t)->exists());
+
+        return $t;
+    }
+
+    private function resetEquipForm(): void
+    {
+        $this->eqName = $this->eqType = $this->eqSerial = $this->eqTag = $this->eqNote = '';
+        $this->eqMeter = ''; $this->eqMeterUnit = 'hours'; $this->eqAcq = 'rented';
+        $this->eqPurchaseDate = $this->eqPurchaseCost = $this->eqLife = $this->eqSalvage = '';
+        $this->eqVendor = $this->eqRate = $this->eqStart = $this->eqEnd = $this->eqDeposit = '';
+        $this->eqRateUnit = 'day'; $this->equipFile = null;
+        $this->eqSite = ($this->site && $this->site !== 'all') ? $this->site : (\App\Models\Site::query()->value('id') ?? '');
+    }
+
+    public function openEquipRegister(): void
+    {
+        if (! $this->can('equipment.manage')) {
+            return;
+        }
+        $this->resetEquipForm();
+        $this->equipEditId = null;
+        $this->equipModal = 'register';
+    }
+
+    public function openEquipEdit(int $id): void
+    {
+        if (! $this->can('equipment.manage')) {
+            return;
+        }
+        $e = \App\Models\Equipment::find($id);
+        if (! $e) {
+            return;
+        }
+        $this->equipEditId = $id;
+        $this->eqName = $e->name; $this->eqType = $e->type ?? ''; $this->eqAcq = $e->acquisition;
+        $this->eqSerial = $e->serial ?? ''; $this->eqTag = $e->asset_tag ?? ''; $this->eqNote = $e->note ?? '';
+        $this->eqMeter = $e->meter !== null ? (string) $e->meter : ''; $this->eqMeterUnit = $e->meter_unit ?? 'hours';
+        $this->eqPurchaseDate = optional($e->purchase_date)->format('Y-m-d') ?? '';
+        $this->eqPurchaseCost = $e->purchase_cost !== null ? (string) $e->purchase_cost : '';
+        $this->eqLife = $e->useful_life_months !== null ? (string) $e->useful_life_months : '';
+        $this->eqSalvage = $e->salvage_value !== null ? (string) $e->salvage_value : '';
+        $this->eqVendor = $e->vendor ?? ''; $this->eqRate = $e->rental_rate !== null ? (string) $e->rental_rate : '';
+        $this->eqRateUnit = $e->rate_unit ?? 'day'; $this->eqStart = optional($e->rental_start)->format('Y-m-d') ?? '';
+        $this->eqEnd = optional($e->rental_end)->format('Y-m-d') ?? ''; $this->eqDeposit = $e->deposit !== null ? (string) $e->deposit : '';
+        $this->eqSite = $e->site_id ?? ''; $this->equipFile = null;
+        $this->equipModal = 'register';
+    }
+
+    public function closeEquip(): void
+    {
+        $this->equipModal = null;
+        $this->equipFile = null;
+    }
+
+    public function clearEquipFile(): void
+    {
+        $this->equipFile = null;
+    }
+
+    /** Read the nameplate with Gemini and pre-fill name / type / serial. */
+    public function readPlate(): void
+    {
+        if (! $this->equipFile || ! $this->can('equipment.manage')) {
+            return;
+        }
+        $an = new \App\Services\EquipmentPlateAnalyzer;
+        if (! $an->isConfigured()) {
+            return;
+        }
+        try {
+            $bytes = $this->equipFile->get();
+            $mime = (string) $this->equipFile->getMimeType();
+        } catch (\Throwable) {
+            return;
+        }
+        $out = $an->analyze($bytes, $mime);
+        if ($out === null) {
+            $this->showToast($this->tl('Could not read the plate — enter manually', 'No se pudo leer — ingresa manualmente', '명판을 읽지 못했어요 — 직접 입력해 주세요'));
+
+            return;
+        }
+        $name = trim($out['maker'].' '.$out['model']);
+        if ($name !== '') {
+            $this->eqName = mb_substr($name, 0, 160);
+        }
+        if ($out['type'] !== '') {
+            $this->eqType = $out['type'];
+        }
+        if ($out['serial'] !== '') {
+            $this->eqSerial = $out['serial'];
+        }
+        $spec = trim(implode(' · ', array_filter([$out['year'], $out['capacity']])));
+        if ($spec !== '' && $this->eqNote === '') {
+            $this->eqNote = $spec;
+        }
+        $this->showToast($this->tl('Plate read — please check the fields', 'Revisa los campos', '명판을 읽었어요 — 값을 확인해 주세요'));
+    }
+
+    public function submitEquip(): void
+    {
+        if (! $this->can('equipment.manage')) {
+            return;
+        }
+        $name = trim($this->eqName);
+        if ($name === '') {
+            $this->showToast($this->tl('Enter an equipment name', 'Ingresa un nombre', '장비명을 입력해 주세요'));
+
+            return;
+        }
+        if ($this->equipFile && \App\Support\Attach::reject($this->equipFile) !== null) {
+            $this->showToast($this->tl('That photo is not allowed', 'Foto no permitida', '허용되지 않는 사진입니다'));
+
+            return;
+        }
+        $num = fn ($v) => $v === '' ? null : (float) str_replace(',', '', $v);
+        $int = fn ($v) => $v === '' ? null : (int) $v;
+        $acq = in_array($this->eqAcq, ['owned', 'rented'], true) ? $this->eqAcq : 'rented';
+
+        $data = [
+            'name' => mb_substr($name, 0, 160),
+            'type' => mb_substr(trim($this->eqType), 0, 80) ?: null,
+            'acquisition' => $acq,
+            'serial' => mb_substr(trim($this->eqSerial), 0, 120) ?: null,
+            'asset_tag' => mb_substr(trim($this->eqTag), 0, 80) ?: null,
+            'site_id' => ($this->eqSite && $this->eqSite !== 'all') ? $this->eqSite : null,
+            'meter' => $num($this->eqMeter), 'meter_unit' => $this->eqMeterUnit === 'km' ? 'km' : 'hours',
+            'note' => mb_substr(trim($this->eqNote), 0, 200) ?: null,
+        ];
+        if ($acq === 'owned') {
+            $data += ['purchase_date' => $this->eqPurchaseDate ?: null, 'purchase_cost' => $num($this->eqPurchaseCost),
+                'useful_life_months' => $int($this->eqLife), 'salvage_value' => $num($this->eqSalvage),
+                'vendor' => null, 'rental_rate' => null, 'rental_start' => null, 'rental_end' => null, 'deposit' => null];
+        } else {
+            $data += ['vendor' => mb_substr(trim($this->eqVendor), 0, 120) ?: null, 'rental_rate' => $num($this->eqRate),
+                'rate_unit' => in_array($this->eqRateUnit, ['day', 'week', 'month'], true) ? $this->eqRateUnit : 'day',
+                'rental_start' => $this->eqStart ?: null, 'rental_end' => $this->eqEnd ?: null, 'deposit' => $num($this->eqDeposit),
+                'purchase_date' => null, 'purchase_cost' => null, 'useful_life_months' => null, 'salvage_value' => null];
+        }
+
+        try {
+            if ($this->equipEditId) {
+                $e = \App\Models\Equipment::find($this->equipEditId);
+                if (! $e) {
+                    return;
+                }
+                $e->update($data);
+            } else {
+                $data['qr_token'] = $this->uniqueEquipToken();
+                $data['created_by'] = $this->actorEmployee()?->id;
+                $data['status'] = 'available';
+                $e = \App\Models\Equipment::create($data);
+            }
+            if ($this->equipFile) {
+                $e->photos()->create(array_merge(['kind' => 'plate'], $this->storeUpload($this->equipFile, 'equipment/'.$e->id)));
+            }
+        } catch (\Throwable $ex) {
+            report($ex);
+            $this->showToast($this->tl('Could not save — try again', 'No se pudo guardar', '저장하지 못했어요 — 다시 시도해 주세요'));
+
+            return;
+        }
+
+        $this->equipModal = null;
+        $this->equipFile = null;
+        $this->showToast($this->tl('Equipment saved', 'Equipo guardado', '장비를 저장했어요'));
+    }
+
+    public function toggleEquipExpand(int $id): void
+    {
+        $this->equipExpandId = $this->equipExpandId === $id ? null : $id;
+        $this->eqPhotoTarget = $this->equipExpandId;
+        $this->eqPhotoFile = null;
+        $this->coTarget = null;
+    }
+
+    public function addEquipPhoto(): void
+    {
+        if (! $this->can('equipment.manage') || ! $this->eqPhotoFile || ! $this->eqPhotoTarget) {
+            return;
+        }
+        if (\App\Support\Attach::reject($this->eqPhotoFile) !== null) {
+            $this->showToast($this->tl('That photo is not allowed', 'Foto no permitida', '허용되지 않는 사진입니다'));
+
+            return;
+        }
+        $e = \App\Models\Equipment::find($this->eqPhotoTarget);
+        if (! $e) {
+            return;
+        }
+        try {
+            $att = $this->storeUpload($this->eqPhotoFile, 'equipment/'.$e->id);
+        } catch (\Throwable $ex) {
+            report($ex);
+            $this->showToast($this->tl('Could not save the photo', 'No se pudo guardar la foto', '사진을 저장하지 못했어요'));
+
+            return;
+        }
+        $kind = in_array($this->eqPhotoKind, \App\Models\EquipmentPhoto::KINDS, true) ? $this->eqPhotoKind : 'side';
+        $e->photos()->create(array_merge(['kind' => $kind], $att));
+        $this->eqPhotoFile = null;
+        $this->showToast($this->tl('Photo added', 'Foto agregada', '사진을 추가했어요'));
+    }
+
+    public function removeEquipPhoto(int $id): void
+    {
+        if (! $this->can('equipment.manage')) {
+            return;
+        }
+        \App\Models\EquipmentPhoto::where('id', $id)->delete();
+    }
+
+    public function openEquipQr(int $id): void
+    {
+        if (! $this->can('equipment.manage')) {
+            return;
+        }
+        $this->equipQrId = $id;
+        $this->equipModal = 'qr';
+    }
+
+    public function askCheckout(int $id): void
+    {
+        if (! $this->can('equipment.checkout')) {
+            return;
+        }
+        $e = \App\Models\Equipment::find($id);
+        if (! $e) {
+            return;
+        }
+        $this->coTarget = $id;
+        $this->coSite = $e->site_id ?: (($this->site && $this->site !== 'all') ? $this->site : (\App\Models\Site::query()->value('id') ?? ''));
+        $this->coHolder = '';
+    }
+
+    public function cancelCheckout(): void
+    {
+        $this->coTarget = null;
+    }
+
+    public function doCheckout(int $id): void
+    {
+        if (! $this->can('equipment.checkout')) {
+            return;
+        }
+        $e = \App\Models\Equipment::find($id);
+        if (! $e) {
+            return;
+        }
+        $site = ($this->coSite && $this->coSite !== 'all') ? $this->coSite : null;
+        if (! $site) {
+            $this->showToast($this->tl('Pick a site', 'Elige una obra', '현장을 선택해 주세요'));
+
+            return;
+        }
+        $holder = $this->coHolder !== '' ? (int) $this->coHolder : null;
+        $e->update(['status' => 'out', 'site_id' => $site, 'holder_id' => $holder]);
+        $e->events()->create(['type' => 'checkout', 'site_id' => $site, 'employee_id' => $holder ?? $this->actorEmployee()?->id, 'at' => now(), 'meter' => $e->meter]);
+        $this->coTarget = null;
+        $this->showToast($this->tl('Checked out', 'Asignado', '현장에 배치했어요'));
+    }
+
+    /** Move equipment to a non-checkout status (available=checkin · maintenance · returned). */
+    public function equipStatus(int $id, string $status): void
+    {
+        if (! $this->can('equipment.checkout') || ! in_array($status, ['available', 'maintenance', 'returned'], true)) {
+            return;
+        }
+        $e = \App\Models\Equipment::find($id);
+        if (! $e) {
+            return;
+        }
+        $type = match ($status) { 'available' => 'checkin', 'maintenance' => 'maintenance', default => 'return' };
+        $upd = ['status' => $status];
+        if (in_array($status, ['available', 'returned'], true)) {
+            $upd['holder_id'] = null;
+        }
+        $e->update($upd);
+        $e->events()->create(['type' => $type, 'site_id' => $e->site_id, 'employee_id' => $this->actorEmployee()?->id, 'at' => now(), 'meter' => $e->meter]);
+        $this->showToast($this->tl('Updated', 'Actualizado', '상태를 바꿨어요'));
     }
 
     // =================== internal comms ===================
@@ -4177,6 +4546,9 @@ class WorkforceApp extends Component
             'matSection' => $this->matSection, 'matModal' => $this->matModal, 'matKind' => $this->matKind,
             'matFilter' => $this->matFilter, 'matSearch' => $this->matSearch,
             'matExpandId' => $this->matExpandId, 'matRejectId' => $this->matRejectId, 'matSite' => $this->matSite,
+            'equipModal' => $this->equipModal, 'equipEditId' => $this->equipEditId, 'equipQrId' => $this->equipQrId,
+            'eqAcq' => $this->eqAcq, 'equipFilter' => $this->equipFilter, 'equipSearch' => $this->equipSearch,
+            'equipExpandId' => $this->equipExpandId, 'coTarget' => $this->coTarget, 'eqPhotoKind' => $this->eqPhotoKind,
             'expCategory' => $this->expCategory, 'expSite' => $this->expSite,
             'mobileTab' => $this->mobileTab, 'clock' => $this->clock, 'clockInTime' => $this->clockInTime,
             'earlyOpen' => $this->earlyOpen, 'earlyReasonVal' => $this->earlyReasonVal, 'earlyCustom' => $this->earlyCustom,
@@ -4194,6 +4566,8 @@ class WorkforceApp extends Component
                 'contractsManage' => $this->can('contracts.manage'),
                 'materialsSubmit' => $this->can('materials.submit'),
                 'materialsDecide' => $this->can('materials.decide'),
+                'equipmentManage' => $this->can('equipment.manage'),
+                'equipmentCheckout' => $this->can('equipment.checkout'),
                 'sitesCreate' => $this->can('sites.create'),
                 'sitesDelete' => $this->can('sites.delete'),
                 'companiesCreate' => $this->can('companies.create'),
