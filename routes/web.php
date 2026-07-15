@@ -7,6 +7,7 @@ use App\Http\Controllers\MaterialSlipController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\TimesheetExportController;
+use App\Livewire\EquipScan;
 use App\Livewire\JoinForm;
 use App\Livewire\ScanClock;
 use App\Livewire\SignupPoster;
@@ -26,6 +27,9 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
 
 // Opened when a worker scans a posted crew/site QR with their phone.
 Route::get('/scan/{team}', ScanClock::class)->middleware('auth');
+
+// Opened when someone scans a piece of equipment's printed QR (check-out / in).
+Route::get('/e/{token}', EquipScan::class)->middleware('auth');
 
 // Internal-comms attachment — streamed only to members of the channel.
 Route::get('/comms/file/{message}', CommsFileController::class)->middleware('auth');
