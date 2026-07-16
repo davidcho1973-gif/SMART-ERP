@@ -1,0 +1,82 @@
+name: Agent task
+description: Plan an implementation or review task for Claude, Codex, and the human owner.
+title: "[Task] "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Describe the user or business outcome, not only the code change.
+      placeholder: What should be different when this task is complete?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable and testable completion conditions.
+      placeholder: |
+        - Given ..., when ..., then ...
+        - composer test passes
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: State what this task must not change.
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk level
+      options:
+        - Low - docs, tests, or isolated presentation
+        - Medium - normal application behavior
+        - High - auth, RBAC, payroll, accounting, attendance, GPS, uploads, migration, or deploy
+    validations:
+      required: true
+
+  - type: dropdown
+    id: implementer
+    attributes:
+      label: Implementer
+      options:
+        - Codex
+        - Claude
+        - Human
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reviewer
+    attributes:
+      label: Independent reviewer
+      options:
+        - Claude
+        - Codex
+        - Human
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Expected files and hotspots
+      description: Call out WorkforceApp.php, ViewModel.php, lang files, migrations, or other shared hotspots.
+
+  - type: textarea
+    id: security-data
+    attributes:
+      label: Authorization, privacy, and data impact
+      description: Document roles, site scope, PII, uploads, migrations, and rollback concerns.
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      placeholder: Tests, build commands, screenshots, staging checks, and rollback steps.
+    validations:
+      required: true
