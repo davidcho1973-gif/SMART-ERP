@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Punch extends Model
 {
     protected $fillable = [
-        'employee_id', 'work_date', 'in_min', 'out_min', 'no_lunch', 'early_reason', 'source',
+        'employee_id', 'work_date', 'in_min', 'out_min', 'out_auto', 'no_lunch', 'early_reason', 'source',
         'team_id', 'company_id', 'site_id',
         'in_lat', 'in_lng', 'in_acc', 'out_lat', 'out_lng', 'out_acc', 'in_geo_ok', 'out_geo_ok',
         'adj_in_min', 'adj_out_min', 'adj_reason', 'adj_by',
@@ -18,6 +18,7 @@ class Punch extends Model
         'in_min' => 'integer',
         'out_min' => 'integer',
         'no_lunch' => 'boolean',
+        'out_auto' => 'boolean',
         'in_lat' => 'float',
         'in_lng' => 'float',
         'in_acc' => 'float',

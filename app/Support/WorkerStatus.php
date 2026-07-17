@@ -87,8 +87,14 @@ class WorkerStatus
                     $t('Left early', 'Salió antes', '조퇴').' · '.Shift::fmtMin($punch->out_min).' · '.$t('reason', 'motivo', '사유').': '.$punch->early_reason, 3);
             }
 
+            // an auto-filled clock-out (worker forgot to clock out; end-of-day close
+            // stamped the scheduled end) is flagged so a lead knows to verify it
+            $autoTag = $punch->out_auto
+                ? ' · '.$t('auto — verify', 'auto — verificar', '자동 마감 · 확인 필요')
+                : '';
+
             return self::make('done', $t('Clocked out', 'Salió', '퇴근'), '#5A5D64', '#EFEFEC', '#5A5D64',
-                Shift::fmtMin($punch->out_min).' '.$t('out', 'salida', '퇴근'), 2);
+                Shift::fmtMin($punch->out_min).' '.$t('out', 'salida', '퇴근').$autoTag, 2);
         }
 
         // 5) no punch. On a non-scheduled day the person is simply off.

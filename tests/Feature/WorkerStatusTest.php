@@ -125,4 +125,82 @@ class WorkerStatusTest extends TestCase
         $this->artisan('attendance:close-day', ['date' => '2026-07-12'])->assertOk();
         $this->assertSame(0, Absence::where('work_date', '2026-07-12')->count());
     }
+
+    public function test_close_day_auto_closes_a_missing_clockout_to_scheduled_end(): void
+    {
+        // clocked in at 5:00 (300), never clocked out; snapshot end = 14:00 (840)
+        $p = Punch::create(['employee_id' => 106, 'work_date' => '2026-07-08', 'in_min' => 300,
+            'source' => 'qr', 'shift_in_snap' => 300, 'shift_out_snap' => 840]);
+        $this->assertNull($p->out_min);
+
+        $this->artisan('attendance:close-day', ['date' => '2026-07-08'])->assertOk();
+
+        $p->refresh();
+        $this->assertSame(840, $p->out_min);   // filled to the scheduled end
+        $this->assertTrue($p->out_auto);       // flagged for review
+    }
+
+    public function test_auto_close_falls_back_to_crew_shift_when_no_snapshot(): void
+    {
+        // no snapshot on the punch → recompute from the crew's shift (300 → 840)
+        Punch::create(['employee_id' => 106, 'work_date' => '2026-07-08', 'in_min' => 300, 'team_id' => 'tt', 'source' => 'qr']);
+
+        $this->artisan('attendance:close-day', ['date' => '2026-07-08'])->assertOk();
+
+        $p = Punch::where('employee_id', 106)->where('work_date', '2026-07-08')->first();
+        $this->assertSame(840, $p->out_min);
+        $this->assertTrue($p->out_auto);
+    }
+
+    public function test_auto_close_leaves_a_completed_punch_untouched(): void
+    {
+        Punch::create(['employee_id' => 106, 'work_date' => '2026-07-08', 'in_min' => 300, 'out_min' => 800,
+            'source' => 'qr', 'shift_out_snap' => 840]);
+
+        $this->artisan('attendance:close-day', ['date' => '2026-07-08'])->assertOk();
+
+        $p = Punch::where('employee_id', 106)->where('work_date', '2026-07-08')->first();
+        $this->assertSame(800, $p->out_min);   // real out kept, not overwritten to 840
+        $this->assertFalse((bool) $p->out_auto);
+    }
+
+    public function test_auto_close_skips_when_scheduled_end_precedes_clock_in(): void
+    {
+        // clocked in AFTER the scheduled end (e.g. bad data / night shift) → left for manual review
+        Punch::create(['employee_id' => 106, 'work_date' => '2026-07-08', 'in_min' => 900,
+            'source' => 'qr', 'shift_out_snap' => 840]);
+
+        $this->artisan('attendance:close-day', ['date' => '2026-07-08'])->assertOk();
+
+        $p = Punch::where('employee_id', 106)->where('work_date', '2026-07-08')->first();
+        $this->assertNull($p->out_min);        // not force-closed backwards
+        $this->assertFalse((bool) $p->out_auto);
+    }
+
+    public function test_worker_status_flags_an_auto_closed_day_for_review(): void
+    {
+        $day = '2026-07-08';
+        $now = Carbon::parse('2026-07-09 09:00');   // reviewing the day after
+        $auto = new Punch(['work_date' => $day, 'in_min' => 300, 'out_min' => 840]);
+        $auto->out_auto = true;
+
+        $s = $this->st($day, $now, ['punch' => $auto]);
+        $this->assertSame('done', $s['key']);
+        $this->assertStringContainsString('자동 마감', $s['detail']);
+    }
+
+    public function test_auto_closed_day_now_counts_toward_pay(): void
+    {
+        // an open punch is invisible to payroll (no out) → the worker would be unpaid
+        Punch::create(['employee_id' => 106, 'work_date' => '2026-07-08', 'in_min' => 300, 'team_id' => 'tt',
+            'source' => 'qr', 'shift_in_snap' => 300, 'shift_out_snap' => 840]);
+        $this->assertNull(\App\Support\Payroll::periodHoursFromPunches(106, '2026-07-06', '2026-07-10'));
+
+        $this->artisan('attendance:close-day', ['date' => '2026-07-08'])->assertOk();
+
+        // after auto-close the day is a complete punch and produces paid hours
+        $hours = \App\Support\Payroll::periodHoursFromPunches(106, '2026-07-06', '2026-07-10');
+        $this->assertNotNull($hours);
+        $this->assertGreaterThan(0, $hours);
+    }
 }
