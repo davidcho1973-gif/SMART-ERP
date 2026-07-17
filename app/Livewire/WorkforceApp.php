@@ -3466,6 +3466,7 @@ class WorkforceApp extends Component
         if ($dir === 'in') {
             $p->in_min = $p->in_min ?? $nowMin;
             $p->out_min = null;
+            $p->out_auto = false;
             $p->source = 'manual';
             $p->team_id = $p->team_id ?? $e->team_id;
             $p->company_id = $p->company_id ?? $e->company_id;
@@ -3478,6 +3479,7 @@ class WorkforceApp extends Component
         } else {
             if ($p->exists && $p->in_min !== null) {
                 $p->out_min = $nowMin;
+                $p->out_auto = false;   // a human set the real out time
                 $p->save();
             }
             $e->update(['status' => 'off', 'out_t' => $now]);
@@ -3623,6 +3625,7 @@ class WorkforceApp extends Component
             'adj_out_min' => $out,
             'adj_reason' => trim($this->adjPaidReason),
             'adj_by' => $this->actorEmployee()?->id,
+            'out_auto' => false,   // a lead has reviewed & set the paid time
         ]);
         $this->audit('attendance.adjust',
             ($e ? $e->first.' '.$e->last.' (#'.$e->id.')' : '#'.$p->employee_id),
