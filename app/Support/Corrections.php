@@ -154,6 +154,7 @@ class Corrections
             $p = Punch::firstOrNew(['employee_id' => $c->employee_id, 'work_date' => $c->work_date]);
             $p->in_min = $applIn;
             $p->out_min = $applOut;
+            $p->out_auto = false;   // an approved correction is the reviewed real time
             $p->source = 'manual';
             // an approved correction supersedes any earlier lead adjustment —
             // a stale adj_* would silently override the corrected times in settle()
