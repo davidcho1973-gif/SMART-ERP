@@ -55,6 +55,39 @@ class SiteSignupTest extends TestCase
         $this->assertNull(User::where('email', 'marcus@email.com')->first());   // no login yet
     }
 
+    public function test_small_selfie_is_stored_but_oversized_or_garbage_is_dropped(): void
+    {
+        $token = $this->token();
+
+        // a normal (downscaled) selfie data URI is kept
+        $ok = 'data:image/jpeg;base64,'.base64_encode(str_repeat('x', 4000));
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Ana')->set('last', 'Cruz')->set('email', 'ana@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->set('selfie', $ok)
+            ->call('submit')->assertSet('submitted', true);
+        $this->assertSame($ok, Employee::where('email', 'ana@email.com')->value('badge_photo'));
+
+        // an oversized blob (a raw un-shrunk photo) is dropped, NOT crashed → still registers
+        $huge = 'data:image/jpeg;base64,'.base64_encode(str_repeat('y', 400_000));
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Bob')->set('last', 'Kim')->set('email', 'bob@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->set('selfie', $huge)
+            ->call('submit')->assertSet('submitted', true);
+        $bob = Employee::where('email', 'bob@email.com')->first();
+        $this->assertNotNull($bob);                 // sign-up succeeded (no 500)
+        $this->assertNull($bob->badge_photo);        // oversized selfie was dropped
+
+        // a non-image string is also dropped
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Cid')->set('last', 'Ro')->set('email', 'cid@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->set('selfie', 'not-a-data-uri')
+            ->call('submit')->assertSet('submitted', true);
+        $this->assertNull(Employee::where('email', 'cid@email.com')->value('badge_photo'));
+    }
+
     public function test_pending_employee_cannot_log_in_before_approval(): void
     {
         $token = $this->token();
