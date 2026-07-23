@@ -106,6 +106,73 @@ class SiteSignupTest extends TestCase
             ->assertSet('invalid', true);
     }
 
+    public function test_first_onsite_signup_bootstraps_the_site_geofence(): void
+    {
+        $s2 = Site::find('s2');                 // seeded without a geofence
+        $this->assertNull($s2->lat);
+        $token = $s2->ensureJoinToken();
+
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Ivan')->set('email', 'ivan@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->call('setGeo', 33.30539, -111.90478, 18)   // accurate GPS fix on site
+            ->call('submit')->assertSet('submitted', true);
+
+        $s2->refresh();
+        $this->assertEqualsWithDelta(33.30539, (float) $s2->lat, 0.00001);
+        $this->assertEqualsWithDelta(-111.90478, (float) $s2->lng, 0.00001);
+        $this->assertGreaterThan(0, $s2->radius_m);      // default radius applied
+    }
+
+    public function test_signup_never_overwrites_an_existing_geofence(): void
+    {
+        $s1 = Site::find('s1');                 // seeded WITH a geofence
+        $this->assertNotNull($s1->lat);
+        [$lat0, $lng0] = [(float) $s1->lat, (float) $s1->lng];
+        $token = $s1->ensureJoinToken();
+
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Jo')->set('email', 'jo@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->call('setGeo', 10.0, 10.0, 12)              // a wildly different position
+            ->call('submit')->assertSet('submitted', true);
+
+        $s1->refresh();
+        $this->assertEqualsWithDelta($lat0, (float) $s1->lat, 0.00001);   // unchanged
+        $this->assertEqualsWithDelta($lng0, (float) $s1->lng, 0.00001);
+    }
+
+    public function test_coarse_gps_fix_does_not_bootstrap_the_geofence(): void
+    {
+        $s3 = Site::find('s3');
+        $token = $s3->ensureJoinToken();
+
+        Livewire::test(JoinForm::class, ['token' => $token])
+            ->set('first', 'Kai')->set('email', 'kai@email.com')
+            ->set('password', 'Savannah1')->set('passwordConfirm', 'Savannah1')
+            ->call('setGeo', 33.3, -111.9, 5000)          // ~5 km accuracy (IP-based) → ignored
+            ->call('submit')->assertSet('submitted', true);
+
+        $s3->refresh();
+        $this->assertNull($s3->lat);   // not set from a coarse fix
+    }
+
+    public function test_open_site_qr_mints_a_token_and_exposes_the_qr(): void
+    {
+        $s2 = Site::find('s2');
+        $this->assertEmpty($s2->join_token);
+
+        $c = Livewire::test(WorkforceApp::class)
+            ->call('demo', 'admin')
+            ->call('go', 'projects')
+            ->call('openSiteQr', 's2')
+            ->assertSet('siteQrModal', 's2');
+
+        $this->assertNotEmpty(Site::find('s2')->join_token);   // token minted on open
+        $c->assertViewHas('projects', fn ($p) => ! empty($p['siteQr']['joinQrSvg'])
+            && str_contains($p['siteQr']['joinPosterUrl'], '/poster'));
+    }
+
     public function test_duplicate_email_is_rejected(): void
     {
         $token = $this->token();

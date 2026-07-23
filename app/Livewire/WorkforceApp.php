@@ -235,6 +235,8 @@ class WorkforceApp extends Component
     // ---- site geofence (location + radius) editor ----
     public ?string $siteModal = null;  // site id being edited
 
+    public ?string $siteQrModal = null;  // site id whose self-sign-up QR is shown
+
     public string $siteLat = '';
 
     public string $siteLng = '';
@@ -3004,6 +3006,22 @@ class WorkforceApp extends Component
         $this->siteModal = null;
     }
 
+    /** Show a site's self-sign-up QR on its own — no need to open the geofence editor. */
+    public function openSiteQr(string $id): void
+    {
+        $site = Site::find($id);
+        if (! $site) {
+            return;
+        }
+        $site->ensureJoinToken();   // mint the token so the QR/poster resolve
+        $this->siteQrModal = $id;
+    }
+
+    public function closeSiteQr(): void
+    {
+        $this->siteQrModal = null;
+    }
+
     /** Fill the lat/lng fields from the admin's current position ("현재 위치로 설정"). */
     public function setSiteCurrentLocation(float|string|null $lat, float|string|null $lng): void
     {
@@ -4534,7 +4552,7 @@ class WorkforceApp extends Component
             'companyModal' => $this->companyModal, 'teamModal' => $this->teamModal,
             'editCompanyId' => $this->editCompanyId, 'editTeamId' => $this->editTeamId,
             'deleteCompanyId' => $this->deleteCompanyId, 'deleteTeamId' => $this->deleteTeamId,
-            'siteModal' => $this->siteModal, 'siteLat' => $this->siteLat, 'siteLng' => $this->siteLng, 'siteRadius' => $this->siteRadius,
+            'siteModal' => $this->siteModal, 'siteQrModal' => $this->siteQrModal, 'siteLat' => $this->siteLat, 'siteLng' => $this->siteLng, 'siteRadius' => $this->siteRadius,
             'siteName' => $this->siteName, 'siteCity' => $this->siteCity, 'deleteSiteId' => $this->deleteSiteId,
             'newCoName' => $this->newCoName, 'newCoSite' => $this->newCoSite,
             'newTeamName' => $this->newTeamName, 'newTeamLead' => $this->newTeamLead,

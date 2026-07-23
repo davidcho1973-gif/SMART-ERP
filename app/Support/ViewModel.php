@@ -646,6 +646,8 @@ class ViewModel
         ])->all();
         $siteModalId = $s['siteModal'] ?? null;
         $siteModal = $siteModalId ? ($siteById->get($siteModalId)) : null;
+        $siteQrId = $s['siteQrModal'] ?? null;
+        $siteQr = $siteQrId ? ($siteById->get($siteQrId)) : null;
         $delSiteId = $s['deleteSiteId'] ?? null;
         $delSite = $delSiteId ? $siteById->get($delSiteId) : null;
 
@@ -1159,6 +1161,14 @@ class ViewModel
                     'joinUrl' => $siteModal->join_token ? url('/join/'.$siteModal->join_token) : '',
                     'joinPosterUrl' => $siteModal->join_token ? url('/join/'.$siteModal->join_token.'/poster') : '',
                     'joinQrSvg' => $siteModal->join_token ? RealQr::svg(url('/join/'.$siteModal->join_token), 132) : '',
+                ] : null,
+                'siteQr' => $siteQr ? [
+                    'id' => $siteQr->id,
+                    'name' => trim($siteQr->name.($siteQr->city ? ' · '.$siteQr->city : '')),
+                    'hasGeo' => $siteQr->lat !== null && $siteQr->lng !== null,
+                    'joinUrl' => $siteQr->join_token ? url('/join/'.$siteQr->join_token) : '',
+                    'joinPosterUrl' => $siteQr->join_token ? url('/join/'.$siteQr->join_token.'/poster') : '',
+                    'joinQrSvg' => $siteQr->join_token ? RealQr::svg(url('/join/'.$siteQr->join_token), 200) : '',
                 ] : null,
                 'siteLat' => $s['siteLat'] ?? '', 'siteLng' => $s['siteLng'] ?? '', 'siteRadius' => $s['siteRadius'] ?? '',
                 'delSiteName' => $delSite ? trim($delSite->name.($delSite->city ? ' · '.$delSite->city : '')) : null,
