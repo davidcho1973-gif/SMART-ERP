@@ -10,8 +10,8 @@
             <div style="font-size: 12px; color: #8A8880; margin-bottom: 14px; line-height: 1.4;">{{ $L['pj_siteGeoHint'] }}</div>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;">
                 @foreach($projects['sites'] as $st)
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
-                        <div style="flex: 1;">
+                    <div style="display: flex; flex-direction: column; gap: 11px; padding: 13px 15px; border: 1px solid #F0EEE8; border-radius: 12px; background: #FAFAF8;">
+                        <div>
                             <div style="font-size: 14px; font-weight: 600;">{{ $st['name'] }}</div>
                             <div style="font-size: 12px; color: #8A8880; margin-top: 2px;">{{ $st['city'] }}</div>
                             @if($st['hasGeo'])
@@ -21,8 +21,11 @@
                             @endif
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px;">
-                            <button wire:click="openSiteModal('{{ $st['id'] }}')" style="padding: 8px 13px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_setLocation'] }}</button>
-                            @if($can['sitesDelete'] ?? true)<button wire:click="askDeleteSite('{{ $st['id'] }}')" title="{{ $L['pj_delete'] }}" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #F3D9CB; border-radius: 8px; background: #fff; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>@endif
+                            <button wire:click="openSiteModal('{{ $st['id'] }}')" style="flex: 1; padding: 8px 10px; border: 1px solid #E4E2DB; border-radius: 9px; background: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;">{{ $L['pj_setLocation'] }}</button>
+                            <button wire:click="openSiteQr('{{ $st['id'] }}')" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: none; border-radius: 9px; background: #16181D; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7M14 21h7"/></svg>{{ $L['pj_printQr'] }}
+                            </button>
+                            @if($can['sitesDelete'] ?? true)<button wire:click="askDeleteSite('{{ $st['id'] }}')" title="{{ $L['pj_delete'] }}" style="width: 34px; height: 34px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #F3D9CB; border-radius: 8px; background: #fff; cursor: pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D9483B" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>@endif
                         </div>
                     </div>
                 @endforeach
@@ -205,6 +208,36 @@
             <div style="display: flex; gap: 10px; margin-top: 22px;">
                 <button wire:click="cancelSiteModal" style="flex: 1; padding: 12px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_cancel'] }}</button>
                 <button wire:click="saveSiteGeo" style="flex: 1; padding: 12px; border: none; border-radius: 11px; background: #E85D2A; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">{{ $L['pj_saveEdit'] }}</button>
+            </div>
+        </div>
+    </div>
+@endif
+
+{{-- self-sign-up QR — opened straight from a site card (no need for the geofence editor) --}}
+@if(!empty($projects['siteQr']))
+    @php $sq = $projects['siteQr']; @endphp
+    <div style="position: fixed; inset: 0; z-index: 74; background: rgba(22,24,29,0.55); display: flex; align-items: center; justify-content: center; padding: 20px;">
+        <div style="width: 380px; max-width: 100%; background: #fff; border-radius: 18px; padding: 24px; text-align: center;" x-data="{ copied: false }">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+                <div style="font-size: 16px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px;">🛂 {{ $L['pj_qrModalT'] }}</div>
+                <button wire:click="closeSiteQr" style="border: none; background: transparent; font-size: 22px; line-height: 1; color: #8A8880; cursor: pointer;">×</button>
+            </div>
+            <div style="font-size: 13px; font-weight: 600; color: #16181D; margin: 6px 0 16px;">{{ $sq['name'] }}</div>
+
+            <div style="display: inline-flex; padding: 14px; background: #fff; border: 1px solid #ECEAE3; border-radius: 14px;">{!! $sq['joinQrSvg'] !!}</div>
+
+            <div style="font-size: 11.5px; color: #8A8880; margin: 14px 0 0; line-height: 1.5; background: #F1F7FF; border: 1px solid #DCE9FB; border-radius: 10px; padding: 10px 12px; text-align: left; display: flex; gap: 8px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3B72E0" stroke-width="2" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                <span>{{ $L['pj_qrAutoGeo'] }}</span>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button type="button"
+                    @click="navigator.clipboard && navigator.clipboard.writeText('{{ $sq['joinUrl'] }}').then(() => { copied = true; setTimeout(() => copied = false, 1600); })"
+                    style="flex: 1; padding: 11px; border: 1px solid #E4E2DB; border-radius: 11px; background: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">
+                    <span x-show="!copied">🔗 {{ $L['pj_copyLink'] }}</span><span x-show="copied" x-cloak style="color: #1F9D6B;">✓ {{ $L['pj_copied'] }}</span>
+                </button>
+                <a href="{{ $sq['joinPosterUrl'] }}" target="_blank" style="flex: 1.3; padding: 11px; border: none; border-radius: 11px; background: #16181D; color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">🖨️ {{ $L['pj_joinPoster'] }}</a>
             </div>
         </div>
     </div>

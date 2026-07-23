@@ -30,7 +30,15 @@
                 @endforeach
             </div>
 
-            <div style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 22px 20px 26px;">
+            <div x-data x-init="
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            p => $wire.setGeo(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+                            () => {},
+                            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                        );
+                    }
+                " style="background: #fff; border: 1px solid #E4E2DB; border-radius: 18px; padding: 22px 20px 26px;">
                 <div style="font-size: 19px; font-weight: 800;">{{ $L['j_title'] }}</div>
                 <div style="font-size: 12.5px; color: #8A8880; margin: 4px 0 18px;">{{ $siteName }} · {{ $L['j_sub'] }}</div>
 
