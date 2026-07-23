@@ -64,8 +64,29 @@
                 <div style="margin-top: 14px;">
                     <span style="font-size: 11.5px; color: #8A8880;">{{ $L['j_selfie'] }}</span>
                     <div x-data="{
-                            read(e){ const f = e.target.files[0]; if(!f) return; const r = new FileReader();
-                                r.onload = () => @this.set('selfie', r.result); r.readAsDataURL(f); }
+                            /* Downscale the selfie to a small thumbnail BEFORE sending it up.
+                               A raw phone photo is several MB of base64 — it overflows the
+                               badge_photo column and the request size limit (a 500). We shrink
+                               the longest side to 480px and re-encode as JPEG (~30–60KB). */
+                            shrink(img){
+                                const max = 480, s = Math.min(1, max / Math.max(img.width, img.height));
+                                const w = Math.max(1, Math.round(img.width * s)), h = Math.max(1, Math.round(img.height * s));
+                                const c = document.createElement('canvas'); c.width = w; c.height = h;
+                                c.getContext('2d').drawImage(img, 0, 0, w, h);
+                                return c.toDataURL('image/jpeg', 0.7);
+                            },
+                            async read(e){
+                                const f = e.target.files[0]; if(!f) return;
+                                try {
+                                    const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
+                                    const url = this.shrink(bmp); if (bmp.close) bmp.close();
+                                    @this.set('selfie', url);
+                                } catch (err) {
+                                    const r = new FileReader();
+                                    r.onload = () => { const img = new Image(); img.onload = () => @this.set('selfie', this.shrink(img)); img.src = r.result; };
+                                    r.readAsDataURL(f);
+                                }
+                            }
                         }" style="margin-top: 5px;">
                         @if($selfie)
                             <div style="display: flex; align-items: center; gap: 12px;">

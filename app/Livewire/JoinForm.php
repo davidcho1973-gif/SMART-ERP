@@ -125,6 +125,12 @@ class JoinForm extends Component
 
         RateLimiter::hit($rl, 60);
         $company = Company::where('site_id', $this->site->id)->first();
+        // Backstop: the selfie is downscaled client-side, but never trust the client —
+        // only store a real, reasonably-sized data-URI image; drop anything else so an
+        // oversized/garbled value can't overflow the column and 500 the sign-up.
+        $selfie = $this->selfie;
+        $selfie = (is_string($selfie) && str_starts_with($selfie, 'data:image/') && strlen($selfie) <= 200_000)
+            ? $selfie : null;
         Employee::create([
             'emp_id' => $this->pendingId(),
             'first' => $first, 'last' => $last,
@@ -137,7 +143,7 @@ class JoinForm extends Component
             'lang' => $this->lang,
             'rate' => 0,
             'phone' => $phone, 'email' => $email,
-            'badge_photo' => $this->selfie ?: null,
+            'badge_photo' => $selfie,
             'join_password' => Hash::make($this->password),
             'status' => 'off', 'in_t' => '—', 'out_t' => '—', 'wh' => 0,
             'emp' => 'pending', 'term' => null, 'activated_at' => null,
